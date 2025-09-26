@@ -3,7 +3,7 @@ using PurrplingCore.Toolkit.Extensions;
 using System;
 using System.Collections.Generic;
 
-namespace KittyCat.Core.Extensions;
+namespace KittyCat.Extensions;
 
 public static class SystemGroupExtensions
 {

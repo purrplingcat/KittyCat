@@ -1,7 +1,4 @@
-﻿using KittyCat.Core;
-using KittyCat.Core.Configuration;
-using KittyCat.Core.Scenes;
-using Microsoft.Extensions.DependencyInjection;
+﻿using KittyCat;
 using Microsoft.Extensions.Logging;
 using PurrplingCore.Toolkit;
 using PurrplingCore.Toolkit.DI;

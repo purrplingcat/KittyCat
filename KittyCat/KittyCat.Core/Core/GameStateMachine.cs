@@ -1,13 +1,13 @@
-﻿using KittyCat.Core.Messages;
+﻿using KittyCat.Messages;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Messaging;
 using System;
 using System.Collections.Generic;
 
-namespace KittyCat.Core.Services;
+namespace KittyCat.Core;
 
 [Singleton]
-public class GameStateMachine // Přejmenováno pro srozumitelnost
+public class GameStateMachine
 {
     private readonly IMessageBus _messageBus;
     private readonly Dictionary<GameState, List<IGameStateHandler>> _handlerMap = [];
@@ -49,16 +49,4 @@ public class GameStateMachine // Přejmenováno pro srozumitelnost
         StateChanged?.Invoke(previousState, newState);
         _messageBus.Publish(new GameStateChangedMessage(previousState, newState));
     }
-}
-
-public interface IGameStateHandler
-{
-    // Říká, který stav tento handler obsluhuje
-    GameState HandledState { get; }
-
-    // Logika, která se spustí při vstupu do stavu
-    void OnEnterState();
-
-    // Logika, která se spustí při opuštění stavu
-    void OnExitState();
 }

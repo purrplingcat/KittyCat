@@ -2,7 +2,6 @@ using Android.App;
 using Android.Content.PM;
 using Android.OS;
 using Android.Views;
-using KittyCat.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
 

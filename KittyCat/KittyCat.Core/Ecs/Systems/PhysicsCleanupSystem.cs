@@ -1,10 +1,10 @@
 ﻿using Friflo.Engine.ECS;
 using Friflo.Engine.ECS.Systems;
-using KittyCat.Core.Services;
+using KittyCat.Services;
 using PurrplingCore.Toolkit;
 using System.Collections.Generic;
 
-namespace KittyCat.Core.Ecs.Systems;
+namespace KittyCat.Ecs.Systems;
 
 [RunAfter<PhysicsSystem>]
 public class PhysicsCleanupSystem : BaseSystem

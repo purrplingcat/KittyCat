@@ -1,7 +1,7 @@
-﻿using KittyCat.Core.Ecs.Systems;
+﻿using KittyCat.Ecs.Systems;
 using PurrplingCore.Toolkit.Systems;
 
-namespace KittyCat.Core.Ecs;
+namespace KittyCat.Ecs;
 
 public static class SystemBuilderExtensions
 {

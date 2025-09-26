@@ -5,7 +5,7 @@ using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Graphics;
 using System;
 
-namespace KittyCat.Core.Services;
+namespace KittyCat.Services;
 
 [Singleton]
 public class GraphicsManager : IStartupService

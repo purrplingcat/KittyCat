@@ -1,4 +1,4 @@
-﻿using KittyCat.Core;
+﻿using KittyCat;
 using KittyCat.Core.Configuration;
 using KittyCat.Core.Scenes;
 using PurrplingCore.Toolkit.DI;

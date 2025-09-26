@@ -1,9 +1,9 @@
 ﻿using Friflo.Engine.ECS.Systems;
-using KittyCat.Core.Ecs;
+using KittyCat.Ecs;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Toolkit.DI;
 
-namespace KittyCat.Core.Services;
+namespace KittyCat.Services;
 
 [Singleton]
 public class WorldComponent(Game game, World world, SystemRoot systemRoot) : DrawableGameComponent(game)

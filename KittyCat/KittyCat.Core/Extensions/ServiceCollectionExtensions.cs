@@ -1,5 +1,5 @@
-﻿using KittyCat.Core.Scenes;
-using KittyCat.Core.Scenes.Factories;
+﻿using KittyCat.Scenes;
+using KittyCat.Scenes.Factories;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Xna.Framework;
@@ -7,7 +7,7 @@ using PurrplingCore.Toolkit;
 using PurrplingCore.Toolkit.DI;
 using System;
 
-namespace KittyCat.Core.Extensions;
+namespace KittyCat.Extensions;
 
 public static class ServiceCollectionExtensions
 {

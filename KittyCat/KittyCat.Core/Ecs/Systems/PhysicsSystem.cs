@@ -1,9 +1,8 @@
 ﻿using Friflo.Engine.ECS.Systems;
-using KittyCat.Core.Services;
+using KittyCat.Services;
 using PurrplingCore.Toolkit;
-using System.Security.Cryptography;
 
-namespace KittyCat.Core.Ecs.Systems;
+namespace KittyCat.Ecs.Systems;
 
 [Order(Order.Later + 100)]
 public class PhysicsSystem(World world, PhysicsManager physicsManager) : BaseSystem()

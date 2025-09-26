@@ -1,22 +1,17 @@
-﻿using Friflo.Engine.ECS.Systems;
-using KittyCat.Core.Ecs;
-using KittyCat.Core.Ecs.Systems;
-using KittyCat.Core.Extensions;
-using KittyCat.Core.Scenes;
-using KittyCat.Core.Services;
-using KittyCat.Core.Services.Options;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework.Content;
-using PurrplingCore.Toolkit;
 using PurrplingCore.Toolkit.DI;
-using PurrplingCore.Toolkit.DI.Configuration;
 using PurrplingCore.Toolkit.Systems;
 using PurrplingCore.Toolkit.Graphics;
 using PurrplingCore.Toolkit.Rendering;
 using System;
 using System.Reflection;
+using KittyCat.Ecs;
+using KittyCat.Services;
+using KittyCat.Services.Options;
+using KittyCat.Scenes;
 
-namespace KittyCat.Core.Configuration;
+namespace KittyCat.Configuration;
 
 public class KittyCatGameServices : IServiceConfiguration
 {

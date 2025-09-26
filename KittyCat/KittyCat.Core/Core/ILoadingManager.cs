@@ -2,7 +2,7 @@
 using System.Collections;
 using System.Threading.Tasks;
 
-namespace KittyCat.Core.Interfaces;
+namespace KittyCat.Core;
 
 internal interface ILoadingManager
 {

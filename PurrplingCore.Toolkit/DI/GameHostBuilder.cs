@@ -13,10 +13,24 @@ internal class GameHostBuilder : IGameHostBuilder
     private readonly List<Action<ILoggingBuilder>> _loggingActions = [];
     private IServiceProviderFactory _serviceProviderFactory = new DefaultServiceProviderFactory();
 
+    protected IServiceProviderFactory ServiceProviderFactory => _serviceProviderFactory;
+
     private class GameHostConfiguration : IServiceConfiguration
     {
+        private GameHost CreateGameHost(IServiceProvider provider)
+        {
+            return new GameHost(
+                provider,
+                game: provider.GetService<IGame>() ?? throw new InvalidOperationException($"No Game service of '{typeof(IGame)}' found"),
+                logger: provider.GetRequiredService<ILogger<GameHost>>(),
+                startupServices: [.. provider.GetServices<IStartupService>().OrderBy(s => s.Order)],
+                cleanupServices: [.. provider.GetServices<ICleanupService>().OrderBy(s => s.Order)]
+            );
+        }
+
         public void Configure(IServiceCollection services)
         {
+            services.TryAddSingleton(CreateGameHost);
             services.TryAddSingleton<IMessageBus, DefaultMessageBus>();
             services.TryAddTransient(typeof(Lazy<>), typeof(LazyService<>));
         }
@@ -47,30 +61,34 @@ internal class GameHostBuilder : IGameHostBuilder
         return this;
     }
 
-    private void ConfigureLogging(ILoggingBuilder builder) => _loggingActions.ForEach(action => action(builder));
+    private void ConfigureLogging(ILoggingBuilder builder)
+    {
+        _loggingActions.ForEach(action => action(builder));
+    }
 
-    private void ConfigureServices(IServiceCollection services, GameHostBuilderContext context)
+    protected virtual void ConfigureServices(IServiceCollection services, GameHostBuilderContext context)
     {
         _serviceActions.ForEach(action => action(services, context));
         services.AddLogging(ConfigureLogging);
         services.AddConfiguration(new GameHostConfiguration());
     }
 
-    public GameHost Build()
-    {
-        var services = new ServiceCollection();
-        using var loggerFactory = LoggerFactory.Create(ConfigureLogging);
-        var context = new GameHostBuilderContext(this, loggerFactory, Assembly.GetExecutingAssembly());
+    protected ILoggerFactory CreateLoggerFactory() => LoggerFactory.Create(ConfigureLogging);
 
+    private IServiceProvider BuildServiceProvider(ServiceCollection services, GameHostBuilderContext context)
+    {
         ConfigureServices(services, context);
 
-        var provider = _serviceProviderFactory.CreateServiceProvider(services);
-        return new GameHost(
-            provider,
-            game: provider.GetService<IGame>() ?? throw new InvalidOperationException($"No Game service of '{typeof(IGame)}' found"),
-            logger: provider.GetRequiredService<ILogger<GameHost>>(),
-            startupServices: [.. provider.GetServices<IStartupService>().OrderBy(s => s.Order)],
-            cleanupServices: [.. provider.GetServices<ICleanupService>().OrderBy(s => s.Order)]
-        );
+        return ServiceProviderFactory.CreateServiceProvider(services);
+    }
+
+    public GameHost Build()
+    {
+        using var loggerFactory = CreateLoggerFactory();
+        var context = new GameHostBuilderContext(this, loggerFactory, Assembly.GetExecutingAssembly());
+        var services = new ServiceCollection();
+        var provider = BuildServiceProvider(services, context);
+
+        return provider.GetRequiredService<GameHost>();
     }
 }

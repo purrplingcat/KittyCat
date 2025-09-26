@@ -2,6 +2,7 @@
   <PropertyGroup>
 	<Product>KittyCat</Product>
 	<Version>0.1.0-dev+42</Version>
+	<RootNamespace>KittyCat</RootNamespace>
     <TargetFramework>net8.0</TargetFramework>
     <Platforms>AnyCPU</Platforms>
 	<Nullable>enable</Nullable>

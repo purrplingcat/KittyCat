@@ -1,7 +1,6 @@
-using KittyCat.Core.Configuration;
-using KittyCat.Core.Localization;
-using KittyCat.Core.Scenes;
-using KittyCat.Core.Services;
+using KittyCat.Configuration;
+using KittyCat.Localization;
+using KittyCat.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
@@ -15,7 +14,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
 
-namespace KittyCat.Core;
+namespace KittyCat;
 /// <summary>
 /// The main class for the game, responsible for managing game components, settings, 
 /// and platform-specific configurations.

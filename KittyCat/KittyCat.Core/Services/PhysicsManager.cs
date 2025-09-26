@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-namespace KittyCat.Core.Services;
+namespace KittyCat.Services;
 
 [Singleton]
 public class PhysicsManager

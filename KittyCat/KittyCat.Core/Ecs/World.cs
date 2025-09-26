@@ -1,6 +1,6 @@
 ﻿using Friflo.Engine.ECS;
 using Friflo.Engine.ECS.Systems;
-using KittyCat.Core.Extensions;
+using KittyCat.Extensions;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Toolkit;
 using PurrplingCore.Toolkit.Extensions;
@@ -10,7 +10,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-namespace KittyCat.Core.Ecs;
+namespace KittyCat.Ecs;
 
 /// <summary>
 /// Represents the main ECS world, managing entities, systems, and update logic.

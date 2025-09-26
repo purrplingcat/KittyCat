@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Logging;
 using System;
 
-namespace KittyCat.Core.Scenes.Factories;
+namespace KittyCat.Scenes.Factories;
 
 public interface ISceneProvider<TScene> : ISceneFactory where TScene : Scene
 {

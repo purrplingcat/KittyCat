@@ -4,7 +4,7 @@ using PurrplingCore.Toolkit.DI;
 using System;
 using System.Runtime.CompilerServices;
 
-namespace KittyCat.Core.Services;
+namespace KittyCat.Services;
 
 [Singleton]
 public class ContentManagerProvider : IContentManagerProvider

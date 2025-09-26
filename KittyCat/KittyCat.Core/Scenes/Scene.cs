@@ -1,5 +1,5 @@
-﻿using KittyCat.Core.Extensions;
-using KittyCat.Core.Services;
+﻿using KittyCat.Extensions;
+using KittyCat.Services;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
@@ -7,7 +7,7 @@ using PurrplingCore.Toolkit;
 using PurrplingCore.Toolkit.Graphics;
 using System;
 
-namespace KittyCat.Core.Scenes;
+namespace KittyCat.Scenes;
 
 public abstract class Scene : IDisposable
 {

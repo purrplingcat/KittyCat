@@ -5,7 +5,7 @@ using System.Reflection;
 using System.Resources;
 using System.Threading;
 
-namespace KittyCat.Core.Localization;
+namespace KittyCat.Localization;
 /// <summary>
 /// Manages localization settings for the game, including retrieving supported cultures and setting the current culture for localization.
 /// </summary>
@@ -29,13 +29,13 @@ internal class LocalizationManager
     public static List<CultureInfo> GetSupportedCultures()
     {
         // Create a list to hold supported cultures
-        List<CultureInfo> supportedCultures = new List<CultureInfo>();
+        var supportedCultures = new List<CultureInfo>();
 
         // Get the current assembly
-        Assembly assembly = Assembly.GetExecutingAssembly();
+        var assembly = Assembly.GetExecutingAssembly();
 
         // Resource manager for your Resources.resx
-        ResourceManager resourceManager = new ResourceManager("KittyCat.Core.Localization.Resources", assembly);
+        var resourceManager = new ResourceManager("KittyCat.Core.Localization.Resources", assembly);
 
         // Get all cultures defined in the satellite assemblies
         CultureInfo[] cultures = CultureInfo.GetCultures(CultureTypes.SpecificCultures);
@@ -78,7 +78,7 @@ internal class LocalizationManager
             throw new ArgumentNullException(nameof(cultureCode), "A culture code must be provided.");
 
         // Create a CultureInfo object from the culture code
-        CultureInfo culture = new CultureInfo(cultureCode);
+        var culture = new CultureInfo(cultureCode);
 
         // Set the current culture and UI culture for the current thread
         Thread.CurrentThread.CurrentCulture = culture;

@@ -1,4 +1,4 @@
-﻿using KittyCat.Core.Interfaces;
+﻿using KittyCat.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using System;
@@ -6,7 +6,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace KittyCat.Core.Services;
+namespace KittyCat.Services;
 
 /// <summary>
 /// Univerzální správce pro spouštění dlouhotrvajících operací (jak asynchronních, tak vícesnímkových).

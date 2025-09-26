@@ -1,7 +1,7 @@
 ﻿using Friflo.Engine.ECS;
 using Microsoft.Xna.Framework;
 
-namespace KittyCat.Core.Extensions;
+namespace KittyCat.Extensions;
 
 public static class GameTimeExtensions
 {

@@ -1,5 +1,5 @@
-﻿using KittyCat.Core.Scenes;
-using KittyCat.Core.Services.Options;
+﻿using KittyCat.Scenes;
+using KittyCat.Services.Options;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Xna.Framework;
@@ -9,7 +9,7 @@ using PurrplingCore.Toolkit.Graphics;
 using System;
 using System.Collections.Generic;
 
-namespace KittyCat.Core.Services;
+namespace KittyCat.Services;
 
 [Singleton]
 [Alias(typeof(IGameComponent))]

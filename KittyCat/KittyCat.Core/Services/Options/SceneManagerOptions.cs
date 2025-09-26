@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace KittyCat.Core.Services.Options;
+namespace KittyCat.Services.Options;
 
 public class SceneManagerOptions
 {
