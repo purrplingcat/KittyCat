@@ -1,0 +1,59 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34714.143
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KittyCat.Android", "KittyCat\KittyCat.Android\KittyCat.Android.csproj", "{DB4ABC6A-F8AA-4D4F-A817-112A29CB53AE}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KittyCat.Core", "KittyCat\KittyCat.Core\KittyCat.Core.csproj", "{FBFFDC94-1A21-448D-8E2D-8A16AD3E93B4}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KittyCat.DesktopGL", "KittyCat\KittyCat.DesktopGL\KittyCat.DesktopGL.csproj", "{5871E22C-8F62-458F-A995-4ED14050C7BA}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KittyCat.iOS", "KittyCat\KittyCat.iOS\KittyCat.iOS.csproj", "{6CCA3325-D9B7-45E2-BAC9-9362EAF531E6}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KittyCat.WindowsDX", "KittyCat\KittyCat.WindowsDX\KittyCat.WindowsDX.csproj", "{F233A320-FBBB-4D92-BEB8-11946FF0F2E1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PurrplingCore.Toolkit", "PurrplingCore.Toolkit\PurrplingCore.Toolkit.csproj", "{2D1E838C-A563-4A9E-A11B-A828E7159E04}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DB4ABC6A-F8AA-4D4F-A817-112A29CB53AE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DB4ABC6A-F8AA-4D4F-A817-112A29CB53AE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DB4ABC6A-F8AA-4D4F-A817-112A29CB53AE}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{DB4ABC6A-F8AA-4D4F-A817-112A29CB53AE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DB4ABC6A-F8AA-4D4F-A817-112A29CB53AE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DB4ABC6A-F8AA-4D4F-A817-112A29CB53AE}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{FBFFDC94-1A21-448D-8E2D-8A16AD3E93B4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FBFFDC94-1A21-448D-8E2D-8A16AD3E93B4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FBFFDC94-1A21-448D-8E2D-8A16AD3E93B4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FBFFDC94-1A21-448D-8E2D-8A16AD3E93B4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5871E22C-8F62-458F-A995-4ED14050C7BA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5871E22C-8F62-458F-A995-4ED14050C7BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5871E22C-8F62-458F-A995-4ED14050C7BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5871E22C-8F62-458F-A995-4ED14050C7BA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6CCA3325-D9B7-45E2-BAC9-9362EAF531E6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6CCA3325-D9B7-45E2-BAC9-9362EAF531E6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6CCA3325-D9B7-45E2-BAC9-9362EAF531E6}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{6CCA3325-D9B7-45E2-BAC9-9362EAF531E6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6CCA3325-D9B7-45E2-BAC9-9362EAF531E6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6CCA3325-D9B7-45E2-BAC9-9362EAF531E6}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{F233A320-FBBB-4D92-BEB8-11946FF0F2E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F233A320-FBBB-4D92-BEB8-11946FF0F2E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F233A320-FBBB-4D92-BEB8-11946FF0F2E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F233A320-FBBB-4D92-BEB8-11946FF0F2E1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2D1E838C-A563-4A9E-A11B-A828E7159E04}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2D1E838C-A563-4A9E-A11B-A828E7159E04}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2D1E838C-A563-4A9E-A11B-A828E7159E04}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2D1E838C-A563-4A9E-A11B-A828E7159E04}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1034C8B7-495E-4EF8-908F-DF044358942F}
+	EndGlobalSection
+EndGlobal
