@@ -1,10 +1,11 @@
-﻿using KittyCat.Messages;
+﻿using KittyCat.Core;
+using KittyCat.Messages;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Messaging;
 using System;
 using System.Collections.Generic;
 
-namespace KittyCat.Core;
+namespace KittyCat.Services;
 
 [Singleton]
 public class GameStateMachine

@@ -33,7 +33,6 @@ public class KittyCatGame : GameCore
     /// </summary>
     public KittyCatGame(IServiceProvider provider) : base(provider)
     {
-        Content = provider.GetRequiredService<ContentManager>();
         Title = "KittyCat Game";
     }
 

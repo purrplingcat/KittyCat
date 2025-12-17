@@ -16,11 +16,14 @@ public abstract class GameCore: Game, IGame
 {
     private readonly IServiceProvider _provider;
     private readonly IMessageBus? _bus;
+    private readonly GraphicsDeviceManager _graphicsManager;
     private bool _isInitialized;
 
     public event EventHandler<EventArgs>? Exited;
 
     public new IServiceProvider Services => _provider;
+
+    public GraphicsDeviceManager GraphicsDeviceManager => _graphicsManager;
 
     /// <summary>
     /// The name of the game, used for display purposes.
@@ -48,6 +51,7 @@ public abstract class GameCore: Game, IGame
     public GameCore(IServiceProvider provider)
     {
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        _graphicsManager = new GraphicsDeviceManager(this);
         _bus = provider.GetService<IMessageBus>();
         IsMouseVisible = true; // Default to showing the mouse cursor
         Content.RootDirectory = "Content";

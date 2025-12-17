@@ -4,6 +4,7 @@ using Android.OS;
 using Android.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
+using PurrplingCore.Toolkit.DI;
 
 namespace KittyCat.Android;
 /// <summary>
@@ -26,7 +27,7 @@ namespace KittyCat.Android;
 )]
 public class MainActivity : AndroidGameActivity
 {
-    private GameHost _game;
+    private GameHost _gameHost;
     private View _view;
 
     /// <summary>
@@ -39,16 +40,24 @@ public class MainActivity : AndroidGameActivity
     {
         base.OnCreate(bundle);
 
-        static void ConfigureServices(IServiceCollection services)
-        {
-            services.AddConfiguration(new KittyCatGameServices());
-            services.AddSingleton(p => p.GetRequiredService<Game>().Services.GetService<View>());
-        }
-
-        _game = GameHost.Create<KittyCatGame>(ConfigureServices);
-        _view = _game.Services.GetRequiredService<View>();
+        var builder = GameHost.CreateBuilder()
+            .AddGame<KittyCatGame>()
+            .ConfigureServices(ConfigureServices);
+                              
+        _gameHost = builder.Build();
+        _view = _gameHost.Services.GetRequiredService<View>();
 
         SetContentView(_view);
-        _game.Start();
+        _gameHost.Run();
+    }
+
+    /// <summary>
+    /// Configures the services required by the application.
+    /// </summary>
+    /// <param name="services">The collection of service descriptors to which application services are added.</param>
+    /// <param name="context">The context containing configuration and environment information for the game host.</param>
+    static void ConfigureServices(IServiceCollection services, GameHostBuilderContext context)
+    {
+        services.ExposeMonoGameService<View>();
     }
 }

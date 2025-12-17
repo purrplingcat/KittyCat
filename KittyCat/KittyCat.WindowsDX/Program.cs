@@ -1,6 +1,4 @@
 ﻿using KittyCat;
-using KittyCat.Core.Configuration;
-using KittyCat.Core.Scenes;
 using PurrplingCore.Toolkit.DI;
 using System.Windows.Forms;
 

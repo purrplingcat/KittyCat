@@ -1,16 +1,17 @@
-﻿using Friflo.Engine.ECS.Systems;
+﻿using Friflo.Engine.ECS;
+using Friflo.Engine.ECS.Systems;
 using KittyCat.Services;
 using PurrplingCore.Toolkit;
 
 namespace KittyCat.Ecs.Systems;
 
 [Order(Order.Later + 100)]
-public class PhysicsSystem(World world, PhysicsManager physicsManager) : BaseSystem()
+public class PhysicsSystem(World world, IWorldExtension<PhysicsWorld> physicsExtension) : BaseSystem()
 {
     protected override void OnUpdateGroup()
     {
-        var store = world.Store;
-        var physicsWorld = physicsManager.GetWorldFor(store);
+        EntityStore store = world.CurrentStore;
+        PhysicsWorld physicsWorld = physicsExtension.GetFor(store);
 
         // --- FÁZE 1: ECS -> Fyzika (Předání příkazů) ---
         // Projdeme entity, které mají nějaké příkazy k vykonání

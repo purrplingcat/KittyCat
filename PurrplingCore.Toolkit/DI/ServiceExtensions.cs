@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using PurrplingCore.Toolkit.Systems;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -13,7 +14,10 @@ public static partial class ServiceExtensions
     public static IServiceCollection AddGame<TGame>(this IServiceCollection services) where TGame : Game, IGame 
     {
         return services.AddPureGame<TGame>()
-                       .AddAlias<Game, TGame>();
+                       .AddAlias<Game, TGame>()
+                       .ExposeMonoGameService<IGraphicsDeviceService>()
+                       .ExposeMonoGameService<IGraphicsDeviceManager>()
+                       .Expose<GameServiceContainer, TGame>(game => game.Services);
     }
 
     public static IServiceCollection AddPureGame<TGame>(this IServiceCollection services) where TGame : class, IGame
@@ -82,5 +86,21 @@ public static partial class ServiceExtensions
     public static IServiceCollection AddStartup<TStartup>(this IServiceCollection services) where TStartup : class, IStartupService
     {
         return services.AddSingleton<IStartupService, TStartup>();
+    }
+
+    public static IServiceCollection ExposeMonoGameService<TService>(this IServiceCollection services)
+    where TService : class
+    {
+        services.AddTransient(static provider =>
+        {
+            var game = provider.GetRequiredService<Game>(); // nebo IGame
+            var monoGameService = game.Services.GetService<TService>();
+
+            return monoGameService
+                ?? throw new InvalidOperationException(
+                    $"Service type '{typeof(TService)}' not found in Game.Services");
+        });
+
+        return services;
     }
 }

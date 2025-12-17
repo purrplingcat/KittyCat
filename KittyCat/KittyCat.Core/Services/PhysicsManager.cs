@@ -1,4 +1,6 @@
 ﻿using Friflo.Engine.ECS;
+using KittyCat.Ecs;
+using PurrplingCore.Toolkit;
 using PurrplingCore.Toolkit.DI;
 using System;
 using System.Collections.Generic;
@@ -6,38 +8,12 @@ using System.Runtime.CompilerServices;
 
 namespace KittyCat.Services;
 
-[Singleton]
-public class PhysicsManager
+[Singleton, WorldExtension<PhysicsWorld>]
+public class PhysicsManager(World world) : WorldExtension<PhysicsWorld>(world)
 {
-    private readonly ConditionalWeakTable<EntityStore, PhysicsWorld> _worldMap = [];
-
-    /// <summary>
-    /// Vytvoří nový fyzikální svět pro daný EntityStore, pokud ještě neexistuje.
-    /// </summary>
-    public PhysicsWorld GetOrCreateWorldFor(EntityStore store)
+    protected override PhysicsWorld Create(EntityStore store)
     {
-        return _worldMap.GetValue(store, _ => new PhysicsWorld());
-    }
-
-    /// <summary>
-    /// Vrátí fyzikální svět pro daný EntityStore.
-    /// </summary>
-    public PhysicsWorld GetWorldFor(EntityStore store)
-    {
-        if (!_worldMap.TryGetValue(store, out var physicsWorld))
-        {
-            throw new KeyNotFoundException("No PhysicsWorld is registered for the given EntityStore.");
-        }
-        return physicsWorld;
-    }
-
-    /// <summary>
-    /// Uklidí po sobě. Tato metoda je nyní technicky volitelná,
-    /// protože se tabulka uklidí sama, ale je dobré ji mít pro explicitní kontrolu.
-    /// </summary>
-    public void RemoveWorldFor(EntityStore store)
-    {
-        _worldMap.Remove(store);
+        return new PhysicsWorld();
     }
 }
 

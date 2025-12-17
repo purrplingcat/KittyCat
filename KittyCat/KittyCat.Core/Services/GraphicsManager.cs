@@ -11,7 +11,6 @@ namespace KittyCat.Services;
 public class GraphicsManager : IStartupService
 {
     private readonly GameCore _game;
-    private readonly GraphicsDeviceManager _graphicsDeviceManager;
     private readonly Resolution _resolution;
     private SpriteBatch? _spriteBatch;
     int IStartupService.Order => 0;
@@ -20,7 +19,7 @@ public class GraphicsManager : IStartupService
         ?? throw new InvalidOperationException("Graphics device is not ready yet!");
 
     public Viewport Viewport => _resolution.Viewport;
-    public GraphicsDeviceManager GraphicsDeviceManager => _graphicsDeviceManager;
+    public GraphicsDeviceManager GraphicsDeviceManager => _game.GraphicsDeviceManager;
     public SpriteBatch SpriteBatch => _spriteBatch ??= CreateSpriteBatch();
     public Resolution Resolution => _resolution;
     public bool IsReady => _game.IsInitialized && _game.GraphicsDevice != null;
@@ -28,8 +27,7 @@ public class GraphicsManager : IStartupService
     public GraphicsManager(GameCore game)
     {
         _game = game ?? throw new ArgumentNullException(nameof(game));
-        _graphicsDeviceManager = new GraphicsDeviceManager(game);
-        _resolution = new Resolution(_graphicsDeviceManager, game.Window);
+        _resolution = new Resolution(_game.GraphicsDeviceManager, game.Window);
     }
 
     public SpriteBatch CreateSpriteBatch()
@@ -55,7 +53,7 @@ public class GraphicsManager : IStartupService
     public void OnStartup()
     {
         // Configure screen orientations.
-        _graphicsDeviceManager.SupportedOrientations = DisplayOrientation.LandscapeLeft | DisplayOrientation.LandscapeRight;
+        GraphicsDeviceManager.SupportedOrientations = DisplayOrientation.LandscapeLeft | DisplayOrientation.LandscapeRight;
     }
 
     public void ToggleFullScreen()

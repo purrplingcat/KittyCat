@@ -8,6 +8,7 @@
 	<Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="DotTiled" Version="0.3.0" />
     <PackageReference Include="Friflo.Engine.ECS" Version="3.4.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.7" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.7" />

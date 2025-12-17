@@ -22,7 +22,7 @@ internal sealed class ServiceProviderFactoryAdapter<TContainerBuilder> : IServic
     public IServiceProvider CreateServiceProvider(IServiceCollection services)
     {
         var containerBuilder = _serviceProviderFactory.CreateBuilder(services);
-
+        
         return _serviceProviderFactory.CreateServiceProvider(containerBuilder);
     }
 }

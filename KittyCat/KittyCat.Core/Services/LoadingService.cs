@@ -1,4 +1,5 @@
 ﻿using KittyCat.Core;
+using KittyCat.Core.Loaders;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using System;
@@ -80,6 +81,11 @@ public class LoadingService : GameComponent, ILoadingManager
         IEnumerator coroutineWrapper() => taskWithProgress(progressReporter).AsCoroutine();
 
         Enqueue(coroutineWrapper, onComplete, onError);
+    }
+
+    public void Enqueue(IDataLoader loader)
+    {
+        Enqueue(loader.Load, loader.OnComplete, loader.OnError);
     }
 
     public override void Update(GameTime gameTime)

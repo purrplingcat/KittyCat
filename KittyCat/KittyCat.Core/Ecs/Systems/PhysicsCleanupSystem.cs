@@ -18,8 +18,8 @@ public class PhysicsCleanupSystem : BaseSystem
         _world = world;
         _physicsManager = physicsManager;
 
-        _world.Store.OnComponentRemoved += OnComponentRemoved;
-        world.Store.OnEntityDelete += OnEntityDeleted;
+        _world.CurrentStore.OnComponentRemoved += OnComponentRemoved;
+        world.CurrentStore.OnEntityDelete += OnEntityDeleted;
     }
 
     private void OnEntityDeleted(EntityDelete obj)
