@@ -1,13 +1,12 @@
 ﻿using Friflo.Engine.ECS.Systems;
-using Friflo.Json.Fliox.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using PurrplingCore.Toolkit;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Extensions;
-using PurrplingCore.Toolkit.Systems;
 using System.Reflection;
 
-namespace PurrplingCore.Toolkit;
+namespace PurrplingCore.Ecs.Systems.Builder;
 
 public interface ISystemGroupFactory
 {

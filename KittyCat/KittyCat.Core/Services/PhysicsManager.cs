@@ -1,10 +1,7 @@
 ﻿using Friflo.Engine.ECS;
-using KittyCat.Ecs;
-using PurrplingCore.Toolkit;
+using PurrplingCore.Ecs;
 using PurrplingCore.Toolkit.DI;
 using System;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 
 namespace KittyCat.Services;
 
@@ -22,6 +19,6 @@ public class PhysicsWorld
 {
     internal void Step(float deltaTime)
     {
-        throw new NotImplementedException();
+        //throw new NotImplementedException();
     }
 }

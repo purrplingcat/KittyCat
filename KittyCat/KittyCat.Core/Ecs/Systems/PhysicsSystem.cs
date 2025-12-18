@@ -1,6 +1,7 @@
 ﻿using Friflo.Engine.ECS;
 using Friflo.Engine.ECS.Systems;
 using KittyCat.Services;
+using PurrplingCore.Ecs;
 using PurrplingCore.Toolkit;
 
 namespace KittyCat.Ecs.Systems;

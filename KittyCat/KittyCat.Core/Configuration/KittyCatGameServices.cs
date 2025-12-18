@@ -1,15 +1,15 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework.Content;
 using PurrplingCore.Toolkit.DI;
-using PurrplingCore.Toolkit.Systems;
 using PurrplingCore.Toolkit.Graphics;
 using PurrplingCore.Toolkit.Rendering;
 using System;
 using System.Reflection;
-using KittyCat.Ecs;
 using KittyCat.Services;
 using KittyCat.Services.Options;
 using KittyCat.Scenes;
+using PurrplingCore.Ecs;
+using PurrplingCore.Ecs.Systems.Builder;
 
 namespace KittyCat.Configuration;
 
@@ -30,7 +30,7 @@ public class KittyCatGameServices : IServiceConfiguration
     public void Configure(IServiceCollection services)
     {
         // Register world and their systems
-        services.AddSingleton<World>();
+        services.AddWorld<World>();
         services.AddSystemRoot(ConfigureSystems);
         services.AddRenderPipeline<World>(builder => { });
 

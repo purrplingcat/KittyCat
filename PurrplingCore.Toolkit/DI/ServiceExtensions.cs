@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using PurrplingCore.Toolkit.Systems;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
@@ -17,6 +16,7 @@ public static partial class ServiceExtensions
                        .AddAlias<Game, TGame>()
                        .ExposeMonoGameService<IGraphicsDeviceService>()
                        .ExposeMonoGameService<IGraphicsDeviceManager>()
+                       .ExposeMonoGameService<GraphicsDeviceManager>()
                        .Expose<GameServiceContainer, TGame>(game => game.Services);
     }
 

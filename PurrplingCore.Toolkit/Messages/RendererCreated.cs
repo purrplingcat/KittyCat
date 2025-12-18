@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace PurrplingCore.Toolkit.Messages;
 
-public readonly struct RendererCreated(IRenderer renderer) : IMessage
+public readonly struct RendererCreated(IRenderer renderer)
 {
     public readonly IRenderer Renderer = renderer;
     public bool IsEmpty => Renderer is null;

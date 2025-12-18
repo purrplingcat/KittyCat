@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace PurrplingCore.Toolkit.Messages;
 
-public readonly struct SystemCreated(BaseSystem system) : IMessage
+public readonly struct SystemCreated(BaseSystem system)
 {
     public readonly BaseSystem System = system;
 

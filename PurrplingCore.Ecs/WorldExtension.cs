@@ -1,10 +1,8 @@
 ﻿using Friflo.Engine.ECS;
-using Microsoft.Extensions.DependencyInjection;
 using PurrplingCore.Toolkit.DI;
-using System;
 using System.Runtime.CompilerServices;
 
-namespace KittyCat.Ecs;
+namespace PurrplingCore.Ecs;
 
 public abstract class WorldExtension<TExtension> : IWorldExtension<TExtension> where TExtension : class
 {

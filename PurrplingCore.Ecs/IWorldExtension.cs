@@ -1,6 +1,6 @@
 ﻿using Friflo.Engine.ECS;
 
-namespace KittyCat.Ecs;
+namespace PurrplingCore.Ecs;
 
 public interface IWorldExtension<TExtension> where TExtension : class
 {

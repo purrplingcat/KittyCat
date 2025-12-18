@@ -2,7 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using PurrplingCore.Toolkit.DI;
 
-namespace PurrplingCore.Toolkit.Systems;
+namespace PurrplingCore.Ecs.Systems.Builder;
 
 public abstract class SystemFactory<TSystem>(SystemCreator creator) : IServiceFactory<TSystem> where TSystem : BaseSystem
 {

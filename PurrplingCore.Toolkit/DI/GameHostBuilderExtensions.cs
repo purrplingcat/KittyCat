@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Xna.Framework;
 using PurrplingCore.Toolkit.DI.Configuration;
 using System.Reflection;
 

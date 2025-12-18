@@ -1,8 +1,11 @@
 ﻿using Friflo.Engine.ECS;
 using Friflo.Engine.ECS.Systems;
 using KittyCat.Services;
+using PurrplingCore.Ecs;
 using PurrplingCore.Toolkit;
 using System.Collections.Generic;
+using System.Diagnostics.Metrics;
+using System.Linq;
 
 namespace KittyCat.Ecs.Systems;
 
@@ -18,8 +21,22 @@ public class PhysicsCleanupSystem : BaseSystem
         _world = world;
         _physicsManager = physicsManager;
 
-        _world.CurrentStore.OnComponentRemoved += OnComponentRemoved;
-        world.CurrentStore.OnEntityDelete += OnEntityDeleted;
+        //_world.CurrentStore.OnComponentRemoved += OnComponentRemoved;
+        //world.CurrentStore.OnEntityDelete += OnEntityDeleted;
+    }
+
+    protected override void OnAddStore(EntityStore store)
+    {
+        store.OnComponentRemoved += OnComponentRemoved;
+        store.OnEntityDelete += OnEntityDeleted;
+        base.OnAddStore(store);
+    }
+
+    protected override void OnRemoveStore(EntityStore store)
+    {
+        store.OnComponentRemoved -= OnComponentRemoved;
+        store.OnEntityDelete -= OnEntityDeleted;
+        base.OnRemoveStore(store);
     }
 
     private void OnEntityDeleted(EntityDelete obj)

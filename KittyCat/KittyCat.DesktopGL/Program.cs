@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using PurrplingCore.Toolkit;
 using PurrplingCore.Toolkit.DI;
 using System;
+using PurrplingCore.Toolkit.Extensions;
 
 internal class Program
 {

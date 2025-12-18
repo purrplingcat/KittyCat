@@ -1,7 +1,7 @@
 ﻿using Friflo.Engine.ECS.Systems;
 using System.Diagnostics.CodeAnalysis;
 
-namespace PurrplingCore.Toolkit.Systems;
+namespace PurrplingCore.Ecs.Systems.Builder;
 
 public sealed class SystemTreeConfiguration
 {

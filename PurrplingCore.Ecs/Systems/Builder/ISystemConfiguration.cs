@@ -1,4 +1,4 @@
-﻿namespace PurrplingCore.Toolkit.Systems;
+﻿namespace PurrplingCore.Ecs.Systems.Builder;
 
 public interface ISystemConfiguration
 {

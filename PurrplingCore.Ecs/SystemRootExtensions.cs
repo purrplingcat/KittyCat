@@ -1,7 +1,7 @@
 ﻿using Friflo.Engine.ECS.Systems;
 using System;
 
-namespace KittyCat.Ecs;
+namespace PurrplingCore.Ecs;
 
 public static class SystemRootExtensions
 {

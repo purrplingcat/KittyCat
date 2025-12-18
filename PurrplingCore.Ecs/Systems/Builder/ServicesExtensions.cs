@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using PurrplingCore.Toolkit.DI;
 
-namespace PurrplingCore.Toolkit.Systems;
+namespace PurrplingCore.Ecs.Systems.Builder;
 
 public static class ServiceExtensions
 {

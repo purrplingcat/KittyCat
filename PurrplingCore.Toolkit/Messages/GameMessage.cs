@@ -11,7 +11,7 @@ public enum GameMessages
     Exit,
 }
 
-public readonly struct GameMessage : IMessage
+public readonly struct GameMessage
 {
     public readonly Game Game;
     public readonly GameMessages Type;

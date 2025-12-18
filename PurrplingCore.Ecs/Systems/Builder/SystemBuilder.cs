@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using PurrplingCore.Toolkit.DI;
 using System.Text.RegularExpressions;
 
-namespace PurrplingCore.Toolkit.Systems;
+namespace PurrplingCore.Ecs.Systems.Builder;
 
 public interface ISystemBuilder 
 {

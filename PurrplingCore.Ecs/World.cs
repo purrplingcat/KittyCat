@@ -1,17 +1,7 @@
-﻿using DotTiled;
-using Friflo.Engine.ECS;
-using Friflo.Engine.ECS.Systems;
-using KittyCat.Ecs.Components;
-using KittyCat.Extensions;
-using KittyCat.Services;
-using Microsoft.Xna.Framework;
-using PurrplingCore.Toolkit.Extensions;
-using System;
-using System.Collections.Generic;
+﻿using Friflo.Engine.ECS;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 
-namespace KittyCat.Ecs;
+namespace PurrplingCore.Ecs;
 
 /// <summary>
 /// Represents the main ECS world, managing entities, systems, and update logic.
@@ -31,6 +21,8 @@ public class World
         ?? throw new InvalidOperationException("No current entity store is set. Ensure that at least one store is created and set as current.");
 
     public int StoreCount => _stores.Count;
+    public bool IsEmpty => _stores.Count == 0;
+    public bool HasCurrentStore => _currentStore != null;
 
     public event StoreChangedHandler? StoreAdded;
     public event StoreChangedHandler? StoreRemoved;
@@ -43,7 +35,6 @@ public class World
     public World()
     {
         _stores = new EntityStores(this);
-        _currentStore = CreateStore(string.Empty);
     }
 
     public static EntityStore CreateNewStore(string name = "")
@@ -52,7 +43,7 @@ public class World
 
         store.EventRecorder.Enabled = true;
         store.SetStoreRoot(
-            store.CreateEntity(new EntityName(name), new MapContext())
+            store.CreateEntity(new EntityName(name))
         );
 
         return store;
@@ -81,7 +72,7 @@ public class World
     {
     }
 
-    private void OnRemoveStore(string name, EntityStore store)
+    protected virtual void OnRemoveStore(string name, EntityStore store)
     {
         if (_currentStore == store)
         {
@@ -94,7 +85,7 @@ public class World
         StoreRemoved?.Invoke(name, store);
     }
 
-    private void OnAddStore(string name, EntityStore store)
+    protected virtual void OnAddStore(string name, EntityStore store)
     {
         if (_currentStore == null)
         {
@@ -177,6 +168,7 @@ public class World
         {
             lock (_world._lock)
             {
+                store.AssignWorld(_world);
                 _stores.Add(name, store);
                 _world.OnAddStore(name, store);
             }

@@ -1,10 +1,11 @@
 ﻿using Friflo.Engine.ECS;
 using Friflo.Engine.ECS.Systems;
-using KittyCat.Ecs;
 using KittyCat.Extensions;
 using Microsoft.Xna.Framework;
+using PurrplingCore.Ecs;
+using PurrplingCore.Ecs.Systems;
 using PurrplingCore.Toolkit.DI;
-using PurrplingCore.Toolkit.Systems;
+using System;
 
 namespace KittyCat.Services;
 
@@ -21,6 +22,13 @@ public class WorldComponent(Game game, World world, SystemRoot systemRoot) : Dra
         _binding = _systemRoot.CreateBinding(_world);
         _systemRoot.Initialize();
         // TODO: Initialize world renderer
+        
+        base.Initialize();
+    }
+
+    protected override void LoadContent()
+    {
+        _world.CreateStore("MainStore");
     }
 
     public override void Update(GameTime gameTime)
@@ -53,6 +61,7 @@ public class WorldComponent(Game game, World world, SystemRoot systemRoot) : Dra
         if (!_disposed)
         {
             _binding?.Dispose();
+            _systemRoot.Destroy();
             _binding = null;
             _disposed = true;
         }

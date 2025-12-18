@@ -2,7 +2,7 @@
 using Friflo.Engine.ECS.Systems;
 using System;
 
-namespace KittyCat.Ecs;
+namespace PurrplingCore.Ecs;
 
 public sealed class SystemWorldBinding : IDisposable
 {

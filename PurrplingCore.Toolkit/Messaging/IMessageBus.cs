@@ -3,6 +3,6 @@
 public interface IMessageBus
 {
     delegate void Subscriber<T>(in T message);
-    void Publish<T>(in T message);
-    void Subscribe<T>(Subscriber<T> subscriber);
+    void Publish<T>(in T message) where T : notnull;
+    ISubscription Subscribe<T>(Subscriber<T> subscriber);
 }
