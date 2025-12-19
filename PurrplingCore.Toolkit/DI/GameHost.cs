@@ -12,6 +12,7 @@ public sealed class GameHost : IDisposable
     private readonly ILogger<GameHost> _logger;
     private readonly IStartupService[] _startupServices;
     private readonly ICleanupService[] _cleanupServices;
+    private bool _disposed;
 
     internal GameHost(IServiceProvider provider, IGame game, ILogger<GameHost> logger, IStartupService[] startupServices, ICleanupService[] cleanupServices)
     {
@@ -35,6 +36,8 @@ public sealed class GameHost : IDisposable
 
     public void Run()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         _logger.LogInformation("Starting game: {gameName}", _game.ToString());
         _logger.LogDebug("Executing startup services");
 
@@ -52,10 +55,11 @@ public sealed class GameHost : IDisposable
 
     public void Dispose()
     {
-        if (_provider is IDisposable disposableProvider)
-        {
-            disposableProvider.Dispose();
-        }
+        if (_disposed) return;
+
+        _disposed = true;
+        _game.Dispose();
+        _provider.TryDispose();
     }
 
     private void OnGameExited(object? sender, EventArgs e)
