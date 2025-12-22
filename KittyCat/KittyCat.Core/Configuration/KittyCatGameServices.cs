@@ -10,8 +10,15 @@ using KittyCat.Services.Options;
 using KittyCat.Scenes;
 using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.Systems.Builder;
+using Friflo.Engine.ECS.Systems;
+using KittyCat.Ecs.Systems;
+using PurrplingCore.Ecs.Systems;
 
 namespace KittyCat.Configuration;
+
+public class TestGroup : BaseSystemGroup { }
+public class SecondGroup : BaseSystemGroup { }
+public class ThirdGroup : BaseSystemGroup { }
 
 public class KittyCatGameServices : IServiceConfiguration
 {
@@ -25,6 +32,10 @@ public class KittyCatGameServices : IServiceConfiguration
     protected virtual void ConfigureSystems(ISystemBuilder builder)
     {
         builder.AddPhysicsSystems();
+        builder.AddSystemGroup<TestGroup>();
+        builder.AddSystemGroup<ThirdGroup>();
+        builder.AddSystemGroup<SecondGroup>()
+               .AddSystemGroup<ThirdGroup>(static builder => builder.AddSystem<PhysicsSystem>());
     }
 
     public void Configure(IServiceCollection services)

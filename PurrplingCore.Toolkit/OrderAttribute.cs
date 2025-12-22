@@ -37,6 +37,12 @@ public sealed class RunAfterAttribute<TSystem>() : RunAfterAttribute(typeof(TSys
 {
 }
 
+[AttributeUsage(AttributeTargets.Class, Inherited = true, AllowMultiple = false)]
+public sealed class UpdateInGroupAttribute(Type groupType) : Attribute
+{
+    public Type GroupType { get; } = groupType;
+}
+
 public static class Order
 {
     public const int First = int.MinValue;
