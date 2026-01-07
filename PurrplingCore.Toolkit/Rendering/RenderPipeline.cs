@@ -1,132 +1,40 @@
 ﻿using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using System.Runtime.CompilerServices;
 
 namespace PurrplingCore.Toolkit.Rendering;
 
-public class RenderPipeline
+public sealed class RenderPipeline(params IRenderPass[] passes) : IRenderPass, IPrepareRender, IInitializeRender
 {
-    private readonly List<IRenderer> _renderers = [];
-    private IRenderer[] _cache = [];
+    private readonly IRenderPass[] _passes = passes;
+    private readonly IPrepareRender[] _preparables = [.. passes.OfType<IPrepareRender>()];
+    private readonly IInitializeRender[] _initializables = [.. passes.OfType<IInitializeRender>()];
     private bool _initialized;
-    private bool _dirty;
-    private int _pointer;
 
-    public object? Key { get; set; }
-    public string Name { get; set; } = "RenderPipeline";
+    public ReadOnlySpan<IRenderPass> Passes => _passes;
 
-    public RenderPipeline()
+    public void Initialize()
     {
-    }
+        if (_initialized) return;
 
-    public RenderPipeline(IEnumerable<IRenderer> renderers)
-    {
-        ArgumentNullException.ThrowIfNull(renderers, nameof(renderers));
-
-        _renderers = [.. renderers];
-    }
-
-    public virtual void Initialize()
-    {
-        if (!_initialized)
+        _initialized = true;
+        for (int i = 0; i < _initializables.Length; i++)
         {
-            _initialized = true;
-            _renderers.ForEach(InitializeRenderer);
-            RebuildCache();
+            _initializables[i].Initialize();
         }
     }
 
-    private void InitializeRenderer(IRenderer renderer)
+    public void Prepare(GameTime gameTime)
     {
-        renderer.StateChanged += MarkDirty;
-        renderer.LoadContent();
-    }
-
-    public void AddRenderer(IRenderer renderer)
-    {
-        if (_initialized)
+        for (int i = 0; i < _preparables.Length; i++)
         {
-            InitializeRenderer(renderer);
-        }
-
-        _dirty = true;
-        _renderers.Add(renderer);
-    }
-
-    public void AddRenderers(IEnumerable<IRenderer> renderers)
-    {
-        foreach (IRenderer renderer in renderers)
-        {
-            AddRenderer(renderer);
+            _preparables[i].Prepare(gameTime);
         }
     }
 
-    public void RemoveRenderer(IRenderer renderer)
+    public void Draw(GameTime gameTime)
     {
-        renderer.StateChanged -= MarkDirty;
-        renderer.Unload();
-
-        _dirty = true;
-        _renderers.Remove(renderer);
-    }
-
-    public void Clear()
-    {
-        _cache = [];
-        _renderers.Clear();
-    }
-
-    public IEnumerable<IRenderer> GetRenderers() => _renderers.AsEnumerable();
-
-    public IEnumerable<TRenderer> GetRenderers<TRenderer>() where TRenderer : IRenderer
-    {
-        return _renderers.OfType<TRenderer>();
-    }
-
-    public TRenderer? GetRenderer<TRenderer>() where TRenderer : IRenderer
-    {
-        return GetRenderers<TRenderer>().FirstOrDefault();
-    }
-
-    public void MarkDirty() => _dirty = true;
-
-    protected void RebuildCache()
-    {
-        _dirty = false;
-        _cache = _renderers
-            .Where(r => r.Enabled && !r.IsDisposed)
-            .OrderBy(r => r.Order)
-            .ToArray();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Render(SpriteBatch batch, ICamera camera, GameTime gameTime)
-    {
-        Render(new RenderContext(batch, batch.GraphicsDevice, camera, gameTime));
-    }
-
-    private RenderContext _context;
-    public virtual void Render(in RenderContext context)
-    {
-        if (_initialized)
+        for (int i = 0; i < _passes.Length; i++)
         {
-            _pointer = 0;
-            _context = context;
-
-            if (_dirty)
-            {
-                RebuildCache();
-            }
-
-            Next(); // Start drawing pipeline
-        }
-    }
-
-    private void Next()
-    {
-        if (_pointer < _cache.Length)
-        {
-            _cache[_pointer++].Render(_context, Next);
+            _passes[i].Draw(gameTime);
         }
     }
 }

@@ -5,30 +5,41 @@ using Microsoft.Xna.Framework;
 using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.Systems;
 using PurrplingCore.Toolkit.DI;
+using PurrplingCore.Toolkit.Rendering;
 using System;
 
 namespace KittyCat.Services;
 
 [Singleton]
-public class WorldComponent(Game game, World world, SystemRoot systemRoot) : DrawableGameComponent(game)
+public class KittyCatWorldController(Game game, World world, SystemRoot systemRoot, RenderPipeline renderer) : WorldController(game, world, systemRoot, renderer)
 {
-    private readonly SystemRoot _systemRoot = systemRoot;
     private readonly World _world = world;
-    private SystemWorldBinding? _binding;
-    private bool _disposed;
-
-    public override void Initialize()
-    {
-        _binding = _systemRoot.CreateBinding(_world);
-        _systemRoot.Initialize();
-        // TODO: Initialize world renderer
-        
-        base.Initialize();
-    }
 
     protected override void LoadContent()
     {
         _world.CreateStore("MainStore");
+    }
+}
+
+public class WorldController(Game game, World world, SystemRoot systemRoot, RenderPipeline renderer) : DrawableGameComponent(game)
+{
+    private readonly SystemRoot _systemRoot = systemRoot;
+    private readonly RenderPipeline _renderer = renderer;
+    private readonly World _world = world;
+    private SystemWorldBinding? _binding;
+    private bool _disposed;
+    private bool _initialized;
+
+    public override void Initialize()
+    {
+        if (_initialized) return; 
+        
+        _initialized = true;
+        _binding = _systemRoot.CreateBinding(_world);
+        _systemRoot.Initialize();
+        // TODO: Initialize world renderer
+
+        base.Initialize();
     }
 
     public override void Update(GameTime gameTime)
@@ -36,6 +47,8 @@ public class WorldComponent(Game game, World world, SystemRoot systemRoot) : Dra
         _world.CurrentStore.EventRecorder.ClearEvents();
         _systemRoot.Update(gameTime.ToUpdateTick());
         UpdateEntityScripts(_world.CurrentStore);
+
+        _renderer.Prepare(gameTime);
     }
 
     private static void UpdateEntityScripts(EntityStore store)
@@ -53,7 +66,7 @@ public class WorldComponent(Game game, World world, SystemRoot systemRoot) : Dra
     public override void Draw(GameTime gameTime)
     {
         GraphicsDevice.Clear(Color.MonoGameOrange);
-        // TODO: Draw world
+        _renderer.Draw(gameTime);
     }
 
     protected override void Dispose(bool disposing)

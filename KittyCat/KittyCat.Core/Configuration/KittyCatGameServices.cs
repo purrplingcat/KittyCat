@@ -43,7 +43,7 @@ public class KittyCatGameServices : IServiceConfiguration
         // Register world and their systems
         services.AddWorld<World>();
         services.AddSystemRoot(ConfigureSystems);
-        services.AddRenderPipeline<World>(builder => { });
+        //services.AddRenderPipeline<World>(builder => { });
 
         // Register Game helpers & tools
         services.AddSingleton(GetDefaultContentManager)

@@ -2,10 +2,11 @@
 
 namespace PurrplingCore.Toolkit.Rendering;
 
-public interface ICamera
+public interface ICamera 
 {
-    Vector2 Position { get; }
-    float Zoom { get; }
-    Matrix GetViewMatrix();
-    Rectangle GetViewport();
+    Matrix ViewMatrix { get; }
+    Matrix ProjectionMatrix { get; }
+    BoundingFrustum Frustum { get; } 
+
+    void UpdateState(Matrix view, Matrix projection);
 }

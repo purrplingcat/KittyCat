@@ -37,16 +37,36 @@ public sealed class Hierarchy<T> where T : notnull
         return children.Add(child);
     }
 
-    public void RemoveChild(T parent, T child)
+    public bool RemoveChild(T parent, T child)
     {
         if (_relations.TryGetValue(parent, out var children))
         {
-            children.Remove(child);
+            bool removed = children.Remove(child);
             if (children.Count == 0)
             {
                 _relations.Remove(parent);
             }
+
+            return removed;
         }
+
+        return false;
+    }
+
+    public bool RemoveNode(T node)
+    {
+        bool removed = _relations.Remove(node);
+
+        foreach (var children in _relations.Values)
+        {
+            children.Remove(node);
+        }
+        return removed;
+    }
+
+    public bool ClearChildren(T parent)
+    {
+        return _relations.Remove(parent);
     }
 
     public bool ContainsNode(T node)
