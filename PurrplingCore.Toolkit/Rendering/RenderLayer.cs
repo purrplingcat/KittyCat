@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace PurrplingCore.Toolkit.Rendering;
 
+// Nebo jakýkoli jiný render pass podle potřeby
 public class RenderLayer : IRenderPass, IPrepareRender, IInitializeRender
 {
     private static readonly DefaultCamera DEFAULT_CAMERA = new();
@@ -12,20 +13,9 @@ public class RenderLayer : IRenderPass, IPrepareRender, IInitializeRender
     private readonly IRenderFeature2D[] _features;
     private readonly IPrepareRender[] _preparables;
     private readonly IInitializeRender[] _initializables;
-    private SpriteBatchConfig _config;
-    private SpriteRenderBatch _renderContext;
+    private readonly RenderContext _renderContext;
     private bool _initialized;
-    
-
-    public SpriteBatchConfig Config
-    {
-        get => _config; 
-        set
-        {
-            _config = value;
-            _renderContext = new SpriteRenderBatch(_batch, _camera, _config);
-        }
-    }
+    private bool _disposed;
 
     public ReadOnlySpan<IRenderFeature2D> Features => _features;
 
@@ -36,7 +26,7 @@ public class RenderLayer : IRenderPass, IPrepareRender, IInitializeRender
         _camera = camera ?? DEFAULT_CAMERA;
         _preparables = [.. features.OfType<IPrepareRender>()];
         _initializables = [.. features.OfType<IInitializeRender>()];
-        _renderContext = new SpriteRenderBatch(_batch, _camera, _config);
+        _renderContext = new RenderContext(_batch, _batch.GraphicsDevice);
     }
 
     private class DefaultCamera : ICamera
@@ -59,7 +49,7 @@ public class RenderLayer : IRenderPass, IPrepareRender, IInitializeRender
     {
         if (_features.Length == 0) return;
         
-        _renderContext.Begin();
+        _renderContext.BeginBatch();
 
         try
         {
@@ -70,7 +60,7 @@ public class RenderLayer : IRenderPass, IPrepareRender, IInitializeRender
         }
         finally
         {
-            _renderContext.End();
+            _renderContext.EndBatch();
         }
     }
 
@@ -81,9 +71,11 @@ public class RenderLayer : IRenderPass, IPrepareRender, IInitializeRender
         {
             _preparables[i].Prepare(gameTime);
         }
+
+        _renderContext.Transform = _camera.ViewMatrix;
     }
 
-    public void Initialize()
+    public virtual void Initialize()
     {
         if (_initialized) return;
 
@@ -96,4 +88,19 @@ public class RenderLayer : IRenderPass, IPrepareRender, IInitializeRender
     }
 
     protected virtual void LoadContent() { }
+
+    public void Uninitialize()
+    {
+        _initialized = false;
+        for (int i = 0; i < _initializables.Length; i++)
+        {
+            _initializables[i].Uninitialize();
+        }
+    }
+
+    public void Dispose()
+    {
+        Uninitialize();
+        _renderContext.Dispose();
+    }
 }

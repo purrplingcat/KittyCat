@@ -15,10 +15,11 @@ public interface IPrepareRender
 
 public interface IRenderFeature2D
 {
-    void Draw(SpriteRenderBatch batch, GameTime gameTime);
+    void Draw(RenderContext batch, GameTime gameTime);
 }
 
-public interface IInitializeRender
+public interface IInitializeRender : IDisposable
 {
     void Initialize();
+    void Uninitialize();
 }
