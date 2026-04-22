@@ -18,6 +18,8 @@ public interface IGameHostBuilder
 
     IGameHostBuilder UseServiceProviderFactory(IServiceProviderFactory factory);
 
+    IGameHostBuilder AddPlugin(IGameHostPlugin feature);
+
     /// <summary>
     /// Sestaví a vrátí finální instanci GameHost.
     /// </summary>

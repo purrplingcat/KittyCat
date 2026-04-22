@@ -4,6 +4,8 @@ using PurrplingCore.Toolkit;
 using PurrplingCore.Toolkit.DI;
 using System;
 using PurrplingCore.Toolkit.Extensions;
+using Microsoft.Extensions.DependencyInjection;
+using PurrplingCore.Ecs;
 
 internal class Program
 {
@@ -15,7 +17,7 @@ internal class Program
     private static void Main(string[] args)
     {
         Console.WriteLine($"{KittyCatGame.GameName} {KittyCatGame.VersionInfo} ({KittyCatGame.Version})");
-        Console.WriteLine($"Running on {Environment.OSVersion} ({GameCore.PlatformName})");
+        Console.WriteLine($"Running on {Environment.OSVersion} ({Game.PlatformName})");
         Console.WriteLine();
 
         using var host = GameHost.CreateBuilder()

@@ -41,8 +41,8 @@ public class KittyCatGameServices : IServiceConfiguration
     public void Configure(IServiceCollection services)
     {
         // Register world and their systems
-        services.AddWorld<World>();
-        services.AddSystemRoot(ConfigureSystems);
+        services.UseEcs();
+        //services.AddSystemRoot(ConfigureSystems);
         //services.AddRenderPipeline<World>(builder => { });
 
         // Register Game helpers & tools

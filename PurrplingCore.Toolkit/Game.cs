@@ -7,7 +7,7 @@ using PurrplingCore.Toolkit.Messaging;
 
 namespace PurrplingCore.Toolkit;
 
-public abstract class GameCore: Game, IGame
+public abstract class Game: Microsoft.Xna.Framework.Game, IGame
 {
     private readonly IServiceProvider _provider;
     private readonly IMessageBus? _bus;
@@ -43,7 +43,7 @@ public abstract class GameCore: Game, IGame
     public static string PlatformName
         => IsMobile ? "Mobile" : IsDesktop ? "Desktop" : "Unknown";
 
-    public GameCore(IServiceProvider provider)
+    public Game(IServiceProvider provider)
     {
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
         _graphicsManager = new GraphicsDeviceManager(this);

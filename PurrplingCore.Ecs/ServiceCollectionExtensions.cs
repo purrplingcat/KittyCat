@@ -1,34 +1,55 @@
 ﻿using Friflo.Engine.ECS;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using PurrplingCore.Toolkit.DI;
 
 namespace PurrplingCore.Ecs;
+
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddWorld<TWorld>(this IServiceCollection services)
-        where TWorld : World
+    private class DelegateWorldBootstrap(int order, Action<ManagedWorld> setupAction) : IWorldBootstrap
     {
-        return services.AddSingleton<World, TWorld>();
+        public int Order { get; } = order;
+
+        public void Setup(ManagedWorld world)
+        {
+            setupAction(world);
+        }
     }
 
-    public static IServiceCollection AddWorld(this IServiceCollection services, Func<IServiceProvider, World> factory)
+    public static IServiceCollection UseEcs(this IServiceCollection services)
     {
-        return services.AddSingleton(factory);
+        services.TryAddSingleton<IWorldFactory, WorldFactory>();
+        services.TryAddSingleton<WorldManager>();
+        services.TryAddScoped<IWorldAccessor, WorldAccessor>();
+
+        return services;
     }
 
-    public static IServiceCollection AddWorldExtension<TExtension, TImplementation>(this IServiceCollection services)
-        where TExtension : class
-        where TImplementation : class, IWorldExtension<TExtension>
+    public static IServiceCollection AddWorld(this IServiceCollection services, WorldTag tag, Action<WorldBuilder> configure)
     {
-        return services.AddSingleton<IWorldExtension<TExtension>, TImplementation>();
+        services.UseEcs();
+        services.AddWorldBootstrap(tag, (services, key) => new DelegateBuilderBootstrap(configure));
+        return services;
     }
 
-    public static IServiceCollection AddWorldExtension<TExtension>(this IServiceCollection services, Func<EntityStore, IServiceProvider, TExtension> factory)
-        where TExtension : class
+    public static IServiceCollection AddWorldBootstrap<TBootstrap>(this IServiceCollection services, WorldTag tag) where TBootstrap : class, IWorldBootstrap
     {
-        return services.AddSingleton<IWorldExtension<TExtension>>(
-            provider => new GenericWorldExtension<TExtension>(
-                provider.GetRequiredService<World>(), provider, factory
-            )
-        );
+        services.UseEcs();
+        return services.AddKeyedSingleton<IWorldBootstrap, TBootstrap>(tag);
+    }
+
+    public static IServiceCollection AddWorldBootstrap(this IServiceCollection services, WorldTag tag, Func<IServiceProvider, object?, IWorldBootstrap> factory)
+    {
+        services.UseEcs();
+        return services.AddKeyedSingleton(tag, factory);
+    }
+
+    public static IServiceCollection AddWorldBootstrap(this IServiceCollection services, WorldTag tag, Action<ManagedWorld> setupAction, int order = 0)
+    {
+        services.UseEcs();
+
+        var bootstrap = new DelegateWorldBootstrap(order, setupAction);
+        return services.AddKeyedSingleton<IWorldBootstrap>(tag, bootstrap);
     }
 }

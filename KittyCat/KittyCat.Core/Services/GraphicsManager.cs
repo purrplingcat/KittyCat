@@ -10,7 +10,7 @@ namespace KittyCat.Services;
 [Singleton]
 public class GraphicsManager : IStartupService
 {
-    private readonly GameCore _game;
+    private readonly PurrplingCore.Toolkit.Game _game;
     private readonly Resolution _resolution;
     private SpriteBatch? _spriteBatch;
     int IStartupService.Order => 0;
@@ -24,7 +24,7 @@ public class GraphicsManager : IStartupService
     public Resolution Resolution => _resolution;
     public bool IsReady => _game.IsInitialized && _game.GraphicsDevice != null;
 
-    public GraphicsManager(GameCore game)
+    public GraphicsManager(PurrplingCore.Toolkit.Game game)
     {
         _game = game ?? throw new ArgumentNullException(nameof(game));
         _resolution = new Resolution(_game.GraphicsDeviceManager, game.Window);

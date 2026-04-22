@@ -13,28 +13,22 @@ using System.Runtime.Intrinsics.Arm;
 
 namespace PurrplingCore.Ecs.Systems.Builder;
 
-internal sealed class SystemGroupFactory<TGroup>(ISystemGroupFactory factory) : ISystemGroupFactory<TGroup> where TGroup : SystemGroup
-{
-    private readonly ISystemGroupFactory _factory = factory;
-    public TGroup CreateGroup() => _factory.CreateGroup<TGroup>();
-}
-
-internal class SystemGroupFactory(IServiceProvider provider, IOptions<SystemTreeConfiguration> options) : ISystemGroupFactory
+internal class SystemFactory(IServiceProvider provider, IOptions<SystemConfiguration> options) : ISystemGroupFactory
 {
     private readonly IServiceProvider _provider = provider;
-    private readonly SystemTreeConfiguration _config = options.Value;
+    private readonly SystemConfiguration _config = options.Value;
 
     [Factory]
     public TGroup CreateGroup<TGroup>() where TGroup : SystemGroup
     {
         var group = ActivatorUtilities.CreateInstance<TGroup>(_provider);
 
-        if (_config.TryGetGroup(typeof(TGroup), out var memberTypes))
+        /*if (_config.TryGetGroup(typeof(TGroup), out var memberTypes))
         {
             group.Add(
                 OrderByDependency(memberTypes).Select(CreateSystem)
             );
-        }
+        }*/
 
         return group;
     }

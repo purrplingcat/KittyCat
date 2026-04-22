@@ -94,9 +94,9 @@ internal sealed class SystemBuilder<TGroup>(IServiceCollection services) : ISyst
 
     private void AddChild<TChild>() where TChild : BaseSystem
     {
-        _services.Configure<SystemTreeConfiguration>(
+        /*_services.Configure<SystemTreeConfiguration>(
             static config => config.AddChild<TGroup, TChild>()
-        );
+        );*/
     }
 }
 

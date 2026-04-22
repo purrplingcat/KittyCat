@@ -13,12 +13,12 @@ public enum GameMessages
 
 public readonly struct GameMessage
 {
-    public readonly Game Game;
+    public readonly Microsoft.Xna.Framework.Game Game;
     public readonly GameMessages Type;
 
     public bool IsEmpty => Game is null;
 
-    internal GameMessage(Game game, GameMessages type)
+    internal GameMessage(Microsoft.Xna.Framework.Game game, GameMessages type)
     {
         Game = game;
         Type = type;

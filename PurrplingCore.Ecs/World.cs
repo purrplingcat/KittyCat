@@ -1,227 +1,149 @@
 ﻿using Friflo.Engine.ECS;
-using System.Diagnostics.CodeAnalysis;
+using Friflo.Engine.ECS.Systems;
+using PurrplingCore.Ecs.Systems;
+using System.Runtime.CompilerServices;
+using System.Linq;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using PurrplingCore.Toolkit;
 
 namespace PurrplingCore.Ecs;
 
 /// <summary>
 /// Represents the main ECS world, managing entities, systems, and update logic.
 /// </summary>
-public class World
+public class World : IWorld, IDisposable
 {
-    public delegate void StoreChangedHandler(string name, EntityStore store);
+    private readonly EntityStore _store;
+    private readonly UpdateSystemGroup _updateSystems = [];
+    private readonly DrawSystemGroup _drawSystems = [];
+    private readonly InitializeSystemGroup _initializeSystems = [];
+    private readonly FixedUpdateSystemGroup _fixedUpdateSystems = [];
+    private readonly SystemRoot _systemRoot;
+    private readonly ILogger _logger;
+    private UpdateTick _time;
+    private bool _initialized;
+    private bool _disposed;
 
-    private readonly object _lock = new();
-    private readonly EntityStores _stores;
-    private EntityStore? _currentStore;
+    public string Name { get; set; } = string.Empty;
+    public EntityStore Store => _store;
+    public UpdateSystemGroup UpdateSystems => _updateSystems;
+    public DrawSystemGroup DrawSystems => _drawSystems;
+    public InitializeSystemGroup InitializeSystems => _initializeSystems;
+    public FixedUpdateSystemGroup FixedUpdateSystems => _fixedUpdateSystems;
 
-    /// <summary>
-    /// Gets the entity store for this world.
-    /// </summary>
-    public EntityStore CurrentStore => _currentStore
-        ?? throw new InvalidOperationException("No current entity store is set. Ensure that at least one store is created and set as current.");
+    public ref UpdateTick Time => ref _time;
 
-    public int StoreCount => _stores.Count;
-    public bool IsEmpty => _stores.Count == 0;
-    public bool HasCurrentStore => _currentStore != null;
+    internal SystemRoot SystemRoot => _systemRoot;
+    internal ILogger Logger => _logger;
 
-    public event StoreChangedHandler? StoreAdded;
-    public event StoreChangedHandler? StoreRemoved;
-    public event StoreChangedHandler? CurrentStoreChanged;
-    public event Action? WorldCleared;
+    public IReadOnlyCollection<BaseSystem> Systems => _systemRoot.ChildSystems;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="World"/> class.
-    /// </summary>
-    public World()
+    public event EventHandler? Disposed;
+    public event EventHandler? Initialized;
+    public event Action<IWorld, UpdateTick>? Updated;
+    public event Action<IWorld, UpdateTick>? Drawn;
+
+    public World() : this(PidType.UsePidAsId) { }
+
+    public World(PidType pidType, ILogger? logger = null)
     {
-        _stores = new EntityStores(this);
+        _store = new EntityStore(pidType);
+        _logger = logger ?? NullLogger<World>.Instance;
+        _systemRoot = new WorldSystemRoot(this) {
+            _initializeSystems,
+            _fixedUpdateSystems,
+            _updateSystems,
+            _drawSystems, 
+        };
+        
+        _store.EventRecorder.Enabled = true;
     }
 
-    public static EntityStore CreateNewStore(string name = "")
+    protected virtual void OnInitialize()
     {
-        var store = new EntityStore(PidType.RandomPids);
-
-        store.EventRecorder.Enabled = true;
-        store.SetStoreRoot(
-            store.CreateEntity(new EntityName(name))
-        );
-
-        return store;
     }
 
-    public EntityStore CreateStore(string name)
+    protected virtual void OnDispose()
     {
-        ArgumentNullException.ThrowIfNull(name);
+    }
 
-        lock (_lock)
+    public void Initialize()
+    {
+        if (_initialized) return;
+
+        OnInitialize();
+        _initializeSystems.Update(new UpdateTick());
+        _initialized = true;
+
+        Initialized?.Invoke(this, EventArgs.Empty);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    protected void EnsureNotDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+
+    public void Update(UpdateTick tick)
+    {
+        EnsureNotDisposed();
+        if (!_initialized) { Initialize(); }
+
+        _time = tick;
+        _store.EventRecorder.ClearEvents();
+        _fixedUpdateSystems.Update(tick);
+        _updateSystems.Update(tick);
+        Updated?.Invoke(this, tick);
+    }
+
+    public void Draw(UpdateTick tick)
+    {
+        EnsureNotDisposed();
+        if (!_initialized) { Initialize(); }
+
+        _drawSystems.Update(tick);
+        Drawn?.Invoke(this, tick);
+    }
+
+    public SystemGroup? FindGroup(string name, bool recursive = true)
+    {
+        EnsureNotDisposed();
+        return _systemRoot.FindGroup(name, recursive);
+    }
+
+    public T? FindSystem<T>(bool recursive = true) where T : BaseSystem
+    {
+        EnsureNotDisposed();
+        return _systemRoot.FindSystem<T>(recursive);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed)
         {
-            if (_stores.Contains(name))
+            if (disposing)
             {
-                throw new InvalidOperationException($"An entity store with the name '{name}' already exists.");
+                Initialized = null;
+                Updated = null;
+                Drawn = null;
+                OnDispose();
             }
 
-            var store = CreateNewStore(name);
-            OnCreateStore(store);
-            _stores.Add(name, store);
-
-            return store;
+            Disposed?.Invoke(this, EventArgs.Empty);
+            Disposed = null;
+            _disposed = true;
         }
     }
 
-    protected virtual void OnCreateStore(EntityStore store)
+    ~World()
     {
+        Dispose(disposing: false);
     }
 
-    protected virtual void OnRemoveStore(string name, EntityStore store)
+    public void Dispose()
     {
-        if (_currentStore == store)
-        {
-            var defaultStore = _stores.GetDefaultStore();
-            
-            _currentStore = defaultStore.Value;
-            CurrentStoreChanged?.Invoke(defaultStore.Key, defaultStore.Value);
-        }
-
-        StoreRemoved?.Invoke(name, store);
-    }
-
-    protected virtual void OnAddStore(string name, EntityStore store)
-    {
-        if (_currentStore == null)
-        {
-            _currentStore = store;
-            CurrentStoreChanged?.Invoke(name, store);
-        }
-
-        StoreAdded?.Invoke(name, store);
-    }
-
-    public void RemoveStore(string name)
-    {
-        _stores.Remove(name);
-    }
-
-    public bool RemoveStore(EntityStore store)
-    {
-        lock (_lock)
-        {
-            if (store.StoreRoot.TryGetComponent<EntityName>(out var nameComp) && _stores.Contains(nameComp.value))
-            {
-                return _stores.Remove(nameComp.value);
-            }
-
-            return false;
-        }
-    }
-
-    public bool ContainsStore(EntityStore store)
-    {
-        if (store.StoreRoot.TryGetComponent<EntityName>(out var nameComp))
-        {
-            return _stores.Contains(nameComp.value);
-        }
-        return false;
-    }
-
-    public bool StoreExists(string name) => _stores.Contains(name);
-    public EntityStore GetStore(string name) => _stores.Get(name);
-    public bool TryGetStore(string name, [MaybeNullWhen(false)] out EntityStore store) => _stores.TryGet(name, out store);
-    public IEnumerable<EntityStore> GetAllStores() => _stores.GetAll();
-
-    public bool SwitchToStore(string name)
-    {
-        lock (_lock)
-        {
-            if (_stores.TryGet(name, out var store))
-            {
-                _currentStore = store;
-                CurrentStoreChanged?.Invoke(name, store);
-                return true;
-            }
-            return false;
-        }
-    }
-
-    public void Clear()
-    {
-        lock (_lock)
-        {
-            _currentStore = null;
-            _stores.Clear();
-            WorldCleared?.Invoke();
-        }
-    }
-
-    internal class EntityStores
-    {
-        private readonly Dictionary<string, EntityStore> _stores = [];
-        private readonly World _world;
-
-        public int Count => _stores.Count;
-
-        internal EntityStores(World world)
-        {
-            _world = world;
-        }
-
-        public void Add(string name, EntityStore store)
-        {
-            lock (_world._lock)
-            {
-                store.AssignWorld(_world);
-                _stores.Add(name, store);
-                _world.OnAddStore(name, store);
-            }
-        }
-
-        public bool Remove(string name)
-        {
-            lock (_world._lock)
-            {
-                if (_stores.TryGetValue(name, out var store))
-                {
-                    bool removed = _stores.Remove(name);
-                    if (removed)
-                    {
-                        _world.OnRemoveStore(name, store);
-                    }
-                    return removed;
-                }
-                return false;
-            }
-        }
-
-        public bool Contains(string name) => _stores.ContainsKey(name);
-        public EntityStore Get(string name) => _stores[name];
-
-        public bool TryGet(string name, [MaybeNullWhen(false)] out EntityStore store)
-        {
-            return _stores.TryGetValue(name, out store);
-        }
-
-        public IEnumerable<EntityStore> GetAll() => _stores.Values;
-
-        public void Clear()
-        {
-            lock (_world._lock)
-            {
-                var removed = _stores.ToArray();
-
-                _stores.Clear();
-
-                if (_world.StoreRemoved != null)
-                {
-                    for (int i = 0; i < removed.Length; i++)
-                    {
-                        _world.StoreRemoved.Invoke(removed[i].Key, removed[i].Value);
-                    }
-                }
-            }
-        }
-
-        public KeyValuePair<string, EntityStore> GetDefaultStore()
-        {
-            return _stores.FirstOrDefault();
-        }
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
     }
 }

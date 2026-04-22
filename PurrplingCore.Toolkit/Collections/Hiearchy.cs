@@ -37,6 +37,16 @@ public sealed class Hierarchy<T> where T : notnull
         return children.Add(child);
     }
 
+    public bool AddNode(T node)
+    {
+        if (_relations.ContainsKey(node))
+        {
+            return false; // Node already exists
+        }
+        _relations[node] = [];
+        return true;
+    }
+
     public bool RemoveChild(T parent, T child)
     {
         if (_relations.TryGetValue(parent, out var children))

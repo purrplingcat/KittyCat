@@ -12,18 +12,19 @@ public static partial class ServiceExtensions
 {
     public static IServiceCollection AddGame<TGame>(this IServiceCollection services) where TGame : Game, IGame 
     {
-        return services.AddPureGame<TGame>()
-                       .AddAlias<Game, TGame>()
+        if (services.Any(service => service.ServiceType == typeof(TGame)))
+        {
+            throw new InvalidOperationException($"A service of type '{typeof(TGame)}' is already registered. Only one game can be registered.");
+        }
+
+        return services.AddSingleton<TGame>()
                        .ExposeMonoGameService<IGraphicsDeviceService>()
                        .ExposeMonoGameService<IGraphicsDeviceManager>()
                        .ExposeMonoGameService<GraphicsDeviceManager>()
-                       .Expose<GameServiceContainer, TGame>(game => game.Services);
-    }
-
-    public static IServiceCollection AddPureGame<TGame>(this IServiceCollection services) where TGame : class, IGame
-    {
-        return services.AddSingleton<TGame>()
-                       .AddAlias<IGame, TGame>();
+                       .Expose((TGame game) => game.Services)
+                       .AddAlias<Microsoft.Xna.Framework.Game, TGame>()
+                       .AddAlias<IGame, TGame>()
+                       .AddAlias<Game, TGame>();
     }
 
     public static IServiceCollection AddConfiguration(this IServiceCollection services, IServiceConfiguration configuration)
@@ -69,6 +70,13 @@ public static partial class ServiceExtensions
         return services.AddTransient(provider => exposeDelegate(provider.GetRequiredService<TSource>()));
     }
 
+    public static void TryExpose<TExposed, TSource>(this IServiceCollection services, Func<TSource, TExposed> exposeDelegate)
+        where TExposed : class
+        where TSource : class
+    {
+        services.TryAddTransient(provider => exposeDelegate(provider.GetRequiredService<TSource>()));
+    }
+
     public static IServiceCollection AddSetup<T>(this IServiceCollection services, Action<T> setup)
     {
         services.TryAddSingleton(typeof(ISetup<T>), typeof(Setup<T>));
@@ -85,15 +93,60 @@ public static partial class ServiceExtensions
 
     public static IServiceCollection AddStartup<TStartup>(this IServiceCollection services) where TStartup : class, IStartupService
     {
-        return services.AddSingleton<IStartupService, TStartup>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupService, TStartup>());
+        return services;
     }
 
+    public static IServiceCollection ActivateSingleton<TService>(this IServiceCollection services) where TService : class
+    {
+        services.AddStartup<AutoActivator>()
+                .AddOptions<AutoActivatorOptions>()
+                .Configure(ao =>
+                {
+                    var constructed = typeof(IEnumerable<TService>);
+                    if (ao.AutoActivators.Contains(constructed))
+                    {
+                        return;
+                    }
+
+                    if (ao.AutoActivators.Remove(typeof(TService)))
+                    {
+                        ao.AutoActivators.Add(constructed);
+                        return;
+                    }
+
+                    ao.AutoActivators.Add(typeof(TService));
+                });
+        return services;
+    }
+
+    public static IServiceCollection AddActivatedSingleton<TService>(this IServiceCollection services) where TService : class
+    {
+        return services.AddSingleton<TService>()
+                       .ActivateSingleton<TService>();
+    }
+
+    public static IServiceCollection AddActivatedSingleton<TService, TImplementation>(this IServiceCollection services)
+        where TService : class
+        where TImplementation : class, TService
+    {
+        return services.AddSingleton<TService, TImplementation>()
+                       .ActivateSingleton<TService>();
+    }
+
+    /// <summary>
+    /// [HACK] MongoGame services are registered in the Game.Services collection, so this method allows you to expose them to the DI container.
+    /// </summary>
+    /// <typeparam name="TService"></typeparam>
+    /// <param name="services"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
     public static IServiceCollection ExposeMonoGameService<TService>(this IServiceCollection services)
     where TService : class
     {
         services.AddTransient(static provider =>
         {
-            var game = provider.GetRequiredService<Game>(); // nebo IGame
+            var game = provider.GetRequiredService<Microsoft.Xna.Framework.Game>();
             var monoGameService = game.Services.GetService<TService>();
 
             return monoGameService

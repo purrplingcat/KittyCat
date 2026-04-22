@@ -11,8 +11,12 @@ internal class GameHostBuilder : IGameHostBuilder
 {
     private readonly List<Action<IServiceCollection, GameHostBuilderContext>> _serviceActions = [];
     private readonly List<Action<ILoggingBuilder>> _loggingActions = [];
+    private readonly List<IGameHostPlugin> _plugins = [];
     private IServiceProviderFactory _serviceProviderFactory = new DefaultServiceProviderFactory();
     private ILogger? _logger;
+    private bool _hostBuilt;
+
+    public ServiceCollection Services { get; } = [];
 
     /// <summary>
     /// Core services configuration for the GameHost and hosted services.
@@ -95,32 +99,66 @@ internal class GameHostBuilder : IGameHostBuilder
         _logger?.LogDebug("Service configuration completed in {ElapsedMilliseconds} ms", watch.ElapsedMilliseconds);
     }
 
-    protected ILoggerFactory CreateLoggerFactory() => LoggerFactory.Create(ConfigureLogging);
+    public ILoggerFactory CreateLoggerFactory() => LoggerFactory.Create(ConfigureLogging);
 
-    private ServiceCollection CreateServiceCollection(GameHostBuilderContext context)
+    private GameHostBuilderContext CreateContext()
     {
-        var services = new ServiceCollection();
-        ConfigureServices(services, context);
-
-        return services;
+        var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
+        var loggerFactory = CreateLoggerFactory();
+        
+        return new GameHostBuilderContext(loggerFactory, assembly);
     }
 
     /// <summary>
     /// Build the <see cref="GameHost"/> instance with hosted game and services.
+    /// This method can only be called once.
     /// </summary>
     /// <returns>The <see cref="GameHost"/> instance</returns>
     public GameHost Build()
     {
+        if (_hostBuilt)
+        {
+            throw new InvalidOperationException("GameHostBuilder can only build once");
+        }
+        _hostBuilt = true;
+
         var watch = Stopwatch.StartNew();
+        using var context = CreateContext();
+        _logger = CreateDiagnosticLogger(context);
 
-        using var loggerFactory = CreateLoggerFactory();
-        _logger = loggerFactory.CreateLogger<GameHostBuilder>();
-        
-        var context = new GameHostBuilderContext(this, loggerFactory, Assembly.GetExecutingAssembly());
-        var services = CreateServiceCollection(context);
-        var provider = _serviceProviderFactory.CreateServiceProvider(services);
+        UsePlugins(context);
+        ConfigureServices(Services, context);
+        // prevent further modifications to the service collection after configuration
+        Services.MakeReadOnly();
 
+        var provider = _serviceProviderFactory.CreateServiceProvider(Services);
+        var host = provider.GetRequiredService<GameHost>();
         _logger.LogDebug("GameHost built in {ElapsedMilliseconds} ms", watch.ElapsedMilliseconds);
-        return provider.GetRequiredService<GameHost>();
+
+        return host;
+    }
+
+    private static ILogger CreateDiagnosticLogger(GameHostBuilderContext context)
+    {
+        var logger = context.LoggerFactory.CreateLogger<GameHostBuilder>();
+        logger.LogDebug("{execAssembly} ({toolkit})", context.HostAssembly.FullName, Assembly.GetExecutingAssembly().FullName);
+
+        return logger;
+    }
+
+    private void UsePlugins(GameHostBuilderContext context)
+    {
+        foreach (var plugin in _plugins)
+        {
+            var watch = Stopwatch.StartNew();
+            plugin.Setup(this, context);
+            _logger?.LogDebug("Feature '{feature}' applied in {ElapsedMilliseconds} ms", plugin.Name, watch.ElapsedMilliseconds);
+        }
+    }
+
+    public IGameHostBuilder AddPlugin(IGameHostPlugin feature)
+    {
+        _plugins.Add(feature);
+        return this;
     }
 }

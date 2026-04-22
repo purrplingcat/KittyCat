@@ -10,8 +10,8 @@ public static class ServiceExtensions
     public static void AddSystemGroup<TGroup>(this IServiceCollection services)
         where TGroup : SystemGroup
     {
-        services.TryAddSingleton(typeof(ISystemGroupFactory<>), typeof(SystemGroupFactory<>));
-        services.TryAddSingleton<ISystemGroupFactory, SystemGroupFactory>();
+        //services.TryAddSingleton(typeof(ISystemGroupFactory<>), typeof(SystemFactory<>));
+        services.TryAddSingleton<ISystemGroupFactory, SystemFactory>();
         services.TryAddTransient(CreateSystemGroup<TGroup>);
     }
 
@@ -46,6 +46,11 @@ public static class ServiceExtensions
     public static IServiceCollection AddSystemRoot(this IServiceCollection services, Action<ISystemBuilder> configure)
     {
         return services.AddSystemGroup<SystemRoot>(configure);
+    }
+
+    public static IServiceCollection AddSystemRoot<TTag>(this IServiceCollection services, Action<ISystemBuilder> configure)
+    {
+        return services.AddSystemGroup<TaggedSystemRoot<TTag>>(configure);
     }
 
     private static TGroup CreateSystemGroup<TGroup>(IServiceProvider provider) where TGroup : SystemGroup

@@ -21,7 +21,6 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
     protected ManagedSystem(World world, IMessageBus? bus = null)
     {
         World = world;
-        World.WorldCleared += OnWorldCleared;
 
         if (bus != null)
         {
@@ -129,7 +128,6 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
             {
                 ContextBuffer = null!;
                 ContextStore = null!;
-                World.WorldCleared -= OnWorldCleared;
 
                 foreach (var buffer in _commandBuffers.Values)
                 {

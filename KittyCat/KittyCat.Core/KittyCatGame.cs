@@ -20,7 +20,7 @@ namespace KittyCat;
 /// and platform-specific configurations.
 /// </summary>
 [GameServices<KittyCatGameServices>]
-public class KittyCatGame : GameCore
+public class KittyCatGame : PurrplingCore.Toolkit.Game
 {
     public static Version Version { get; }
     public static string VersionInfo { get; }

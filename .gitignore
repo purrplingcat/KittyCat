@@ -206,6 +206,12 @@ PublishScripts/
 *.nuget.props
 *.nuget.targets
 
+# Compressed files
+*.zip
+*.rar
+*.tar
+*.gz
+
 # Microsoft Azure Build Output
 csx/
 *.build.csdef

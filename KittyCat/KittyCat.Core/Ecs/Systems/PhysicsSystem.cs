@@ -7,12 +7,12 @@ using PurrplingCore.Toolkit;
 namespace KittyCat.Ecs.Systems;
 
 [Order(Order.Later + 100)]
-public class PhysicsSystem(World world, IWorldExtension<PhysicsWorld> physicsExtension) : BaseSystem()
+public class PhysicsSystem(World world) : BaseSystem()
 {
     protected override void OnUpdateGroup()
     {
-        EntityStore store = world.CurrentStore;
-        PhysicsWorld physicsWorld = physicsExtension.GetFor(store);
+        //EntityStore store = world.CurrentStore;
+        //PhysicsWorld physicsWorld = physicsExtension.GetFor(store);
 
         // --- FÁZE 1: ECS -> Fyzika (Předání příkazů) ---
         // Projdeme entity, které mají nějaké příkazy k vykonání
@@ -40,7 +40,7 @@ public class PhysicsSystem(World world, IWorldExtension<PhysicsWorld> physicsExt
 
         // --- FÁZE 2: Simulace ---
         // Řekneme fyzikálnímu enginu, aby provedl svůj výpočet
-        physicsWorld.Step(Tick.deltaTime);
+        //physicsWorld.Step(Tick.deltaTime);
 
         // --- FÁZE 3: Fyzika -> ECS (Synchronizace výsledků) ---
         // Projdeme všechny fyzikální entity a zapíšeme jejich novou pozici

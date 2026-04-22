@@ -5,7 +5,11 @@ using System.Xml.Linq;
 
 namespace PurrplingCore.Ecs.Systems;
 
-internal sealed class TaggedSystemGroup<TTag>() : SystemGroup(typeof(TTag).FullName) where TTag : struct, ITag
+internal sealed class TaggedSystemGroup<TTag>() : SystemGroup(typeof(TTag).FullName)
+{
+}
+
+internal sealed class TaggedSystemRoot<TTag>() : SystemRoot(typeof(TTag).FullName)
 {
 }
 

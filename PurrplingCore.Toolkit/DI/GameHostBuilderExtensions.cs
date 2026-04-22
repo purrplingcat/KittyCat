@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Toolkit.DI.Configuration;
 using System.Reflection;
@@ -23,7 +24,7 @@ public static class GameHostBuilderExtensions
         return builder.UseServiceProviderFactory(new ServiceProviderFactoryAdapter<TContainerBuilder>(factory));
     }
 
-    public static IGameHostBuilder AddGame<TGame>(this IGameHostBuilder builder) where TGame : GameCore
+    public static IGameHostBuilder AddGame<TGame>(this IGameHostBuilder builder) where TGame : Game
     {
         return builder.ConfigureServices(static (services, _) => {
             var gameType = typeof(TGame);
@@ -36,8 +37,7 @@ public static class GameHostBuilderExtensions
 
             // Add services from the assembly containing the game type
             services.AddConfiguration(new AssemblyServices(gameType.Assembly))
-                    .AddGame<TGame>()
-                    .AddAlias<GameCore, TGame>();
+                    .AddGame<TGame>();
         });
     }
 }

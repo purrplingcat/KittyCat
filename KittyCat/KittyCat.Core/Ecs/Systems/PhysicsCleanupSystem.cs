@@ -13,13 +13,13 @@ namespace KittyCat.Ecs.Systems;
 public class PhysicsCleanupSystem : BaseSystem
 {
     private readonly World _world;
-    private readonly PhysicsManager _physicsManager;
+    //private readonly PhysicsManager _physicsManager;
     //private readonly HashSet<B2BodyId> _pendingRemovals = new();
 
-    public PhysicsCleanupSystem(World world, PhysicsManager physicsManager)
+    public PhysicsCleanupSystem(World world)
     {
         _world = world;
-        _physicsManager = physicsManager;
+        //_physicsManager = physicsManager;
 
         //_world.CurrentStore.OnComponentRemoved += OnComponentRemoved;
         //world.CurrentStore.OnEntityDelete += OnEntityDeleted;
