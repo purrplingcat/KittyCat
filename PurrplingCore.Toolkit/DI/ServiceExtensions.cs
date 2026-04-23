@@ -3,21 +3,19 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System.Collections.Generic;
-using System.Text.RegularExpressions;
 
 namespace PurrplingCore.Toolkit.DI;
 
 public static partial class ServiceExtensions
 {
-    public static IServiceCollection AddGame<TGame>(this IServiceCollection services) where TGame : Game, IGame 
+    internal static IServiceCollection AddGame<TGame>(this IServiceCollection services) where TGame : Game, IGame 
     {
         if (services.Any(service => service.ServiceType == typeof(TGame)))
         {
             throw new InvalidOperationException($"A service of type '{typeof(TGame)}' is already registered. Only one game can be registered.");
         }
 
-        return services.AddSingleton<TGame>()
+        return services.AddSingleton<TGame>() // Main game service singleton
                        .ExposeMonoGameService<IGraphicsDeviceService>()
                        .ExposeMonoGameService<IGraphicsDeviceManager>()
                        .ExposeMonoGameService<GraphicsDeviceManager>()

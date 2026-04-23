@@ -19,7 +19,7 @@ internal class WorldFactory(IServiceScopeFactory scopeFactory, ILogger<WorldFact
         name ??= string.Empty;
         tag ??= WorldTag.Default;
 
-        _logger.LogInformation("Creating world with name '{Name}' and tag '{Tag}'", name, tag.DebugName);
+        _logger.LogInformation("Creating {Tag} world named '{Name}'", tag.DebugName, name);
         return ManagedWorld.Create(scope, name, tag);
     }
 }

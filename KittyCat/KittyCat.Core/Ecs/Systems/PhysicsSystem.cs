@@ -3,11 +3,12 @@ using Friflo.Engine.ECS.Systems;
 using KittyCat.Services;
 using PurrplingCore.Ecs;
 using PurrplingCore.Toolkit;
+using System;
 
 namespace KittyCat.Ecs.Systems;
 
 [Order(Order.Later + 100)]
-public class PhysicsSystem(World world) : BaseSystem()
+public class PhysicsSystem() : BaseSystem()
 {
     protected override void OnUpdateGroup()
     {

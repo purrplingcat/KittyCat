@@ -3,6 +3,7 @@ using Friflo.Engine.ECS.Systems;
 using KittyCat.Services;
 using PurrplingCore.Ecs;
 using PurrplingCore.Toolkit;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using System.Linq;
@@ -12,13 +13,13 @@ namespace KittyCat.Ecs.Systems;
 [RunAfter<PhysicsSystem>]
 public class PhysicsCleanupSystem : BaseSystem
 {
-    private readonly World _world;
+    //private readonly World _world;
     //private readonly PhysicsManager _physicsManager;
     //private readonly HashSet<B2BodyId> _pendingRemovals = new();
 
-    public PhysicsCleanupSystem(World world)
+    public PhysicsCleanupSystem()
     {
-        _world = world;
+        //_world = world;
         //_physicsManager = physicsManager;
 
         //_world.CurrentStore.OnComponentRemoved += OnComponentRemoved;

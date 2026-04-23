@@ -7,12 +7,21 @@ using PurrplingCore.Toolkit.Messaging;
 
 namespace PurrplingCore.Toolkit;
 
+public enum PlatformType
+{
+    Unknown,
+    Desktop,
+    Browser,
+    Mobile,
+    Tv,
+}
 public abstract class Game: Microsoft.Xna.Framework.Game, IGame
 {
     private readonly IServiceProvider _provider;
     private readonly IMessageBus? _bus;
     private readonly GraphicsDeviceManager _graphicsManager;
     private bool _isInitialized;
+    private bool _isRunning;
 
     public event EventHandler<EventArgs>? Exited;
 
@@ -40,8 +49,20 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
     /// </summary>
     public readonly static bool IsDesktop = OperatingSystem.IsMacOS() || OperatingSystem.IsLinux() || OperatingSystem.IsWindows();
 
-    public static string PlatformName
-        => IsMobile ? "Mobile" : IsDesktop ? "Desktop" : "Unknown";
+    public static PlatformType PlatformType
+    {
+        get
+        {
+            if (OperatingSystem.IsTvOS()) return PlatformType.Tv;
+            if (OperatingSystem.IsBrowser()) return PlatformType.Browser;
+            if (IsMobile) return PlatformType.Mobile;
+            if (IsDesktop) return PlatformType.Desktop;
+
+            return PlatformType.Unknown;
+        }
+    }
+
+    public bool IsRunning => _isRunning;
 
     public Game(IServiceProvider provider)
     {
@@ -91,12 +112,14 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
     protected override void BeginRun()
     {
         base.BeginRun();
+        _isRunning = true;
         _bus?.Publish(new GameMessage(this, GameMessages.Lanuched));
     }
 
     protected override void EndRun()
     {
         base.EndRun();
+        _isRunning = false;
         _bus?.Publish(new GameMessage(this, GameMessages.Exit));
         Exited?.Invoke(this, EventArgs.Empty);
     }

@@ -41,7 +41,13 @@ public class KittyCatGameServices : IServiceConfiguration
     public void Configure(IServiceCollection services)
     {
         // Register world and their systems
-        services.UseEcs();
+        services.AddWorld(WorldTag.Default, builder => {
+            builder.InUpdate(group => {
+                group.Add<PhysicsSystem>();
+                group.Add<TestGroup>();
+                group.Add<PhysicsCleanupSystem>();
+            });
+        });
         //services.AddSystemRoot(ConfigureSystems);
         //services.AddRenderPipeline<World>(builder => { });
 

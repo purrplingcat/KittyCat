@@ -23,21 +23,4 @@ public static class GameHostBuilderExtensions
     {
         return builder.UseServiceProviderFactory(new ServiceProviderFactoryAdapter<TContainerBuilder>(factory));
     }
-
-    public static IGameHostBuilder AddGame<TGame>(this IGameHostBuilder builder) where TGame : Game
-    {
-        return builder.ConfigureServices(static (services, _) => {
-            var gameType = typeof(TGame);
-            var servicesAttrs = gameType.GetCustomAttributes<GameServicesAttribute>();
-
-            foreach (var attr in servicesAttrs)
-            {
-                services.AddConfiguration(attr.CreateConfiguration());
-            }
-
-            // Add services from the assembly containing the game type
-            services.AddConfiguration(new AssemblyServices(gameType.Assembly))
-                    .AddGame<TGame>();
-        });
-    }
 }

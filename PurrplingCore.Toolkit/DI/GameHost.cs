@@ -14,6 +14,8 @@ public sealed class GameHost : IDisposable
     private readonly ICleanupService[] _cleanupServices;
     private bool _disposed;
 
+    internal bool shouldRun;
+
     internal GameHost(IServiceProvider provider, IGame game, ILogger<GameHost> logger, IStartupService[] startupServices, ICleanupService[] cleanupServices)
     {
         _provider = provider;
@@ -37,6 +39,11 @@ public sealed class GameHost : IDisposable
     public void Run()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        
+        if (!shouldRun)
+        {
+            throw new InvalidOperationException("Game host is not ready to run.");
+        }
 
         _logger.LogInformation("Starting game: {gameName}", _game.ToString());
         _logger.LogDebug("Executing startup services");
@@ -51,7 +58,13 @@ public sealed class GameHost : IDisposable
         _game.Run();
     }
 
-    public void Exit() => _game.Exit();
+    public void Exit()
+    {
+        if (_game.IsRunning)
+        {
+
+        }
+    }
 
     public void Dispose()
     {

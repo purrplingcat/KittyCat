@@ -16,10 +16,6 @@ internal class Program
     /// <param name="args">Command-line arguments passed to the application.</param>
     private static void Main(string[] args)
     {
-        Console.WriteLine($"{KittyCatGame.GameName} {KittyCatGame.VersionInfo} ({KittyCatGame.Version})");
-        Console.WriteLine($"Running on {Environment.OSVersion} ({Game.PlatformName})");
-        Console.WriteLine();
-
         using var host = GameHost.CreateBuilder()
             .AddGame<KittyCatGame>()
             .ConfigureLogging(ConfigureLogger)

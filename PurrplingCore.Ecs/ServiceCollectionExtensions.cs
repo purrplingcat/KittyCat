@@ -1,6 +1,7 @@
 ﻿using Friflo.Engine.ECS;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using PurrplingCore.Toolkit.DI;
 
 namespace PurrplingCore.Ecs;
@@ -19,9 +20,19 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection UseEcs(this IServiceCollection services)
     {
-        services.TryAddSingleton<IWorldFactory, WorldFactory>();
-        services.TryAddSingleton<WorldManager>();
         services.TryAddScoped<IWorldAccessor, WorldAccessor>();
+        services.TryAddSingleton<IWorldFactory, WorldFactory>();
+        services.TryAddSingleton(static provider =>
+        {
+            var worldFactory = provider.GetRequiredService<IWorldFactory>();
+            var options = provider.GetService<IOptions<WorldOptions>>();
+            var config = options?.Value ?? new WorldOptions();
+
+            return new WorldManager(
+                worldFactory,
+                knownWorlds: config.AllowUnknownWorlds ? null : config.KnownWorlds
+            );
+        });
 
         return services;
     }
@@ -29,6 +40,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddWorld(this IServiceCollection services, WorldTag tag, Action<WorldBuilder> configure)
     {
         services.UseEcs();
+        services.Configure<WorldOptions>(options => options.KnownWorlds.Add(tag));
         services.AddWorldBootstrap(tag, (services, key) => new DelegateBuilderBootstrap(configure));
         return services;
     }

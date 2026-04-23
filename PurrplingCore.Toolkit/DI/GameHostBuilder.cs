@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using PurrplingCore.Toolkit.DI.Configuration;
 using PurrplingCore.Toolkit.Messaging;
 using System.Diagnostics;
 using System.Reflection;
@@ -13,15 +15,18 @@ internal class GameHostBuilder : IGameHostBuilder
     private readonly List<Action<ILoggingBuilder>> _loggingActions = [];
     private readonly List<IGameHostPlugin> _plugins = [];
     private IServiceProviderFactory _serviceProviderFactory = new DefaultServiceProviderFactory();
-    private ILogger? _logger;
+    private ILogger _logger = NullLogger.Instance;
+    private GameVersion? _gameVersion;
     private bool _hostBuilt;
+
+    public event EventHandler<GameHostCreatedEventArgs>? GameHostCreated;
 
     public ServiceCollection Services { get; } = [];
 
     /// <summary>
     /// Core services configuration for the GameHost and hosted services.
     /// </summary>
-    private class GameHostConfiguration : IServiceConfiguration
+    private class GameHostConfiguration(GameVersion version) : IServiceConfiguration
     {
         private GameHost CreateGameHost(IServiceProvider provider)
         {
@@ -41,10 +46,44 @@ internal class GameHostBuilder : IGameHostBuilder
 
         public void Configure(IServiceCollection services)
         {
+            // Cleanup unwanted mess
+            services.RemoveAll<IServiceCollection>()
+                    .RemoveAll<GameHostBuilderContext>()
+                    .RemoveAll<IGameHostBuilder>();
+
+            services.AddSingleton(version); // Add game version as a service
+            services.AddSingleton(services); // Add service collection itself as a singleton service
             services.TryAddSingleton(CreateGameHost); // GameHost is resolvable from DI (singleton)
             services.TryAddSingleton<IMessageBus, DefaultMessageBus>();
             services.TryAddTransient(typeof(Lazy<>), typeof(LazyService<>));
+            services.TryAddKeyedSingleton("game", 
+                (provider, key) => provider.GetRequiredService<ILoggerFactory>().CreateLogger("game")
+            );
         }
+    }
+
+    public IGameHostBuilder AddGame<TGame>() where TGame : Game
+    {
+        if (_gameVersion != null)
+        {
+            throw new InvalidOperationException("Game is already added to the host");
+        }
+
+        _gameVersion = GameVersion.Of<TGame>();
+
+        return ConfigureServices(static (services, _) => {
+            var gameType = typeof(TGame);
+            var servicesAttrs = gameType.GetCustomAttributes<GameServicesAttribute>();
+
+            foreach (var attr in servicesAttrs)
+            {
+                services.AddConfiguration(attr.CreateConfiguration());
+            }
+
+            // Add services from the assembly containing the game type
+            services.AddConfiguration(new AssemblyServices(gameType.Assembly))
+                    .AddGame<TGame>();
+        });
     }
 
     /// <summary>
@@ -93,7 +132,7 @@ internal class GameHostBuilder : IGameHostBuilder
 
         _serviceActions.ForEach(action => action(services, context));
         services.AddLogging(ConfigureLogging);
-        services.AddConfiguration(new GameHostConfiguration());
+        services.AddConfiguration(new GameHostConfiguration(_gameVersion ?? GameVersion.Empty));
 
         watch.Stop();
         _logger?.LogDebug("Service configuration completed in {ElapsedMilliseconds} ms", watch.ElapsedMilliseconds);
@@ -103,10 +142,12 @@ internal class GameHostBuilder : IGameHostBuilder
 
     private GameHostBuilderContext CreateContext()
     {
+        var gameVersion = _gameVersion ?? GameVersion.Empty;
         var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
         var loggerFactory = CreateLoggerFactory();
-        
-        return new GameHostBuilderContext(loggerFactory, assembly);
+        var context = new GameHostBuilderContext(loggerFactory, assembly, gameVersion);
+
+        return context;
     }
 
     /// <summary>
@@ -124,26 +165,61 @@ internal class GameHostBuilder : IGameHostBuilder
 
         var watch = Stopwatch.StartNew();
         using var context = CreateContext();
-        _logger = CreateDiagnosticLogger(context);
+        _logger = context.CreateLogger<GameHostBuilder>();
 
+        LogGameInformation(context);
+        Validate(context);
         UsePlugins(context);
         ConfigureServices(Services, context);
         // prevent further modifications to the service collection after configuration
         Services.MakeReadOnly();
 
         var provider = _serviceProviderFactory.CreateServiceProvider(Services);
-        var host = provider.GetRequiredService<GameHost>();
-        _logger.LogDebug("GameHost built in {ElapsedMilliseconds} ms", watch.ElapsedMilliseconds);
+        var host = CreateGameHost(provider);
 
+        _logger.LogDebug("GameHost built in {ElapsedMilliseconds} ms", watch.ElapsedMilliseconds);
         return host;
     }
 
-    private static ILogger CreateDiagnosticLogger(GameHostBuilderContext context)
+    private GameHost CreateGameHost(IServiceProvider provider)
     {
-        var logger = context.LoggerFactory.CreateLogger<GameHostBuilder>();
-        logger.LogDebug("{execAssembly} ({toolkit})", context.HostAssembly.FullName, Assembly.GetExecutingAssembly().FullName);
+        var host = provider.GetRequiredService<GameHost>();
 
-        return logger;
+        if (!host.shouldRun)
+        {
+            GameHostCreated?.Invoke(this, new GameHostCreatedEventArgs(host));
+            host.shouldRun = true;
+            
+            return host;
+        }
+
+        throw new InvalidOperationException("GameHost is already created!");
+    }
+
+    protected virtual void Validate(GameHostBuilderContext context)
+    {
+        if (_gameVersion == null)
+        {
+            throw new GameHostBuildException("No game has added to the host! Did you call AddGame properly?");
+        }
+    }
+
+    private static void LogGameInformation(GameHostBuilderContext context)
+    {
+        var logger = context.Logger;
+
+        logger.LogInformation(
+            "{GameVersion} on {OS} - {Platform} {PlatformType}", 
+            context.GameVersion, 
+            context.OperatingSystem,
+            context.OperatingSystem.Platform,
+            context.PlartformType
+        );
+        logger.LogInformation(
+            "{execAssembly} ({toolkit})", 
+            context.HostAssembly.FullName, 
+            Assembly.GetExecutingAssembly().FullName
+        );
     }
 
     private void UsePlugins(GameHostBuilderContext context)
@@ -151,8 +227,8 @@ internal class GameHostBuilder : IGameHostBuilder
         foreach (var plugin in _plugins)
         {
             var watch = Stopwatch.StartNew();
-            plugin.Setup(this, context);
-            _logger?.LogDebug("Feature '{feature}' applied in {ElapsedMilliseconds} ms", plugin.Name, watch.ElapsedMilliseconds);
+            plugin.Install(this, context);
+            _logger?.LogDebug("Plugin '{plugin}' installed in {elapsed} ms", plugin.Name, watch.ElapsedMilliseconds);
         }
     }
 
@@ -160,5 +236,20 @@ internal class GameHostBuilder : IGameHostBuilder
     {
         _plugins.Add(feature);
         return this;
+    }
+}
+
+public sealed class GameHostBuildException : InvalidOperationException
+{
+    public GameHostBuildException() : base()
+    {
+    }
+    
+    public GameHostBuildException(string message) : base(message)
+    {
+    }
+
+    public GameHostBuildException(string message, Exception innerException) : base(message, innerException) 
+    {
     }
 }

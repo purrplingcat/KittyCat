@@ -1,4 +1,5 @@
-﻿using Friflo.Engine.ECS.Systems;
+﻿using Friflo.Engine.ECS;
+using Friflo.Engine.ECS.Systems;
 using PurrplingCore.Ecs.Extensions;
 using PurrplingCore.Ecs.Systems;
 using System.Runtime.CompilerServices;
@@ -42,6 +43,11 @@ public sealed class WorldBuilder
     {
         var rootBuilder = new GroupBuilder(_world, _world.SystemRoot);
         rootBuilder.InGroup<TGroup>(configure);
+    }
+
+    public void InStore(Action<EntityStore> configure)
+    {
+        configure(_world.Store);
     }
 
     public void Configure(Action<ManagedWorld> configure)

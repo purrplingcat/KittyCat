@@ -2,11 +2,11 @@
 
 namespace PurrplingCore.Ecs;
 
-public class WorldManager(IWorldFactory factory, IEnumerable<WorldTag> knownWorlds)
+public class WorldManager(IWorldFactory factory, HashSet<WorldTag>? knownWorlds)
 {
     private readonly Dictionary<string, ManagedWorld> _worldsByName = [];
     private readonly List<ManagedWorld> _worlds = [];
-    private readonly HashSet<WorldTag> _knownWorlds = [.. knownWorlds];
+    private readonly HashSet<WorldTag>? _knownWorlds = knownWorlds;
     private readonly object _lock = new();
 
     public IReadOnlyCollection<ManagedWorld> Worlds => _worlds.AsReadOnly();
@@ -28,7 +28,7 @@ public class WorldManager(IWorldFactory factory, IEnumerable<WorldTag> knownWorl
         ArgumentNullException.ThrowIfNull(tag, nameof(tag));
         name ??= $"World_{Guid.NewGuid():N}";
 
-        if (!_knownWorlds.Contains(tag))
+        if (_knownWorlds != null && !_knownWorlds.Contains(tag))
         {
             throw new InvalidOperationException($"World tag '{tag.DebugName}' is not recognized.");
         }

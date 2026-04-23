@@ -131,5 +131,5 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
         base.Draw(gameTime);
     }
 
-    public override string ToString() => $"{GameName} {VersionInfo} (v{Version} - {PlatformName})";
+    public override string ToString() => $"{GameName} {VersionInfo} (v{Version} - {PlatformType})";
 }
