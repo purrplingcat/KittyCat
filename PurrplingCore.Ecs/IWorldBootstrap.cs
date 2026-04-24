@@ -12,6 +12,8 @@ public interface IWorldBootstrap
     public void Setup(ManagedWorld world);
 }
 
+public delegate void InGroupAction<T>(GroupBuilder<T> builder) where T : SystemGroup;
+
 public sealed class WorldBuilder
 {
     private readonly ManagedWorld _world;
@@ -21,27 +23,27 @@ public sealed class WorldBuilder
         _world = world;
     }
 
-    public void InUpdate(Action<GroupBuilder> configure) =>
-        configure(new GroupBuilder(_world, _world.UpdateSystems));
+    public void InUpdate(InGroupAction<UpdateSystemGroup> configure) =>
+        configure(new GroupBuilder<UpdateSystemGroup>(_world, _world.UpdateSystems));
 
-    public void InDraw(Action<GroupBuilder> configure) =>
-        configure(new GroupBuilder(_world, _world.DrawSystems));
+    public void InDraw(InGroupAction<DrawSystemGroup> configure) =>
+        configure(new GroupBuilder<DrawSystemGroup>(_world, _world.DrawSystems));
 
-    public void InInitialize(Action<GroupBuilder> configure) =>
-        configure(new GroupBuilder(_world, _world.InitializeSystems));
+    public void InInitialize(InGroupAction<InitializeSystemGroup> configure) =>
+        configure(new GroupBuilder<InitializeSystemGroup>(_world, _world.InitializeSystems));
 
-    public void InFixedUpdate(Action<GroupBuilder> configure) =>
-        configure(new GroupBuilder(_world, _world.FixedUpdateSystems));
+    public void InFixedUpdate(InGroupAction<FixedUpdateSystemGroup> configure) =>
+        configure(new GroupBuilder<FixedUpdateSystemGroup>(_world, _world.FixedUpdateSystems));
 
-    public void InGroup(string groupName, Action<GroupBuilder> configure)
+    public void InGroup(string groupName, InGroupAction<SystemGroup> configure)
     {
-        var rootBuilder = new GroupBuilder(_world, _world.SystemRoot);
+        var rootBuilder = new GroupBuilder<SystemRoot>(_world, _world.SystemRoot);
         rootBuilder.InGroup(groupName, configure);
     }
 
-    public void InGroup<TGroup>(Action<GroupBuilder> configure) where TGroup : SystemGroup
+    public void InGroup<TGroup>(InGroupAction<TGroup> configure) where TGroup : SystemGroup
     {
-        var rootBuilder = new GroupBuilder(_world, _world.SystemRoot);
+        var rootBuilder = new GroupBuilder<SystemRoot>(_world, _world.SystemRoot);
         rootBuilder.InGroup<TGroup>(configure);
     }
 
@@ -76,7 +78,7 @@ internal sealed class DelegateBuilderBootstrap(Action<WorldBuilder> configure) :
     }
 }
 
-public readonly struct GroupBuilder
+public readonly struct GroupBuilder<TGroup> where TGroup : SystemGroup
 {
     private readonly ManagedWorld _world;
     private readonly SystemGroup _targetGroup;
@@ -87,12 +89,12 @@ public readonly struct GroupBuilder
         _targetGroup = targetGroup;
     }
 
-    public void Add<T>() where T : BaseSystem
+    public void Add<TSystem>() where TSystem : BaseSystem
     {
-        _targetGroup.Add(_world.CreateSystem<T>());
+        _targetGroup.Add(_world.CreateSystem<TSystem>());
     }
 
-    public void Add<T>(Func<IServiceProvider, T> factory) where T : BaseSystem
+    public void Add<TSystem>(Func<IServiceProvider, TSystem> factory) where TSystem : BaseSystem
     {
         _targetGroup.Add(factory(_world.Services));
     }
@@ -184,37 +186,67 @@ public readonly struct GroupBuilder
         _targetGroup.Insert(index, newSystem);
     }
 
-    public void Remove<T>() where T : BaseSystem
+    public void Remove<TSystem>() where TSystem : BaseSystem
     {
-        var target = _targetGroup.FindSystem<T>(recursive: false);
+        var target = _targetGroup.FindSystem<TSystem>(recursive: false);
         if (target is not null)
             _targetGroup.Remove(target);
     }
 
-    public void InGroup(string name, Action<GroupBuilder> configureGroup)
+    public bool Has<TSystem>() where TSystem : BaseSystem
+    {
+        return _targetGroup.FindSystem<BaseSystem>(recursive: false) != null;
+    }
+
+    public bool HasGroup(string name)
+    {
+        return _targetGroup.FindGroup(name, recursive: false) != null;
+    }
+
+    public void AddGroup(string name)
+    {
+        _targetGroup.Add(new SystemGroup(name));
+    }
+
+    /// <summary>
+    /// Enters a specified sub-group and provides a builder to configure it.
+    /// </summary>
+    /// <param name="name">The name of the target sub-group.</param>
+    /// <param name="configureGroup">The action used to configure the sub-group (e.g., adding systems or nested groups).</param>
+    /// <param name="createIfMissing">
+    /// If set to <c>true</c>, automatically creates the sub-group if it does not already exist. 
+    /// The default value is <c>false</c>.
+    /// </param>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if the specified sub-group is not found and the <paramref name="createIfMissing"/> parameter is <c>false</c>.
+    /// </exception>
+    public void InGroup(string name, InGroupAction<SystemGroup> configureGroup, bool createIfMissing = false)
     {
         var subGroup = _targetGroup.FindGroup(name, recursive: false);
 
         if (subGroup is null)
         {
+            if (!createIfMissing) 
+                throw new InvalidOperationException($"Group '{name}' not found in '{_targetGroup.Name}'");
+            
             subGroup = new SystemGroup(name);
             _targetGroup.Add(subGroup);
         }
 
-        configureGroup(new GroupBuilder(_world, subGroup));
+        configureGroup(new GroupBuilder<SystemGroup>(_world, subGroup));
     }
 
-    public void InGroup<TGroup>(Action<GroupBuilder> configureGroup) where TGroup : SystemGroup
+    public void InGroup<TSubGroup>(InGroupAction<TSubGroup> configureGroup) where TSubGroup : SystemGroup
     {
-        var subGroup = _targetGroup.FindSystem<TGroup>(recursive: false);
+        var subGroup = _targetGroup.FindSystem<TSubGroup>(recursive: false);
 
         if (subGroup is null)
         {
-            subGroup = _world.CreateSystem<TGroup>();
+            subGroup = _world.CreateSystem<TSubGroup>();
             _targetGroup.Add(subGroup);
         }
 
-        configureGroup(new GroupBuilder(_world, subGroup));
+        configureGroup(new GroupBuilder<TSubGroup>(_world, subGroup));
     }
 
     public void Configure<TSystem>(Action<TSystem, ManagedWorld> configure) where TSystem : BaseSystem
@@ -226,5 +258,10 @@ public readonly struct GroupBuilder
     public void Configure(Action<SystemGroup, ManagedWorld> configure)
     {
         configure(_targetGroup, _world);
+    }
+
+    public void ConfigureGroup(string name, Action<SystemGroup, ManagedWorld> configure)
+    {
+
     }
 }

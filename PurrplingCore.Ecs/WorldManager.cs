@@ -1,4 +1,6 @@
-﻿using PurrplingCore.Ecs.Extensions;
+﻿using Microsoft.Extensions.DependencyInjection;
+using PurrplingCore.Ecs.Extensions;
+using PurrplingCore.Toolkit;
 
 namespace PurrplingCore.Ecs;
 
@@ -39,11 +41,28 @@ public class WorldManager(IWorldFactory factory, HashSet<WorldTag>? knownWorlds)
         }
 
         var world = factory.CreateWorld(name, tag);
+        var bootstraps = world.Services.GetKeyedServices<IWorldBootstrap>(tag);
 
-        world.Bootstrap(world.Tag);
+        ApplyBootstraps(world, bootstraps);
         AddWorld(world);
 
         return world;
+    }
+
+    private void ApplyBootstraps(ManagedWorld world, IEnumerable<IWorldBootstrap> bootstraps)
+    {
+        try
+        {
+            world.creating = true;
+            foreach (var bootstrap in bootstraps.OrderBy(bs => bs.Order))
+            {
+                bootstrap.Setup(world);
+            }
+        }
+        finally
+        {
+            world.creating = false;
+        }
     }
 
     public void AddWorld(ManagedWorld world)

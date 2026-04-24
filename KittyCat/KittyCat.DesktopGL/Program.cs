@@ -1,38 +1,21 @@
 ﻿using KittyCat;
 using Microsoft.Extensions.Logging;
-using PurrplingCore.Toolkit;
 using PurrplingCore.Toolkit.DI;
-using System;
-using PurrplingCore.Toolkit.Extensions;
-using Microsoft.Extensions.DependencyInjection;
-using PurrplingCore.Ecs;
 
-internal class Program
-{
-    /// <summary>
-    /// The main entry point for the application. 
-    /// This creates an instance of your game and calls it's Run() method 
-    /// </summary>
-    /// <param name="args">Command-line arguments passed to the application.</param>
-    private static void Main(string[] args)
+var builder = GameHost.CreateBuilder()
+    .AddGame<KittyCatGame>()
+    .ConfigureLogging(logging =>
     {
-        using var host = GameHost.CreateBuilder()
-            .AddGame<KittyCatGame>()
-            .ConfigureLogging(ConfigureLogger)
-            .Build();
-
-        host.Run();
-    }
-
-    private static void ConfigureLogger(ILoggingBuilder builder)
-    {
-        builder.SetMinimumLevel(LogLevel.Trace);
-        builder.AddDebug();
-        builder.AddSimpleConsole(o =>
+        logging.SetMinimumLevel(LogLevel.Trace);
+        logging.AddDebug();
+        logging.AddSimpleConsole(options =>
         {
-            o.SingleLine = true;
-            o.TimestampFormat = "HH:mm:ss ";
-            o.IncludeScopes = true;
+            options.SingleLine = true;
+            options.TimestampFormat = "HH:mm:ss ";
+            options.IncludeScopes = true;
         });
-    }
-}
+    });
+
+using var host = builder.Build();
+
+host.Run();

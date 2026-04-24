@@ -41,23 +41,19 @@ public class MainActivity : AndroidGameActivity
         base.OnCreate(bundle);
 
         var builder = GameHost.CreateBuilder()
-            .AddGame<KittyCatGame>()
-            .ConfigureServices(ConfigureServices);
+            .AddGame<KittyCatGame>();
                               
         _gameHost = builder.Build();
-        _view = _gameHost.Services.GetRequiredService<View>();
+        _view = _gameHost.Services.GetGameService<View>();
 
         SetContentView(_view);
         _gameHost.Run();
     }
 
-    /// <summary>
-    /// Configures the services required by the application.
-    /// </summary>
-    /// <param name="services">The collection of service descriptors to which application services are added.</param>
-    /// <param name="context">The context containing configuration and environment information for the game host.</param>
-    static void ConfigureServices(IServiceCollection services, GameHostBuilderContext context)
+    protected override void OnDestroy()
     {
-        services.ExposeMonoGameService<View>();
+        _gameHost?.Dispose();
+        _gameHost = null;
+        _view = null;
     }
 }

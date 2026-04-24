@@ -154,4 +154,18 @@ public static partial class ServiceExtensions
 
         return services;
     }
+
+    public static GameServiceContainer GetGameServices(this IServiceProvider provider)
+    {
+        if (provider is GameServiceContainer gameServices) 
+            return gameServices;
+
+        return provider.GetRequiredService<GameServiceContainer>();
+    }
+
+    public static T GetGameService<T>(this IServiceProvider provider) where T : notnull
+    {
+        return provider.GetGameServices()
+                       .GetRequiredService<T>();
+    }
 }

@@ -25,8 +25,6 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
 
     public event EventHandler<EventArgs>? Exited;
 
-    public new IServiceProvider Services => _provider;
-
     public GraphicsDeviceManager GraphicsDeviceManager => _graphicsManager;
 
     /// <summary>
