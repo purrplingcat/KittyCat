@@ -1,6 +1,7 @@
 ﻿using Friflo.Engine.ECS;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PurrplingCore.Toolkit.DI;
 
@@ -20,17 +21,16 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection UseEcs(this IServiceCollection services)
     {
-        services.TryAddScoped<IWorldAccessor, WorldAccessor>();
+        services.TryAddScoped<IWorldContext, WorldContext>();
         services.TryAddSingleton<IWorldFactory, WorldFactory>();
         services.TryAddSingleton(static provider =>
         {
-            var worldFactory = provider.GetRequiredService<IWorldFactory>();
             var options = provider.GetService<IOptions<WorldOptions>>();
-            var config = options?.Value ?? new WorldOptions();
 
             return new WorldManager(
-                worldFactory,
-                knownWorlds: config.AllowUnknownWorlds ? null : config.KnownWorlds
+                factory: provider.GetRequiredService<IWorldFactory>(),
+                options: options?.Value ?? new WorldOptions(),
+                logger: provider.GetRequiredService<ILogger<WorldManager>>()
             );
         });
 

@@ -24,13 +24,14 @@ public class World : IWorld, IDisposable
     private UpdateTick _time;
     private bool _initialized;
     private bool _disposed;
+    private bool _fixedUpdateEnabled;
 
     public string Name { get; set; } = string.Empty;
     public EntityStore Store => _store;
-    public UpdateSystemGroup UpdateSystems => _updateSystems;
-    public DrawSystemGroup DrawSystems => _drawSystems;
-    public InitializeSystemGroup InitializeSystems => _initializeSystems;
-    public FixedUpdateSystemGroup FixedUpdateSystems => _fixedUpdateSystems;
+    internal UpdateSystemGroup UpdateSystems => _updateSystems;
+    internal DrawSystemGroup DrawSystems => _drawSystems;
+    internal InitializeSystemGroup InitializeSystems => _initializeSystems;
+    internal FixedUpdateSystemGroup FixedUpdateSystems => _fixedUpdateSystems;
 
     public ref UpdateTick Time => ref _time;
 
@@ -39,7 +40,7 @@ public class World : IWorld, IDisposable
 
     public IReadOnlyCollection<BaseSystem> Systems => _systemRoot.ChildSystems;
 
-    public event EventHandler? Disposed;
+    public event EventHandler? Destroyed;
     public event EventHandler? Initialized;
     public event Action<IWorld, UpdateTick>? Updated;
     public event Action<IWorld, UpdateTick>? Drawn;
@@ -56,8 +57,26 @@ public class World : IWorld, IDisposable
             _updateSystems,
             _drawSystems, 
         };
-        
+
+        _systemRoot.OnSystemChanged += OnSystemRootChanged;
         _store.EventRecorder.Enabled = true;
+    }
+
+    private void OnSystemRootChanged(SystemChanged changed)
+    {
+        if (!_initialized) return;
+
+        string systemName = changed.system.Name;
+        string actionName = changed.action.ToString().ToLower();
+
+        if (changed.field != null)
+        {
+            actionName += $" field ${changed.field} in";
+        }
+
+        throw new InvalidOperationException(
+            $"World topology is locked. Cannot {actionName} system '{systemName}' after the World has been initialized."
+        );
     }
 
     protected virtual void OnInitialize()
@@ -74,8 +93,8 @@ public class World : IWorld, IDisposable
 
         OnInitialize();
         _initializeSystems.Update(new UpdateTick());
+        _fixedUpdateEnabled = _fixedUpdateSystems.ChildSystems.Count > 0;
         _initialized = true;
-
         Initialized?.Invoke(this, EventArgs.Empty);
     }
 
@@ -92,7 +111,10 @@ public class World : IWorld, IDisposable
 
         _time = tick;
         _store.EventRecorder.ClearEvents();
-        _fixedUpdateSystems.Update(tick);
+        if (_fixedUpdateEnabled)
+        {
+            _fixedUpdateSystems.Update(tick);
+        }
         _updateSystems.Update(tick);
         Updated?.Invoke(this, tick);
     }
@@ -130,8 +152,8 @@ public class World : IWorld, IDisposable
                 OnDispose();
             }
 
-            Disposed?.Invoke(this, EventArgs.Empty);
-            Disposed = null;
+            Destroyed?.Invoke(this, EventArgs.Empty);
+            Destroyed = null;
             _disposed = true;
         }
     }

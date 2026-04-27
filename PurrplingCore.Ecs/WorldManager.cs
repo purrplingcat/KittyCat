@@ -1,14 +1,18 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using PurrplingCore.Ecs.Extensions;
 using PurrplingCore.Toolkit;
+using PurrplingCore.Toolkit.Extensions;
 
 namespace PurrplingCore.Ecs;
 
-public class WorldManager(IWorldFactory factory, HashSet<WorldTag>? knownWorlds)
+public class WorldManager(IWorldFactory factory, WorldOptions options, ILogger<WorldManager>? logger)
 {
     private readonly Dictionary<string, ManagedWorld> _worldsByName = [];
     private readonly List<ManagedWorld> _worlds = [];
-    private readonly HashSet<WorldTag>? _knownWorlds = knownWorlds;
+    private readonly WorldOptions _options = options;
+    private readonly ILogger<WorldManager> _logger = logger ?? NullLogger<WorldManager>.Instance;
     private readonly object _lock = new();
 
     public IReadOnlyCollection<ManagedWorld> Worlds => _worlds.AsReadOnly();
@@ -30,7 +34,7 @@ public class WorldManager(IWorldFactory factory, HashSet<WorldTag>? knownWorlds)
         ArgumentNullException.ThrowIfNull(tag, nameof(tag));
         name ??= $"World_{Guid.NewGuid():N}";
 
-        if (_knownWorlds != null && !_knownWorlds.Contains(tag))
+        if (!_options.AllowUnknownWorlds && !_options.KnownWorlds.Contains(tag))
         {
             throw new InvalidOperationException($"World tag '{tag.DebugName}' is not recognized.");
         }
@@ -45,6 +49,10 @@ public class WorldManager(IWorldFactory factory, HashSet<WorldTag>? knownWorlds)
 
         ApplyBootstraps(world, bootstraps);
         AddWorld(world);
+        _logger.LogInformation(
+            "World '{Name}' created! Systems: {Systems} Entities: {Entities} Tag: {Tag}", 
+            world.Name, world.SystemRoot.Count(recursive: true), world.Store.Count, world.Tag
+         );
 
         return world;
     }
@@ -57,6 +65,7 @@ public class WorldManager(IWorldFactory factory, HashSet<WorldTag>? knownWorlds)
             foreach (var bootstrap in bootstraps.OrderBy(bs => bs.Order))
             {
                 bootstrap.Setup(world);
+                _logger.LogDebug("Applied bootstrap {Bootstrap}", bootstrap.GetType());
             }
         }
         finally
@@ -78,7 +87,7 @@ public class WorldManager(IWorldFactory factory, HashSet<WorldTag>? knownWorlds)
                 _worldsByName.Add(world.Name, world);
             }
             _worlds.Add(world);
-            world.Disposed += OnWorldDisposed;
+            world.Destroyed += OnWorldDisposed;
         }
     }
 

@@ -2,7 +2,6 @@
 using Microsoft.Xna.Framework.Content;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Graphics;
-using PurrplingCore.Toolkit.Rendering;
 using System;
 using System.Reflection;
 using KittyCat.Services;
@@ -10,7 +9,6 @@ using KittyCat.Services.Options;
 using KittyCat.Scenes;
 using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.Systems.Builder;
-using Friflo.Engine.ECS.Systems;
 using KittyCat.Ecs.Systems;
 using PurrplingCore.Ecs.Systems;
 
@@ -29,23 +27,14 @@ public class KittyCatGameServices : IServiceConfiguration
         return provider.GetRequiredService<ContentManagerProvider>().Default;
     }
 
-    protected virtual void ConfigureSystems(ISystemBuilder builder)
-    {
-        builder.AddPhysicsSystems();
-        builder.AddSystemGroup<TestGroup>();
-        builder.AddSystemGroup<ThirdGroup>();
-        builder.AddSystemGroup<SecondGroup>()
-               .AddSystemGroup<ThirdGroup>(static builder => builder.AddSystem<PhysicsSystem>());
-    }
-
     public void Configure(IServiceCollection services)
     {
         // Register world and their systems
-        services.AddWorld(WorldTag.Default, builder => {
-            builder.InUpdate(group => {
-                group.Add<PhysicsSystem>();
-                group.Add<TestGroup>();
-                group.Add<PhysicsCleanupSystem>();
+        services.AddWorld(WorldTag.Default, static builder => {
+            builder.InUpdate(static group => {
+                group.Add<PhysicsSystem>()
+                     .Add<TestGroup>()
+                     .Add<PhysicsCleanupSystem>();
             });
         });
         //services.AddSystemRoot(ConfigureSystems);

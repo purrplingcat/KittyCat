@@ -33,6 +33,12 @@ public class ManagedWorld : World
         return ActivatorUtilities.GetServiceOrCreateInstance<T>(Services);
     }
 
+    public BaseSystem CreateSystem(Type type)
+    {
+        EnsureNotDisposed();
+        return (BaseSystem)ActivatorUtilities.GetServiceOrCreateInstance(Services, type);
+    }
+
     public SystemGroup CreateSystemGroup(string name, params BaseSystem[] systems)
     {
         EnsureNotDisposed();
@@ -77,12 +83,12 @@ public class ManagedWorld : World
     {
         ArgumentNullException.ThrowIfNull(logger);
 
-        var accessor = scope.ServiceProvider.GetService<WorldAccessor>();
+        var context = scope.ServiceProvider.GetService<WorldContext>();
         var world = new ManagedWorld(scope, logger, name, tag);
 
-        if (accessor != null)
+        if (context != null)
         {
-            accessor.World = world;
+            context.World = world;
         }
 
         return world;

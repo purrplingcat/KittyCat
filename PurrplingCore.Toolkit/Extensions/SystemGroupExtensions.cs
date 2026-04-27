@@ -1,6 +1,4 @@
 ﻿using Friflo.Engine.ECS.Systems;
-using System;
-using System.Collections.Generic;
 
 namespace PurrplingCore.Toolkit.Extensions;
 
@@ -49,5 +47,23 @@ public static class SystemGroupExtensions
     {
         var system = group.FindSystem<TSystem>(recursive: true);
         return system != null && system.Enabled;
+    }
+
+    public static int Count(this SystemGroup group, bool recursive = false)
+    {
+        int count = group.ChildSystems.Count;
+
+        if (recursive)
+        {
+            for (int i = 0; i < group.ChildSystems.Count; i++)
+            {
+                if (group.ChildSystems[i] is not SystemGroup subGroup)
+                    continue;
+
+                count += Count(subGroup, recursive);
+            }
+        }
+
+        return count;
     }
 }
