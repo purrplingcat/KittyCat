@@ -138,13 +138,10 @@ internal class GameHostBuilder : IGameHostBuilder
         _logger?.LogDebug("Service configuration completed in {ElapsedMilliseconds} ms", watch.ElapsedMilliseconds);
     }
 
-    public ILoggerFactory CreateLoggerFactory() => LoggerFactory.Create(ConfigureLogging);
-
-    private GameHostBuilderContext CreateContext()
+    private GameHostBuilderContext CreateContext(ILoggerFactory loggerFactory)
     {
         var gameVersion = _gameVersion ?? GameVersion.Empty;
         var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
-        var loggerFactory = CreateLoggerFactory();
         var context = new GameHostBuilderContext(loggerFactory, assembly, gameVersion);
 
         return context;
@@ -164,7 +161,8 @@ internal class GameHostBuilder : IGameHostBuilder
         _hostBuilt = true;
 
         var watch = Stopwatch.StartNew();
-        using var context = CreateContext();
+        using var loggerFactory = LoggerFactory.Create(ConfigureLogging);
+        using var context = CreateContext(loggerFactory);
         _logger = context.CreateLogger<GameHostBuilder>();
 
         LogGameInformation(context);

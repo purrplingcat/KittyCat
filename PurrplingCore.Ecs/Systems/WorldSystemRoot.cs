@@ -1,5 +1,6 @@
 ﻿using Friflo.Engine.ECS;
 using Friflo.Engine.ECS.Systems;
+using PurrplingCore.Ecs.Attributes;
 
 namespace PurrplingCore.Ecs.Systems;
 
@@ -8,18 +9,22 @@ public class WorldSystemRoot(World world) : SystemRoot(world.Store)
     public World World => world;
 }
 
+[TopLevelGroup]
 public sealed class UpdateSystemGroup() : SystemGroup("Update")
 {
 }
 
+[TopLevelGroup]
 public sealed class DrawSystemGroup() : SystemGroup("Draw")
 {
 }
 
+[TopLevelGroup]
 public sealed class InitializeSystemGroup() : SystemGroup("Initialize")
 {
 }
 
+[TopLevelGroup]
 public sealed class FixedUpdateSystemGroup() : SystemGroup("FixedUpdate")
 {
     private float _accumulator;

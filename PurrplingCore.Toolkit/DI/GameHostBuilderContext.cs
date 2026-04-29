@@ -51,7 +51,6 @@ public class GameHostBuilderContext : IDisposable
     public void Dispose()
     {
         _loggers.Clear();
-        LoggerFactory.Dispose();
     }
 
     internal GameHostBuilderContext(ILoggerFactory loggerFactory, Assembly executingAssembly, GameVersion gameVersion)

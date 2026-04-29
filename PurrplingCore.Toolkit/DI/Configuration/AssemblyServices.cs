@@ -14,7 +14,7 @@ public class AssemblyServices(params Assembly[] assemblies) : IServiceConfigurat
     public virtual object? Key => null;
 
     #region service registration helpers
-    private class ServiceSource<TSystemAtribute>(Type[] types) where TSystemAtribute : SystemAttribute
+    private class ServiceSource<TSystemAtribute>(Type[] types) where TSystemAtribute : ServiceAttribute
     {
         private readonly Type[] _types = [.. types.Where(t => Attribute.IsDefined(t, typeof(TSystemAtribute)))];
 

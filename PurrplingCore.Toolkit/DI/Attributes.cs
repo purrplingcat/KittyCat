@@ -1,20 +1,20 @@
 ﻿namespace PurrplingCore.Toolkit.DI;
 
 [AttributeUsage(AttributeTargets.Class)]
-public class SystemAttribute(Type? registerAs = null) : Attribute
+public class ServiceAttribute(Type? registerAs = null) : Attribute
 {
     public Type? RegisterAs { get; } = registerAs;
     public bool WithInterfaces { get; set; } = true;
 }
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
-public class SingletonAttribute : SystemAttribute { }
+public class SingletonAttribute : ServiceAttribute { }
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
-public class ScopedAttribute : SystemAttribute { }
+public class ScopedAttribute : ServiceAttribute { }
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
-public class TransientAttribute : SystemAttribute { }
+public class TransientAttribute : ServiceAttribute { }
 
 [AttributeUsage(AttributeTargets.Class)]
 public class AliasAttribute(params Type[] aliases) : Attribute

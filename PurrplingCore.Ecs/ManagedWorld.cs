@@ -13,18 +13,18 @@ public class ManagedWorld : World
     private bool _disposed;
     internal bool creating;
 
-    public WorldTag Tag { get; }
+    public WorldType WorldType { get; }
 
     public IServiceProvider Services => _scope.ServiceProvider;
 
-    public ManagedWorld(IServiceScope scope, ILogger? logger, string? name = null, WorldTag? tag = null) 
+    public ManagedWorld(IServiceScope scope, ILogger? logger, string? name = null, WorldType? type = null) 
         : base(PidType.RandomPids, logger)
     {
         ArgumentNullException.ThrowIfNull(scope);
 
         _scope = scope;
         Name = name ?? string.Empty;
-        Tag = tag ?? WorldTag.Default;
+        WorldType = type ?? WorldType.Default;
     }
 
     public T CreateSystem<T>() where T : BaseSystem
@@ -71,7 +71,7 @@ public class ManagedWorld : World
         }
     }
 
-    public static ManagedWorld Create(IServiceScope scope, string? name = null, WorldTag? tag = null) 
+    public static ManagedWorld Create(IServiceScope scope, string? name = null, WorldType? tag = null) 
     { 
         var logger = scope.ServiceProvider.GetService<ILogger<ManagedWorld>>() 
                      ?? NullLogger<ManagedWorld>.Instance;
@@ -79,7 +79,7 @@ public class ManagedWorld : World
         return Create(scope, logger, name, tag);
     }
 
-    public static ManagedWorld Create(IServiceScope scope, ILogger logger, string? name = null, WorldTag? tag = null)
+    public static ManagedWorld Create(IServiceScope scope, ILogger logger, string? name = null, WorldType? tag = null)
     {
         ArgumentNullException.ThrowIfNull(logger);
 
@@ -94,7 +94,7 @@ public class ManagedWorld : World
         return world;
     }
 
-    public static ManagedWorld Create(IServiceProvider services, string? name = null, WorldTag? tag = null)
+    public static ManagedWorld Create(IServiceProvider services, string? name = null, WorldType? tag = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 

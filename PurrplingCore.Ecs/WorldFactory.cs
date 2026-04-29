@@ -5,7 +5,7 @@ namespace PurrplingCore.Ecs;
 
 public interface IWorldFactory
 {
-    ManagedWorld CreateWorld(string? name = null, WorldTag? tag = null);
+    ManagedWorld CreateWorld(string? name = null, WorldType? tag = null);
 }
 
 internal class WorldFactory(IServiceScopeFactory scopeFactory, ILogger<WorldFactory> logger) : IWorldFactory
@@ -13,13 +13,13 @@ internal class WorldFactory(IServiceScopeFactory scopeFactory, ILogger<WorldFact
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
     private readonly ILogger<WorldFactory> _logger = logger;
 
-    public ManagedWorld CreateWorld(string? name = null, WorldTag? tag = null)
+    public ManagedWorld CreateWorld(string? name = null, WorldType? type = null)
     {
         var scope = _scopeFactory.CreateScope();
         name ??= string.Empty;
-        tag ??= WorldTag.Default;
+        type ??= WorldType.Default;
 
-        _logger.LogInformation("Creating {Tag} world named '{Name}'", tag.DebugName, name);
-        return ManagedWorld.Create(scope, name, tag);
+        _logger.LogInformation("Creating {Tag} world named '{Name}'", type.Name, name);
+        return ManagedWorld.Create(scope, name, type);
     }
 }

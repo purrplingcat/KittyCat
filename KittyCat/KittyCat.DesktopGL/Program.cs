@@ -1,6 +1,8 @@
 ﻿using KittyCat;
 using Microsoft.Extensions.Logging;
 using PurrplingCore.Toolkit.DI;
+using System;
+using System.IO;
 
 var builder = GameHost.CreateBuilder()
     .AddGame<KittyCatGame>()
@@ -17,5 +19,4 @@ var builder = GameHost.CreateBuilder()
     });
 
 using var host = builder.Build();
-
 host.Run();

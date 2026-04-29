@@ -20,7 +20,7 @@ public class WorldController : DrawableGameComponent
     public WorldController(Game game, WorldManager worldManager) : base(game)
     {
         ArgumentNullException.ThrowIfNull(worldManager);
-        _world = worldManager.CreateWorld(WorldTag.Default);
+        _world = worldManager.CreateWorld(WorldType.Default);
     }
 
     public override void Initialize()

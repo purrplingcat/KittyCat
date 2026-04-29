@@ -7,7 +7,7 @@ public interface IWorldContext
 {
     string Name { get; }
     EntityStore Store { get; }
-    WorldTag Tag { get; }
+    WorldType WorldType { get; }
     UpdateTick Time { get; }
 
     IWorld GetActualWorld();
@@ -24,7 +24,7 @@ internal class WorldContext : IWorldContext
     }
 
     public UpdateTick Time => World.Time;
-    public WorldTag Tag => World.Tag;
+    public WorldType WorldType => World.WorldType;
 
     public string Name => World.Name;
 

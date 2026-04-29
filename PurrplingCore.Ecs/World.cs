@@ -2,10 +2,8 @@
 using Friflo.Engine.ECS.Systems;
 using PurrplingCore.Ecs.Systems;
 using System.Runtime.CompilerServices;
-using System.Linq;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using PurrplingCore.Toolkit;
 
 namespace PurrplingCore.Ecs;
 
@@ -24,7 +22,7 @@ public class World : IWorld, IDisposable
     private UpdateTick _time;
     private bool _initialized;
     private bool _disposed;
-    private bool _fixedUpdateEnabled;
+    private bool _doFixedUpdate;
 
     public string Name { get; set; } = string.Empty;
     public EntityStore Store => _store;
@@ -93,7 +91,8 @@ public class World : IWorld, IDisposable
 
         OnInitialize();
         _initializeSystems.Update(new UpdateTick());
-        _fixedUpdateEnabled = _fixedUpdateSystems.ChildSystems.Count > 0;
+        _doFixedUpdate = _fixedUpdateSystems.ChildSystems.Count > 0;
+        _fixedUpdateSystems.Enabled = _doFixedUpdate;
         _initialized = true;
         Initialized?.Invoke(this, EventArgs.Empty);
     }
@@ -111,7 +110,7 @@ public class World : IWorld, IDisposable
 
         _time = tick;
         _store.EventRecorder.ClearEvents();
-        if (_fixedUpdateEnabled)
+        if (_doFixedUpdate)
         {
             _fixedUpdateSystems.Update(tick);
         }
@@ -122,7 +121,13 @@ public class World : IWorld, IDisposable
     public void Draw(UpdateTick tick)
     {
         EnsureNotDisposed();
-        if (!_initialized) { Initialize(); }
+        if (!_initialized) 
+        {
+            throw new InvalidOperationException(
+                "Cannot call Draw before the World has been initialized. " +
+                "Call Initialize() or ensure that Update() is called at least once before Draw()."
+            );
+        }
 
         _drawSystems.Update(tick);
         Drawn?.Invoke(this, tick);

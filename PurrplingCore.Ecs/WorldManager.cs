@@ -1,17 +1,19 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Friflo.Engine.ECS.Systems;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using PurrplingCore.Ecs.Diagnostics;
 using PurrplingCore.Ecs.Extensions;
 using PurrplingCore.Toolkit;
 using PurrplingCore.Toolkit.Extensions;
 
 namespace PurrplingCore.Ecs;
 
-public class WorldManager(IWorldFactory factory, WorldOptions options, ILogger<WorldManager>? logger)
+public class WorldManager(IWorldFactory factory, EcsOptions options, ILogger<WorldManager>? logger)
 {
     private readonly Dictionary<string, ManagedWorld> _worldsByName = [];
     private readonly List<ManagedWorld> _worlds = [];
-    private readonly WorldOptions _options = options;
+    private readonly EcsOptions _options = options;
     private readonly ILogger<WorldManager> _logger = logger ?? NullLogger<WorldManager>.Instance;
     private readonly object _lock = new();
 
@@ -19,42 +21,74 @@ public class WorldManager(IWorldFactory factory, WorldOptions options, ILogger<W
 
     public ManagedWorld? GetWorld(string name) => _worldsByName.GetValueOrDefault(name);
 
-    public IEnumerable<ManagedWorld> GetWorlds(WorldTag tag)
+    public IEnumerable<ManagedWorld> GetWorlds(WorldType tag)
     {
-        return _worlds.Where(w => w.Tag == tag);
+        return _worlds.Where(w => w.WorldType == tag);
     }
 
     public ManagedWorld CreateWorld(string? name = null)
     {
-        return CreateWorld(WorldTag.Default, name);
+        return CreateWorld(WorldType.Default, name);
     }
 
-    public ManagedWorld CreateWorld(WorldTag tag, string? name = null)
+    public ManagedWorld CreateWorld<T>(string? name = null) where T : struct, IWorldMarker
     {
-        ArgumentNullException.ThrowIfNull(tag, nameof(tag));
-        name ??= $"World_{Guid.NewGuid():N}";
+        var worldType = WorldType.For<T>();
+        return CreateWorld(worldType, name);
+    }
 
-        if (!_options.AllowUnknownWorlds && !_options.KnownWorlds.Contains(tag))
-        {
-            throw new InvalidOperationException($"World tag '{tag.DebugName}' is not recognized.");
-        }
+    public ManagedWorld CreateWorld(WorldType worldType, string? name = null)
+    {
+        ArgumentNullException.ThrowIfNull(worldType, nameof(worldType));
+        name ??= $"World_{Guid.NewGuid():N}";
 
         if (ContainsWorld(name))
         {
             throw new InvalidOperationException($"A world with the name '{name}' already exists.");
         }
 
-        var world = factory.CreateWorld(name, tag);
-        var bootstraps = world.Services.GetKeyedServices<IWorldBootstrap>(tag);
+        var initOptions = options.GetWorldInitOptions(worldType);
+        var world = factory.CreateWorld(name, worldType);
+        var bootstraps = world.Services.GetKeyedServices<IWorldBootstrap>(worldType);
+
+        if (initOptions.AutoCreateSystems)
+        {
+            SetupSystems(worldType, world);
+        }
 
         ApplyBootstraps(world, bootstraps);
         AddWorld(world);
+
+        // Logging the world state after creation and bootstrap application
+        _logger.LogWorldTopology(world);
         _logger.LogInformation(
             "World '{Name}' created! Systems: {Systems} Entities: {Entities} Tag: {Tag}", 
-            world.Name, world.SystemRoot.Count(recursive: true), world.Store.Count, world.Tag
+            world.Name, world.SystemRoot.Count(recursive: true), world.Store.Count, world.WorldType
          );
 
         return world;
+    }
+
+    private static void SetupSystems(WorldType worldType, ManagedWorld world)
+    {
+        // Using SystemProvider to ensure that systems are created with DI support
+        // and that group hierarchies are properly filled based on the registry
+        // also using predefined instances from the world.SystemRoot.ChildSystems
+        // to avoid creating multiple instances of the same system
+        // if they are already created as top-level systems in the world
+        // like default groups or manually added systems in the root group.
+        var registry = world.Services.GetRequiredKeyedService<SystemRegistry>(worldType);
+        var provider = new SystemProvider(registry, world.Services, world.SystemRoot.ChildSystems);
+        foreach (var topLevelEntry in registry.GetOrCreate<SystemRoot>().GetSortedEntries())
+        {
+            var topLevel = provider.Resolve(topLevelEntry.Type);
+            world.AddTopLevelSystem(topLevel);
+
+            if (topLevel is SystemGroup group)
+            {
+                provider.FillGroup(group, group.GetType());
+            }
+        }
     }
 
     private void ApplyBootstraps(ManagedWorld world, IEnumerable<IWorldBootstrap> bootstraps)

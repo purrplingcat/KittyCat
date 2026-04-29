@@ -1,9 +1,15 @@
 ﻿using Friflo.Engine.ECS;
+using Friflo.Engine.ECS.Systems;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using PurrplingCore.Ecs.DI;
+using PurrplingCore.Ecs.Systems;
+using PurrplingCore.Ecs.Systems.Builder;
 using PurrplingCore.Toolkit.DI;
+using System.Reflection;
 
 namespace PurrplingCore.Ecs;
 
@@ -19,17 +25,19 @@ public static class ServiceCollectionExtensions
         }
     }
 
-    public static IServiceCollection UseEcs(this IServiceCollection services)
+    public static IServiceCollection AddEcs(this IServiceCollection services)
     {
         services.TryAddScoped<IWorldContext, WorldContext>();
         services.TryAddSingleton<IWorldFactory, WorldFactory>();
+        services.TryAddSingleton<SystemMetadataStore>();
+        services.TryAddAlias<IStartupService, SystemMetadataStore>();
         services.TryAddSingleton(static provider =>
         {
-            var options = provider.GetService<IOptions<WorldOptions>>();
+            var options = provider.GetService<IOptions<EcsOptions>>();
 
             return new WorldManager(
                 factory: provider.GetRequiredService<IWorldFactory>(),
-                options: options?.Value ?? new WorldOptions(),
+                options: options?.Value ?? new EcsOptions(),
                 logger: provider.GetRequiredService<ILogger<WorldManager>>()
             );
         });
@@ -37,31 +45,52 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddWorld(this IServiceCollection services, WorldTag tag, Action<WorldBuilder> configure)
+    public static IServiceCollection AddEcs(this IServiceCollection services, Action<EcsOptions> configure)
     {
-        services.UseEcs();
-        services.Configure<WorldOptions>(options => options.KnownWorlds.Add(tag));
-        services.AddWorldBootstrap(tag, (services, key) => new DelegateBuilderBootstrap(configure));
-        return services;
+        services.Configure(configure);
+        return services.AddEcs();
     }
 
-    public static IServiceCollection AddWorldBootstrap<TBootstrap>(this IServiceCollection services, WorldTag tag) where TBootstrap : class, IWorldBootstrap
+    public static IWorldBuilder AddWorld<T>(this IServiceCollection services) where T : IWorldMarker
     {
-        services.UseEcs();
-        return services.AddKeyedSingleton<IWorldBootstrap, TBootstrap>(tag);
+        var worldType = WorldType.For<T>();
+        var builder = new DefaultWorldBuilder(services, worldType);
+
+        services.AddEcs();
+        services.TryAddKeyedSingleton(worldType, BuildSystemRegistry<T>);
+
+        return builder;
     }
 
-    public static IServiceCollection AddWorldBootstrap(this IServiceCollection services, WorldTag tag, Func<IServiceProvider, object?, IWorldBootstrap> factory)
+    public static IWorldBuilder AddWorld<T>(this IServiceCollection services, Action<WorldInitOptions> configure)
+        where T : IWorldMarker
     {
-        services.UseEcs();
-        return services.AddKeyedSingleton(tag, factory);
+        var builder = services.AddWorld<T>();
+        services.Configure<EcsOptions>(options =>
+        {
+            configure(options.GetWorldInitOptions(builder.WorldType));
+        });
+
+        return builder;
     }
 
-    public static IServiceCollection AddWorldBootstrap(this IServiceCollection services, WorldTag tag, Action<ManagedWorld> setupAction, int order = 0)
+    private static SystemRegistry BuildSystemRegistry<T>(IServiceProvider sp, object? key) where T : IWorldMarker
     {
-        services.UseEcs();
+        var worldType = WorldType.For<T>();
+        var registry = SystemRegistry.CreateWithDefaults();
+        var globalStore = sp.GetRequiredService<SystemMetadataStore>();
+        var worldSystems = globalStore.GetSystemsForWorld(worldType);
 
-        var bootstrap = new DelegateWorldBootstrap(order, setupAction);
-        return services.AddKeyedSingleton<IWorldBootstrap>(tag, bootstrap);
+        foreach (var info in worldSystems)
+        {
+            var entry = new SortedSystemSet.SystemEntry(info.SystemType, info.Order);
+
+            entry.RunBefore.UnionWith(info.RunBefore);
+            entry.RunAfter.UnionWith(info.RunAfter);
+
+            registry.GetOrCreate(info.GroupType).Add(entry);
+        }
+
+        return registry;
     }
 }

@@ -11,6 +11,8 @@ using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.Systems.Builder;
 using KittyCat.Ecs.Systems;
 using PurrplingCore.Ecs.Systems;
+using PurrplingCore.Ecs.DI;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace KittyCat.Configuration;
 
@@ -30,13 +32,23 @@ public class KittyCatGameServices : IServiceConfiguration
     public void Configure(IServiceCollection services)
     {
         // Register world and their systems
-        services.AddWorld(WorldTag.Default, static builder => {
-            builder.InUpdate(static group => {
+        static void ConfigureSystems(RuntimeWorldBuilder builder)
+        {
+            builder.InUpdate(static group =>
+            {
                 group.Add<PhysicsSystem>()
                      .Add<TestGroup>()
                      .Add<PhysicsCleanupSystem>();
             });
+        }
+
+        services.AddEcs(opts =>
+        {
+            opts.Assemblies.Add(typeof(KittyCatGameServices).Assembly);
         });
+        services.AddWorld<DefaultWorld>()
+                .ConfigureRuntime(ConfigureSystems);
+
         //services.AddSystemRoot(ConfigureSystems);
         //services.AddRenderPipeline<World>(builder => { });
 

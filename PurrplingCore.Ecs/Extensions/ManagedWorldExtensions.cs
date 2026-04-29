@@ -7,7 +7,10 @@ public static class WorldExtensions
 {
     public static void AddTopLevelSystem(this World world, BaseSystem system)
     {
-        world.SystemRoot.Add(system);
+        if (!world.SystemRoot.ChildSystems.Contains(system))
+        {
+            world.SystemRoot.Add(system);
+        }
     }
 
     public static T GetSystem<T>(this World world, bool recursive = true) where T : BaseSystem
