@@ -25,6 +25,9 @@ public class World : IWorld, IDisposable
     private bool _doFixedUpdate;
 
     public string Name { get; set; } = string.Empty;
+
+    public WorldSignature Signature { get; }
+
     public EntityStore Store => _store;
     internal UpdateSystemGroup UpdateSystems => _updateSystems;
     internal DrawSystemGroup DrawSystems => _drawSystems;
@@ -43,9 +46,9 @@ public class World : IWorld, IDisposable
     public event Action<IWorld, UpdateTick>? Updated;
     public event Action<IWorld, UpdateTick>? Drawn;
 
-    public World() : this(PidType.UsePidAsId) { }
+    public World() : this(PidType.UsePidAsId, WorldSignature.None) { }
 
-    public World(PidType pidType, ILogger? logger = null)
+    public World(PidType pidType, WorldSignature signature, ILogger? logger = null)
     {
         _store = new EntityStore(pidType);
         _logger = logger ?? NullLogger<World>.Instance;
@@ -56,6 +59,7 @@ public class World : IWorld, IDisposable
             _drawSystems, 
         };
 
+        Signature = signature;
         _systemRoot.OnSystemChanged += OnSystemRootChanged;
         _store.EventRecorder.Enabled = true;
     }

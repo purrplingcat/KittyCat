@@ -11,9 +11,17 @@ public sealed class NameAttribute(string name) : Attribute
 
 public static class MetadataExtensions
 {
+    private static readonly ConditionalWeakTable<Type, string> _displayNameCache = [];
+
     public static string GetDisplayName(this Type type)
     {
-        return type.GetCustomAttribute<NameAttribute>()?.Name ?? type.Name;
+        if (!_displayNameCache.TryGetValue(type, out var displayName))
+        {
+            displayName = type.GetCustomAttribute<NameAttribute>()?.Name ?? type.Name;
+            _displayNameCache.Add(type, displayName);
+        }
+
+        return displayName;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

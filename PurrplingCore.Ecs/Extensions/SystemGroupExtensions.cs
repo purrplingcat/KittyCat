@@ -1,5 +1,8 @@
 ﻿using Friflo.Engine.ECS.Systems;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using PurrplingCore.Ecs.Systems;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 namespace PurrplingCore.Ecs.Extensions;
@@ -74,13 +77,25 @@ public static class SystemGroupExtensions
         return group;
     }
 
-    public static World? GetWorld(this SystemGroup group)
+    public static World GetWorld(this SystemGroup group)
     {
         if (group.SystemRoot is WorldSystemRoot worldRoot)
         {
             return worldRoot.World;
         }
 
-        return null;
+        throw new InvalidOperationException($"SystemGroup {@group.Name} is not attached to a WorldSystemRoot.");
+    }
+
+    public static bool TryGetWorld(this SystemGroup group, [MaybeNullWhen(false)] out World world)
+    {
+        if (group.SystemRoot is WorldSystemRoot worldRoot)
+        {
+            world = worldRoot.World;
+            return true;
+        }
+
+        world = null;
+        return false;
     }
 }

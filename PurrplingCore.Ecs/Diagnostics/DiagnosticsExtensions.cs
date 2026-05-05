@@ -6,11 +6,11 @@ namespace PurrplingCore.Ecs.Diagnostics;
 
 public static class DiagnosticExtensions
 {
-    public static void LogWorldTopology(this ILogger logger, ManagedWorld world)
+    public static void LogWorldTopology(this ILogger logger, World world)
     {
         if (!logger.IsEnabled(LogLevel.Debug)) return;
 
-        logger.LogDebug("=== System tree for '{WorldName}' [{WorldType}] ===", world.Name, world.WorldType.Name);
+        logger.LogDebug("=== System tree for '{WorldName}' [{WorldType}] ===", world.Name, world.Signature.Name);
         logger.LogDebug("{RootType}", world.SystemRoot.Name);
 
         var children = world.SystemRoot.ChildSystems;

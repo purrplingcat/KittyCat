@@ -1,9 +1,9 @@
 ﻿using Friflo.Engine.ECS;
-using Friflo.Engine.ECS.Systems;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using PurrplingCore.Toolkit.Extensions;
+using System.Runtime.CompilerServices;
+using static System.Formats.Asn1.AsnWriter;
 
 namespace PurrplingCore.Ecs;
 
@@ -11,50 +11,16 @@ public class ManagedWorld : World
 {
     private readonly IServiceScope _scope;
     private bool _disposed;
-    internal bool creating;
-
-    public WorldType WorldType { get; }
 
     public IServiceProvider Services => _scope.ServiceProvider;
 
-    public ManagedWorld(IServiceScope scope, ILogger? logger, string? name = null, WorldType? type = null) 
-        : base(PidType.RandomPids, logger)
+    protected ManagedWorld(IServiceScope scope, ILogger? logger, string? name = null, WorldSignature? type = null) 
+        : base(PidType.RandomPids, type ?? WorldSignature.Default, logger)
     {
         ArgumentNullException.ThrowIfNull(scope);
 
         _scope = scope;
         Name = name ?? string.Empty;
-        WorldType = type ?? WorldType.Default;
-    }
-
-    public T CreateSystem<T>() where T : BaseSystem
-    {
-        EnsureNotDisposed();
-        return ActivatorUtilities.GetServiceOrCreateInstance<T>(Services);
-    }
-
-    public BaseSystem CreateSystem(Type type)
-    {
-        EnsureNotDisposed();
-        return (BaseSystem)ActivatorUtilities.GetServiceOrCreateInstance(Services, type);
-    }
-
-    public SystemGroup CreateSystemGroup(string name, params BaseSystem[] systems)
-    {
-        EnsureNotDisposed();
-        return new SystemGroup(name)
-        {
-            systems
-        };
-    }
-
-    public SystemGroup CreateSystemGroup(string name, params Type[] systems)
-    {
-        EnsureNotDisposed();
-        return new SystemGroup(name)
-        {
-            systems.Select(s => (BaseSystem)ActivatorUtilities.GetServiceOrCreateInstance(Services, s))
-        };
     }
 
     protected override void Dispose(bool disposing)
@@ -71,34 +37,22 @@ public class ManagedWorld : World
         }
     }
 
-    public static ManagedWorld Create(IServiceScope scope, string? name = null, WorldType? tag = null) 
-    { 
-        var logger = scope.ServiceProvider.GetService<ILogger<ManagedWorld>>() 
-                     ?? NullLogger<ManagedWorld>.Instance;
-        
-        return Create(scope, logger, name, tag);
-    }
-
-    public static ManagedWorld Create(IServiceScope scope, ILogger logger, string? name = null, WorldType? tag = null)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ManagedWorld Create(IServiceScopeFactory scopeFactory, string? name = null, WorldSignature? tag = null)
     {
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(scopeFactory);
 
-        var context = scope.ServiceProvider.GetService<WorldContext>();
+        var scope = scopeFactory.CreateScope();
+        var logger = scope.ServiceProvider.GetService<ILogger<ManagedWorld>>()
+                     ?? NullLogger<ManagedWorld>.Instance;
         var world = new ManagedWorld(scope, logger, name, tag);
 
-        if (context != null)
+        var context = scope.ServiceProvider.GetService<IWorldContext>();
+        if (context is WorldContext worldContext)
         {
-            context.World = world;
+            worldContext.World = world;
         }
 
         return world;
-    }
-
-    public static ManagedWorld Create(IServiceProvider services, string? name = null, WorldType? tag = null)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        var scope = services.CreateScope();
-        return Create(scope, name, tag);
     }
 }

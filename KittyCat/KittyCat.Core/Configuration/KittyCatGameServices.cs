@@ -32,22 +32,17 @@ public class KittyCatGameServices : IServiceConfiguration
     public void Configure(IServiceCollection services)
     {
         // Register world and their systems
-        static void ConfigureSystems(RuntimeWorldBuilder builder)
+        static void ConfigureSystems(IWorldBuilder builder)
         {
-            builder.InUpdate(static group =>
-            {
-                group.Add<PhysicsSystem>()
-                     .Add<TestGroup>()
-                     .Add<PhysicsCleanupSystem>();
-            });
+            builder.Registry.Add<PhysicsSystem>();
+            builder.Registry.GetOrCreate<UpdateSystemGroup>()
+                 .Add<TestGroup>()
+                 .Add<PhysicsCleanupSystem>(SystemOrder.Last);
         }
 
-        services.AddEcs(opts =>
-        {
-            opts.Assemblies.Add(typeof(KittyCatGameServices).Assembly);
-        });
-        services.AddWorld<DefaultWorld>()
-                .ConfigureRuntime(ConfigureSystems);
+
+        services.AddWorld()
+                .AddModule(ConfigureSystems);
 
         //services.AddSystemRoot(ConfigureSystems);
         //services.AddRenderPipeline<World>(builder => { });

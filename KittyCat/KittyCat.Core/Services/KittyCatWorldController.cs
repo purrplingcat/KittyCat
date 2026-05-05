@@ -15,12 +15,12 @@ public class WorldController : DrawableGameComponent
 {
     private bool _disposed;
     private bool _initialized;
-    private ManagedWorld _world;
+    private World _world;
 
-    public WorldController(Game game, WorldManager worldManager) : base(game)
+    public WorldController(Game game, IWorldFactory worldFactory) : base(game)
     {
-        ArgumentNullException.ThrowIfNull(worldManager);
-        _world = worldManager.CreateWorld(WorldType.Default);
+        ArgumentNullException.ThrowIfNull(worldFactory);
+        _world = worldFactory.CreateWorld("MainWorld", WorldSignature.Default);
     }
 
     public override void Initialize()
@@ -62,6 +62,7 @@ public class WorldController : DrawableGameComponent
         if (!_disposed)
         {
             _disposed = true;
+            _world.Dispose();
         }
 
         base.Dispose(disposing);
