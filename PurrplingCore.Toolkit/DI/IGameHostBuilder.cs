@@ -14,6 +14,8 @@ public interface IGameHostBuilder
     /// parameter.</remarks>
     event EventHandler<GameHostCreatedEventArgs> GameHostCreated;
 
+    IServiceCollection Services { get; }
+
     /// <summary>
     /// Přidá konfiguraci pro služby (IServiceCollection).
     /// </summary>

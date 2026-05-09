@@ -13,10 +13,6 @@ public interface IPrepareRender
     void Prepare(GameTime gameTime);
 }
 
-public interface IRenderFeature2D
-{
-    void Draw(RenderContext batch, GameTime gameTime);
-}
 
 public interface IInitializeRender : IDisposable
 {

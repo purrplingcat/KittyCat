@@ -45,7 +45,7 @@ public class GameHostBuilderContext : IDisposable
 
     public Assembly HostAssembly { get; }
     public OperatingSystem OperatingSystem { get; }
-    public PlatformType PlartformType { get; }
+    public PlatformType PlatformType { get; }
     public GameVersion GameVersion { get; }
 
     public void Dispose()
@@ -58,7 +58,7 @@ public class GameHostBuilderContext : IDisposable
         LoggerFactory = loggerFactory;
         HostAssembly = executingAssembly;
         OperatingSystem = Environment.OSVersion;
-        PlartformType = Game.PlatformType;
+        PlatformType = Game.PlatformType;
         Directory = Path.GetDirectoryName(executingAssembly.Location) ?? string.Empty;
         GameVersion = gameVersion;
     }

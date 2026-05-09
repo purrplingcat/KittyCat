@@ -1,11 +1,13 @@
 ﻿using KittyCat;
 using Microsoft.Extensions.Logging;
 using PurrplingCore.Toolkit.DI;
+using PurrplingCore.Toolkit.Modding;
 using System;
 using System.IO;
 
 var builder = GameHost.CreateBuilder()
     .AddGame<KittyCatGame>()
+    .AddPlugin(new ModLoader("Mods"))
     .ConfigureLogging(logging =>
     {
         logging.SetMinimumLevel(LogLevel.Trace);

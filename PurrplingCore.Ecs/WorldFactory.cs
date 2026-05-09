@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PurrplingCore.Ecs.Diagnostics;
+using PurrplingCore.Ecs.Extensions;
 using PurrplingCore.Toolkit.Extensions;
 using System.Diagnostics.CodeAnalysis;
 

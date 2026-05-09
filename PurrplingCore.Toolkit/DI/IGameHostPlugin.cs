@@ -6,7 +6,8 @@ namespace PurrplingCore.Toolkit.DI;
 public interface IGameHostPlugin 
 {
     string Name { get; }
-    void Install(IGameHostBuilder builder, GameHostBuilderContext context);
+    void OnBuild(IGameHostBuilder builder, GameHostBuilderContext context);
+    void OnAdd(IGameHostBuilder gameHostBuilder);
 }
 
 public abstract class GameHostPlugin : IGameHostPlugin
@@ -32,9 +33,10 @@ public abstract class GameHostPlugin : IGameHostPlugin
         Name = name;
     }
 
+    public abstract void OnAdd(IGameHostBuilder builder);
     protected abstract void OnInstall(IGameHostBuilder builder, GameHostBuilderContext context);
 
-    public void Install(IGameHostBuilder builder, GameHostBuilderContext context)
+    public void OnBuild(IGameHostBuilder builder, GameHostBuilderContext context)
     {
         if (_installed) return;
 

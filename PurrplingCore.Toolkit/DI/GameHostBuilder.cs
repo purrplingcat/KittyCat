@@ -23,6 +23,8 @@ internal class GameHostBuilder : IGameHostBuilder
 
     public ServiceCollection Services { get; } = [];
 
+    IServiceCollection IGameHostBuilder.Services => Services;
+
     /// <summary>
     /// Core services configuration for the GameHost and hosted services.
     /// </summary>
@@ -211,7 +213,7 @@ internal class GameHostBuilder : IGameHostBuilder
             context.GameVersion, 
             context.OperatingSystem,
             context.OperatingSystem.Platform,
-            context.PlartformType
+            context.PlatformType
         );
         logger.LogInformation(
             "{execAssembly} ({toolkit})", 
@@ -225,14 +227,15 @@ internal class GameHostBuilder : IGameHostBuilder
         foreach (var plugin in _plugins)
         {
             var watch = Stopwatch.StartNew();
-            plugin.Install(this, context);
+            plugin.OnBuild(this, context);
             _logger?.LogDebug("Plugin '{plugin}' installed in {elapsed} ms", plugin.Name, watch.ElapsedMilliseconds);
         }
     }
 
-    public IGameHostBuilder AddPlugin(IGameHostPlugin feature)
+    public IGameHostBuilder AddPlugin(IGameHostPlugin plugin)
     {
-        _plugins.Add(feature);
+        _plugins.Add(plugin);
+        plugin.OnAdd(this);
         return this;
     }
 }

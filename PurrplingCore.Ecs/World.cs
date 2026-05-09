@@ -4,6 +4,7 @@ using PurrplingCore.Ecs.Systems;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using PurrplingCore.Toolkit.Attributes;
 
 namespace PurrplingCore.Ecs;
 
@@ -107,6 +108,7 @@ public class World : IWorld, IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
     }
 
+    [HotPath]
     public void Update(UpdateTick tick)
     {
         EnsureNotDisposed();
@@ -122,6 +124,7 @@ public class World : IWorld, IDisposable
         Updated?.Invoke(this, tick);
     }
 
+    [HotPath]
     public void Draw(UpdateTick tick)
     {
         EnsureNotDisposed();

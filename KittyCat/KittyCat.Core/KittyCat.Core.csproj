@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
 	<Product>KittyCat</Product>
+	<Company>PurrplingCat</Company>
 	<Version>0.1.0-dev+42</Version>
 	<RootNamespace>KittyCat</RootNamespace>
     <TargetFramework>net8.0</TargetFramework>

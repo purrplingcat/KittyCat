@@ -1,7 +1,6 @@
 ﻿using Friflo.Engine.ECS.Systems;
-using System;
 
-namespace PurrplingCore.Toolkit;
+namespace PurrplingCore.Ecs;
 
 [AttributeUsage(AttributeTargets.Class)]
 public class OrderAttribute(int order) : Attribute
@@ -16,15 +15,15 @@ public class TagsAttribute(params object[] tags) : Attribute
 }
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-public class RunBeforeAttribute(params Type[] types) : Attribute
+public class RunBeforeAttribute(Type targetType) : Attribute
 {
-    public Type[] Types { get; } = types;
+    public Type TargetType { get; } = targetType;
 }
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-public class RunAfterAttribute(params Type[] types) : Attribute
+public class RunAfterAttribute(Type targetType) : Attribute
 {
-    public Type[] Types { get; } = types ?? throw new ArgumentNullException(nameof(types));
+    public Type TargetType { get; } = targetType;
 }
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
