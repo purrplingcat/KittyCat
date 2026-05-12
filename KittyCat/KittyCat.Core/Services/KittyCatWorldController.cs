@@ -30,6 +30,7 @@ public class WorldController : DrawableGameComponent
         _world.Initialize();
         _initialized = true;
 
+        Game.Content.Load<string>("test");
         base.Initialize();
     }
 

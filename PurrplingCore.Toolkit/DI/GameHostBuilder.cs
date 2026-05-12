@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using PurrplingCore.Toolkit.Content;
 using PurrplingCore.Toolkit.DI.Configuration;
 using PurrplingCore.Toolkit.Messaging;
 using System.Diagnostics;
@@ -37,7 +38,7 @@ internal class GameHostBuilder : IGameHostBuilder
             // The game instance is the kernel of the application, so it must be created first
             var game = provider.GetService<IGame>()
                 ?? throw new InvalidOperationException($"No Game service of '{typeof(IGame)}' found");
-
+            
             return new GameHost(
                 provider, game, // like the game is a goaul'd 🐍 (it requires a host)
                 logger: provider.GetRequiredService<ILogger<GameHost>>(),
@@ -56,7 +57,6 @@ internal class GameHostBuilder : IGameHostBuilder
             services.AddSingleton(version); // Add game version as a service
             services.AddSingleton(services); // Add service collection itself as a singleton service
             services.TryAddSingleton(CreateGameHost); // GameHost is resolvable from DI (singleton)
-            services.TryAddSingleton<IMessageBus, DefaultMessageBus>();
             services.TryAddTransient(typeof(Lazy<>), typeof(LazyService<>));
             services.TryAddKeyedSingleton("game", 
                 (provider, key) => provider.GetRequiredService<ILoggerFactory>().CreateLogger("game")
@@ -79,11 +79,11 @@ internal class GameHostBuilder : IGameHostBuilder
 
             foreach (var attr in servicesAttrs)
             {
-                services.AddConfiguration(attr.CreateConfiguration());
+                services.AddServices(attr.CreateConfiguration());
             }
 
             // Add services from the assembly containing the game type
-            services.AddConfiguration(new AssemblyServices(gameType.Assembly))
+            services.AddServices(new AssemblyServices(gameType.Assembly))
                     .AddGame<TGame>();
         });
     }
@@ -134,7 +134,7 @@ internal class GameHostBuilder : IGameHostBuilder
 
         _serviceActions.ForEach(action => action(services, context));
         services.AddLogging(ConfigureLogging);
-        services.AddConfiguration(new GameHostConfiguration(_gameVersion ?? GameVersion.Empty));
+        services.AddServices(new GameHostConfiguration(_gameVersion ?? GameVersion.Empty));
 
         watch.Stop();
         _logger?.LogDebug("Service configuration completed in {ElapsedMilliseconds} ms", watch.ElapsedMilliseconds);
@@ -175,13 +175,13 @@ internal class GameHostBuilder : IGameHostBuilder
         Services.MakeReadOnly();
 
         var provider = _serviceProviderFactory.CreateServiceProvider(Services);
-        var host = CreateGameHost(provider);
+        var host = ResolveHost(provider);
 
         _logger.LogDebug("GameHost built in {ElapsedMilliseconds} ms", watch.ElapsedMilliseconds);
         return host;
     }
 
-    private GameHost CreateGameHost(IServiceProvider provider)
+    private GameHost ResolveHost(IServiceProvider provider)
     {
         var host = provider.GetRequiredService<GameHost>();
 
@@ -189,11 +189,9 @@ internal class GameHostBuilder : IGameHostBuilder
         {
             GameHostCreated?.Invoke(this, new GameHostCreatedEventArgs(host));
             host.shouldRun = true;
-            
-            return host;
         }
 
-        throw new InvalidOperationException("GameHost is already created!");
+        return host;
     }
 
     protected virtual void Validate(GameHostBuilderContext context)

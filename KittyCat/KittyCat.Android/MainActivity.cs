@@ -40,7 +40,7 @@ public class MainActivity : AndroidGameActivity
     {
         base.OnCreate(bundle);
 
-        var builder = GameHost.CreateBuilder()
+        var builder = GameHost.CreateDefaultBuilder()
             .AddGame<KittyCatGame>();
                               
         _gameHost = builder.Build();

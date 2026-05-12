@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PurrplingCore.Toolkit.Attributes;
+using Friflo.Engine.ECS.Serialize;
 
 namespace PurrplingCore.Ecs;
 
@@ -108,7 +109,7 @@ public class World : IWorld, IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
     }
 
-    [HotPath]
+    [Hot]
     public void Update(UpdateTick tick)
     {
         EnsureNotDisposed();
@@ -124,7 +125,7 @@ public class World : IWorld, IDisposable
         Updated?.Invoke(this, tick);
     }
 
-    [HotPath]
+    [Hot]
     public void Draw(UpdateTick tick)
     {
         EnsureNotDisposed();

@@ -122,8 +122,13 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
         Exited?.Invoke(this, EventArgs.Empty);
     }
 
-    protected T GetService<T>() where T : class
+    protected T GetRequiredService<T>() where T : class
     {
         return _provider.GetRequiredService<T>();
+    }
+
+    protected T? GetService<T>() where T : class
+    {
+        return _provider.GetService<T>();
     }
 }

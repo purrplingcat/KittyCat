@@ -108,7 +108,7 @@ public class ModLoader(string modsDirectory) : IGameHostPlugin
         var modDirectories = loadOrder.Select(m => m.DirectoryPath).ToList();
         var loadedMods = new List<LoadedMod>
         {
-            GetGameAsMod(context.GameVersion, context.Directory)
+            GetGameAsMod(context.GameVersion, context.HostDirectory)
         };
 
         loadedMods.AddRange(LoadModAssemblies(loadOrder, logger));
@@ -125,7 +125,7 @@ public class ModLoader(string modsDirectory) : IGameHostPlugin
                     Manifest: loaded.Package.Manifest,
                     Logger: ctx.CreateLogger($"ModEntry {loaded.Manifest.Name}"),
                     ModDirectoryPath: loaded.Package.DirectoryPath,
-                    GamePath: ctx.Directory,
+                    GamePath: ctx.HostDirectory,
                     GameVersion: ctx.GameVersion,
                     OperatingSystem: ctx.OperatingSystem,
                     PlatformType: ctx.PlatformType,

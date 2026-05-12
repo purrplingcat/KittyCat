@@ -24,8 +24,15 @@ public static partial class ServiceExtensions
                        .AddAlias<Game, TGame>();
     }
 
-    public static IServiceCollection AddConfiguration(this IServiceCollection services, IServiceConfiguration configuration)
+    public static IServiceCollection AddServices(this IServiceCollection services, IServiceConfiguration configuration)
     {
+        configuration.Configure(services);
+        return services;
+    }
+
+    public static IServiceCollection AddServices<T>(this IServiceCollection services) where T : IServiceConfiguration, new()
+    {
+        IServiceConfiguration configuration = new T();
         configuration.Configure(services);
         return services;
     }

@@ -54,7 +54,7 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
     /// </summary>
     protected override void Initialize()
     {
-        var resolution = GetService<Resolution>();
+        var resolution = GetRequiredService<Resolution>();
 
         resolution.SetResolution(1280, 720).ApplyChanges();
         //resolution.ApplyChanges(); 
@@ -103,7 +103,7 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
         if (Keyboard.GetState().IsKeyDown(Keys.F11))
         {
             // Toggle fullscreen mode when F11 is pressed.
-            var graphicsManager = GetService<GraphicsManager>();
+            var graphicsManager = GetRequiredService<GraphicsManager>();
             graphicsManager.ToggleFullScreen();
         }
 

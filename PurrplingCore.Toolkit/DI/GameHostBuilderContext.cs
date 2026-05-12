@@ -8,7 +8,9 @@ public class GameHostBuilderContext : IDisposable
     private readonly Dictionary<object, ILogger> _loggers = [];
     private ILogger? _logger;
 
-    public string Directory { get; }
+    public string ApplicationName { get; }
+    public string HostDirectory { get; }
+    public string BaseDirectory { get; } = AppContext.BaseDirectory;
 
     internal ILoggerFactory LoggerFactory { get; }
 
@@ -59,7 +61,13 @@ public class GameHostBuilderContext : IDisposable
         HostAssembly = executingAssembly;
         OperatingSystem = Environment.OSVersion;
         PlatformType = Game.PlatformType;
-        Directory = Path.GetDirectoryName(executingAssembly.Location) ?? string.Empty;
+        ApplicationName = executingAssembly.GetName().Name ?? string.Empty;
+        HostDirectory = Path.GetDirectoryName(executingAssembly.Location) ?? AppContext.BaseDirectory;
         GameVersion = gameVersion;
     }
+}
+
+public interface IHostEnvironment
+{
+
 }

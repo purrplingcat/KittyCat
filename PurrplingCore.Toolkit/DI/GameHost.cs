@@ -31,7 +31,13 @@ public sealed class GameHost : IDisposable
     public IServiceProvider Services => _provider;
     public Type Type => _game.GetType();
 
-    public static IGameHostBuilder CreateBuilder()
+    public static IGameHostBuilder CreateDefaultBuilder(string[]? args = null)
+    {
+        var builder = new GameHostBuilder();
+        return builder.ConfigureDefaults(args);
+    }
+
+    public static IGameHostBuilder CreateEmptyBuilder()
     {
         return new GameHostBuilder();
     }

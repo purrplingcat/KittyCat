@@ -6,6 +6,7 @@
 	</PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="DeterministicGuids" Version="1.0.11" />
+		<PackageReference Include="Zio" Version="0.22.2" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.7" />
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.7" />
 		<PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*">

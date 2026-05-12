@@ -6,7 +6,6 @@ using System.Runtime.CompilerServices;
 
 namespace KittyCat.Services;
 
-[Singleton]
 public class ContentManagerProvider : IContentManagerProvider
 {
     private readonly ContentManager _defaultContent;

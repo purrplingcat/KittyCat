@@ -13,6 +13,7 @@ using KittyCat.Ecs.Systems;
 using PurrplingCore.Ecs.Systems;
 using PurrplingCore.Ecs.DI;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using PurrplingCore.Toolkit.Content;
 
 namespace KittyCat.Configuration;
 
@@ -40,7 +41,7 @@ public class KittyCatGameServices : IServiceConfiguration
                  .Add<PhysicsCleanupSystem>(SystemOrder.Last);
         }
 
-
+        services.AddVfs();
         services.AddWorld()
                 .AddModule(ConfigureSystems);
 

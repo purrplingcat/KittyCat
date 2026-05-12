@@ -25,6 +25,8 @@ public sealed class GameVersion
 
     public GameVersion()
     {
+        _fullName = string.Empty;
+        _author = string.Empty;
         _name = string.Empty;
         _version = new Version();
     }
