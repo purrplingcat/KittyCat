@@ -14,8 +14,6 @@ public sealed class GameHost : IDisposable
     private readonly ICleanupService[] _cleanupServices;
     private bool _disposed;
 
-    internal bool shouldRun;
-
     internal GameHost(IServiceProvider provider, IGame game, ILogger<GameHost> logger, IStartupService[] startupServices, ICleanupService[] cleanupServices)
     {
         _provider = provider;
@@ -31,25 +29,15 @@ public sealed class GameHost : IDisposable
     public IServiceProvider Services => _provider;
     public Type Type => _game.GetType();
 
-    public static IGameHostBuilder CreateDefaultBuilder(string[]? args = null)
+    public static IGameHostBuilder CreateBuilder(string[]? args = null)
     {
         var builder = new GameHostBuilder();
-        return builder.ConfigureDefaults(args);
-    }
-
-    public static IGameHostBuilder CreateEmptyBuilder()
-    {
-        return new GameHostBuilder();
+        return builder.UseDefaultConfiguration(args);
     }
 
     public void Run()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        
-        if (!shouldRun)
-        {
-            throw new InvalidOperationException("Game host is not ready to run.");
-        }
 
         _logger.LogInformation("Starting game: {gameName}", _game.ToString());
         _logger.LogDebug("Executing startup services");

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Toolkit.DI.Configuration;
@@ -24,13 +25,11 @@ public static class GameHostBuilderExtensions
         return builder.UseServiceProviderFactory(new ServiceProviderFactoryAdapter<TContainerBuilder>(factory));
     }
 
-    public static IGameHostBuilder ConfigureDefaults(this IGameHostBuilder builder, string[]? args)
+    public static IGameHostBuilder UseDefaultConfiguration(this IGameHostBuilder builder, string[]? args)
     {
-        return builder.ConfigureServices(AddDefaultServices);
-    }
+        builder.Services.AddServices<CoreServices>();
+        builder.Services.AddTransient(typeof(Lazy<>), typeof(LazyService<>));
 
-    private static void AddDefaultServices(IServiceCollection services, GameHostBuilderContext context)
-    {
-        services.AddServices<CoreServices>();
+        return builder;
     }
 }

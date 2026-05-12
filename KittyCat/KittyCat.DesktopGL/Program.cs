@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Modding;
 
-var builder = GameHost.CreateDefaultBuilder()
+var builder = GameHost.CreateBuilder()
     .AddGame<KittyCatGame>()
     .AddPlugin(new ModLoader("Mods"))
     .ConfigureLogging(logging =>

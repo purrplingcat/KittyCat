@@ -2,15 +2,13 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using PurrplingCore.Toolkit.Content;
 using PurrplingCore.Toolkit.DI.Configuration;
-using PurrplingCore.Toolkit.Messaging;
 using System.Diagnostics;
 using System.Reflection;
 
 namespace PurrplingCore.Toolkit.DI;
 
-internal class GameHostBuilder : IGameHostBuilder
+public class GameHostBuilder : IGameHostBuilder
 {
     private readonly List<Action<IServiceCollection, GameHostBuilderContext>> _serviceActions = [];
     private readonly List<Action<ILoggingBuilder>> _loggingActions = [];
@@ -20,16 +18,20 @@ internal class GameHostBuilder : IGameHostBuilder
     private GameVersion? _gameVersion;
     private bool _hostBuilt;
 
-    public event EventHandler<GameHostCreatedEventArgs>? GameHostCreated;
+    public event EventHandler<GameHostResolvedEventArgs>? HostResolved;
+    public event EventHandler<ServicesConfiguredEventArgs>? ServicesConfigured;
+    public event EventHandler<BuildingEventArgs>? Building;
 
-    public ServiceCollection Services { get; } = [];
+    private readonly ServiceCollection _services = [];
+    
+    public IServiceCollection Services => _services;
 
-    IServiceCollection IGameHostBuilder.Services => Services;
+    public IReadOnlyList<IGameHostPlugin> Plugins => _plugins;
 
     /// <summary>
     /// Core services configuration for the GameHost and hosted services.
     /// </summary>
-    private class GameHostConfiguration(GameVersion version) : IServiceConfiguration
+    private class GameHostServices(GameVersion version) : IServiceConfiguration
     {
         private GameHost CreateGameHost(IServiceProvider provider)
         {
@@ -58,12 +60,10 @@ internal class GameHostBuilder : IGameHostBuilder
             services.AddSingleton(services); // Add service collection itself as a singleton service
             services.TryAddSingleton(CreateGameHost); // GameHost is resolvable from DI (singleton)
             services.TryAddTransient(typeof(Lazy<>), typeof(LazyService<>));
-            services.TryAddKeyedSingleton("game", 
-                (provider, key) => provider.GetRequiredService<ILoggerFactory>().CreateLogger("game")
-            );
         }
     }
 
+    /// <inheritdoc />
     public IGameHostBuilder AddGame<TGame>() where TGame : Game
     {
         if (_gameVersion != null)
@@ -88,33 +88,21 @@ internal class GameHostBuilder : IGameHostBuilder
         });
     }
 
-    /// <summary>
-    /// Add a services configuration applied during the Build() process.
-    /// </summary>
-    /// <param name="configureDelegate">Action to configure <see cref="IServiceCollection"/></param>
-    /// <returns>Game host builder itself</returns>
+    /// <inheritdoc />
     public IGameHostBuilder ConfigureServices(Action<IServiceCollection, GameHostBuilderContext> configureDelegate)
     {
         _serviceActions.Add(configureDelegate);
         return this;
     }
 
-    /// <summary>
-    /// Add a logging configuration applied during the Build() process.
-    /// </summary>
-    /// <param name="configureDelegate">Logging builder action to configure <see cref="ILoggingBuilder"/></param>
-    /// <returns></returns>
+    /// <inheritdoc />
     public IGameHostBuilder ConfigureLogging(Action<ILoggingBuilder> configureDelegate)
     {
         _loggingActions.Add(configureDelegate);
         return this;
     }
 
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="factory"></param>
-    /// <returns></returns>
+    /// <inheritdoc />
     public IGameHostBuilder UseServiceProviderFactory(IServiceProviderFactory factory)
     {
         ArgumentNullException.ThrowIfNull(factory, nameof(factory));
@@ -123,6 +111,7 @@ internal class GameHostBuilder : IGameHostBuilder
         return this;
     }
 
+    /// <inheritdoc />
     private void ConfigureLogging(ILoggingBuilder builder)
     {
         _loggingActions.ForEach(action => action(builder));
@@ -134,7 +123,8 @@ internal class GameHostBuilder : IGameHostBuilder
 
         _serviceActions.ForEach(action => action(services, context));
         services.AddLogging(ConfigureLogging);
-        services.AddServices(new GameHostConfiguration(_gameVersion ?? GameVersion.Empty));
+        services.AddServices(new GameHostServices(_gameVersion ?? GameVersion.Empty));
+        ServicesConfigured?.Invoke(services, new ServicesConfiguredEventArgs(services, context));
 
         watch.Stop();
         _logger?.LogDebug("Service configuration completed in {ElapsedMilliseconds} ms", watch.ElapsedMilliseconds);
@@ -169,12 +159,14 @@ internal class GameHostBuilder : IGameHostBuilder
 
         LogGameInformation(context);
         Validate(context);
+        Building?.Invoke(this, new BuildingEventArgs(this, context));
         UsePlugins(context);
-        ConfigureServices(Services, context);
+        ConfigureServices(_services, context);
+        
         // prevent further modifications to the service collection after configuration
-        Services.MakeReadOnly();
+        _services.MakeReadOnly();
 
-        var provider = _serviceProviderFactory.CreateServiceProvider(Services);
+        var provider = _serviceProviderFactory.CreateServiceProvider(_services);
         var host = ResolveHost(provider);
 
         _logger.LogDebug("GameHost built in {ElapsedMilliseconds} ms", watch.ElapsedMilliseconds);
@@ -185,11 +177,7 @@ internal class GameHostBuilder : IGameHostBuilder
     {
         var host = provider.GetRequiredService<GameHost>();
 
-        if (!host.shouldRun)
-        {
-            GameHostCreated?.Invoke(this, new GameHostCreatedEventArgs(host));
-            host.shouldRun = true;
-        }
+        HostResolved?.Invoke(this, new GameHostResolvedEventArgs(host));
 
         return host;
     }

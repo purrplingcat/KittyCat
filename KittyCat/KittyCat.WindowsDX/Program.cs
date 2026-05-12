@@ -16,7 +16,7 @@ internal class Program
         Application.SetHighDpiMode(HighDpiMode.SystemAware);
 
         // Create an instance of the game host and start the game loop.
-        using var game = GameHost.CreateDefaultBuilder()
+        using var game = GameHost.CreateBuilder()
             .AddGame<KittyCatGame>()
             .Build();
 
