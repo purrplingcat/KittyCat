@@ -7,7 +7,7 @@ using System.Reflection;
 
 namespace PurrplingCore.Toolkit.DI.Configuration;
 
-public class AssemblyServices(params Assembly[] assemblies) : IServiceConfiguration
+public class AssemblyServices(params Assembly[] assemblies) : IServicesConfiguration
 {
     private object _lock = new();
     private readonly Assembly[] _assemblies = assemblies;
@@ -66,10 +66,10 @@ public class AssemblyServices(params Assembly[] assemblies) : IServiceConfigurat
         private static bool IsConfigurationType(Type type)
         {
             return Attribute.IsDefined(type, typeof(ServiceConfiguration)) 
-                && typeof(IServiceConfiguration).IsAssignableFrom(type);
+                && typeof(IServicesConfiguration).IsAssignableFrom(type);
         }
 
-        public IEnumerable<IServiceConfiguration> GetConfigurations()
+        public IEnumerable<IServicesConfiguration> GetConfigurations()
         {
             foreach (var type in types)
             {
@@ -78,7 +78,7 @@ public class AssemblyServices(params Assembly[] assemblies) : IServiceConfigurat
                     throw new InvalidOperationException($"The service configuration '{type.FullName}' must have a parameterless constructor.");
                 }
 
-                if (Activator.CreateInstance(type) is IServiceConfiguration config)
+                if (Activator.CreateInstance(type) is IServicesConfiguration config)
                 {
                     yield return config;
                 }

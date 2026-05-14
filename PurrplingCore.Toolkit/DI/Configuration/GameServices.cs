@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace PurrplingCore.Toolkit.DI.Configuration;
 
-public sealed class GameServices<TGame>(IServiceProvider provider) : IServiceConfiguration where TGame : Game, IGame
+public sealed class GameServices<TGame>(IServiceProvider provider) : IServicesConfiguration where TGame : Game, IGame
 {
     public void ConfigureServices(IServiceCollection services)
     {
@@ -39,13 +39,13 @@ public sealed class GameServices<TGame>(IServiceProvider provider) : IServiceCon
 
         foreach (var attr in servicesAttrs)
         {
-            var serviceConfiguration = (IServiceConfiguration)ActivatorUtilities.CreateInstance(provider, attr.ConfigurationType);
+            var serviceConfiguration = (IServicesConfiguration)ActivatorUtilities.CreateInstance(provider, attr.ConfigurationType);
             serviceConfiguration.ConfigureServices(services);
         }
     }
 }
 
-internal sealed class LambdaServices(IServiceProvider provider, Action<IServiceCollection, IServiceProvider> configure) : IServiceConfiguration
+internal sealed class LambdaServices(IServiceProvider provider, Action<IServiceCollection, IServiceProvider> configure) : IServicesConfiguration
 {
     public void ConfigureServices(IServiceCollection services) => configure(services, provider);
 }

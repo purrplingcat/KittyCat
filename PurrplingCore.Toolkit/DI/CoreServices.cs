@@ -9,7 +9,10 @@ namespace PurrplingCore.Toolkit.DI;
 
 public static class CoreServices
 {
-    public sealed class GameCoreServices : IServiceConfiguration
+    /// <summary>
+    /// Services to by added in the game instance
+    /// </summary>
+    public sealed class GameCoreServices : IServicesConfiguration
     {
         public void ConfigureServices(IServiceCollection services)
         {
@@ -21,7 +24,7 @@ public static class CoreServices
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
         services.TryAddSingleton<IMessageBus, DefaultMessageBus>();
-        services.TryAddEnumerable(ServiceDescriptor.Transient<IServiceConfiguration, GameCoreServices>());
+        services.AddServiceConfiguration<GameCoreServices>();
 
         return services;
     }

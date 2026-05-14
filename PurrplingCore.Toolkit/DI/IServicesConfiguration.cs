@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace PurrplingCore.Toolkit.DI;
 
-public interface IServiceConfiguration
+public interface IServicesConfiguration
 {
     public void ConfigureServices(IServiceCollection services);
 }

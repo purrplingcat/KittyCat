@@ -2,6 +2,9 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using PurrplingCore.Toolkit.DI.Configuration;
+using PurrplingCore.Toolkit.Hosting;
+using System.Runtime.CompilerServices;
 
 namespace PurrplingCore.Toolkit.DI;
 
@@ -146,5 +149,32 @@ public static partial class ServiceExtensions
     {
         return provider.GetGameServices()
                        .GetRequiredService<T>();
+    }
+}
+
+public static partial class ServiceExtensions
+{
+    public static IServiceCollection AddServiceConfiguration<T>(this IServiceCollection services, T instance) where T : class, IServicesConfiguration
+    {
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IServicesConfiguration>(instance));
+        return services;
+    }
+
+    public static IServiceCollection AddServiceConfiguration<T>(this IServiceCollection services) where T : class, IServicesConfiguration
+    {
+        services.TryAddEnumerable(ServiceDescriptor.Transient<IServicesConfiguration, T>());
+        return services;
+    }
+
+    public static IServiceCollection AddServiceConfiguration<T>(this IServiceCollection services, Func<IServiceProvider, T> factory) where T : class, IServicesConfiguration
+    {
+        services.TryAddEnumerable(ServiceDescriptor.Transient<IServicesConfiguration, T>(factory));
+        return services;
+    }
+
+    public static IServiceCollection AddServiceConfiguration(this IServiceCollection services, Func<IServiceProvider, IServicesConfiguration> factory)
+    {
+        services.AddTransient(factory);
+        return services;
     }
 }

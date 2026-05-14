@@ -26,6 +26,8 @@ public sealed class GameHost : IDisposable
         _environment = environment;
     }
 
+    public ILogger Logger => _logger;
+
     public IServiceProvider Services
     {
         get
@@ -50,7 +52,7 @@ public sealed class GameHost : IDisposable
         _logger.LogGameInformation(_environment);
         _logger.LogDebug("Environment: {EnvironmentName}", _environment.EnvironmentName);
 
-        foreach (var serviceConfiguration in _hostServiceProvider.GetServices<IServiceConfiguration>())
+        foreach (var serviceConfiguration in _hostServiceProvider.GetServices<IServicesConfiguration>())
         {
             serviceConfiguration.ConfigureServices(_gameServiceCollection);
         }

@@ -9,21 +9,21 @@ namespace PurrplingCore.Toolkit.Hosting;
 
 public static class GameHostBuilderExtensions
 {
-    public static IGameHostBuilder AddServiceConfiguration(this IGameHostBuilder builder, IServiceConfiguration configuration)
+    public static IGameHostBuilder AddServiceConfiguration(this IGameHostBuilder builder, IServicesConfiguration configuration)
     {
         builder.Services.AddSingleton(configuration);
         return builder;
     }
 
-    public static IGameHostBuilder AddServiceConfiguration<T>(this IGameHostBuilder builder) where T : class, IServiceConfiguration
+    public static IGameHostBuilder AddServiceConfiguration<T>(this IGameHostBuilder builder) where T : class, IServicesConfiguration
     {
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Transient<IServiceConfiguration, T>());
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Transient<IServicesConfiguration, T>());
         return builder;
     }
 
     public static IGameHostBuilder AddServiceConfiguration(this IGameHostBuilder builder, Action<IServiceCollection, IServiceProvider> configure)
     {
-        builder.Services.AddTransient<IServiceConfiguration>(sp => new LambdaServices(sp, configure));
+        builder.Services.AddTransient<IServicesConfiguration>(sp => new LambdaServices(sp, configure));
         return builder;
     }
 

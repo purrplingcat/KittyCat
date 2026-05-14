@@ -90,13 +90,13 @@ public sealed class GameVersion
 
     public ModManifest ToManifest()
     {
-        return new ModManifest(
-            Id: FullName,
-            Name: Name,
-            Version: InformationalVersion ?? Version.ToString(),
-            Author: Author,
-            Dependencies: []
-        );
+        return new ModManifest()
+        {
+            Id = FullName,
+            Name = Name,
+            Version = InformationalVersion ?? Version.ToString(),
+            Author = Author
+        };
     }
 
     public static GameVersion Of<TGame>() where TGame : class, IGame

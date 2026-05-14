@@ -1,10 +1,11 @@
 ﻿using PurrplingCore.Toolkit.Extensions;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using static PurrplingCore.Toolkit.Messaging.IMessageBus;
 
 namespace PurrplingCore.Toolkit.Messaging;
 
-internal sealed class DefaultMessageBus : IMessageBus
+public sealed class DefaultMessageBus : IMessageBus
 {
     private readonly Dictionary<Type, List<WeakHandler>> _subscribers = [];
     private readonly object _lock = new();
@@ -73,6 +74,7 @@ internal sealed class DefaultMessageBus : IMessageBus
 
         public bool IsAlive => !_disposed;
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Unsubscribe() => Dispose();
 
         public void Dispose()
@@ -138,4 +140,37 @@ internal sealed class DefaultMessageBus : IMessageBus
         }
     }
     #endregion
+}
+
+public sealed class NullMessageBus : IMessageBus
+{
+    private readonly NullSubscription _nullSubscription = new();
+
+    public static NullMessageBus Instance { get; } = new();
+
+    public void Publish<T>(in T message) where T : notnull
+    {
+        // Do nothing
+    }
+
+    public ISubscription Subscribe<T>(Subscriber<T> subscriber)
+    {
+        // Do nothing
+        return _nullSubscription;
+    }
+
+    private class NullSubscription : ISubscription
+    {
+        public bool IsAlive => false;
+
+        public void Dispose()
+        {
+            // Do nothing
+        }
+
+        public void Unsubscribe()
+        {
+            // Do nothing
+        }
+    }
 }

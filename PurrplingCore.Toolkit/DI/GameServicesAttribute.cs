@@ -7,9 +7,9 @@ public class GameServicesAttribute : Attribute
     {
         ArgumentNullException.ThrowIfNull(configurationType);
 
-        if (!typeof(IServiceConfiguration).IsAssignableFrom(configurationType))
+        if (!typeof(IServicesConfiguration).IsAssignableFrom(configurationType))
         {
-            throw new ArgumentException($"Type '{configurationType}' must implement '{typeof(IServiceConfiguration)}'.", nameof(configurationType));
+            throw new ArgumentException($"Type '{configurationType}' must implement '{typeof(IServicesConfiguration)}'.", nameof(configurationType));
         }
 
         if (configurationType.GetConstructor(Type.EmptyTypes) == null)
@@ -22,14 +22,14 @@ public class GameServicesAttribute : Attribute
 
     public Type ConfigurationType { get; }
 
-    public IServiceConfiguration CreateConfiguration()
+    public IServicesConfiguration CreateConfiguration()
     {
-        return (IServiceConfiguration)Activator.CreateInstance(ConfigurationType)!;
+        return (IServicesConfiguration)Activator.CreateInstance(ConfigurationType)!;
     }
 }
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
 public sealed class GameServicesAttribute<TConfiguration>() : GameServicesAttribute(typeof(TConfiguration)) 
-    where TConfiguration : IServiceConfiguration, new()
+    where TConfiguration : IServicesConfiguration, new()
 {
 }

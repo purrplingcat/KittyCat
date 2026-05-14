@@ -21,7 +21,7 @@ public class TestGroup : BaseSystemGroup { }
 public class SecondGroup : BaseSystemGroup { }
 public class ThirdGroup : BaseSystemGroup { }
 
-public class KittyCatGameServices : IServiceConfiguration
+public class KittyCatGameServices : IServicesConfiguration
 {
     public Assembly Assembly => GetType().Assembly;
 

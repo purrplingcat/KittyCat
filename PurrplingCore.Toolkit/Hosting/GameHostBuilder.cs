@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.DI.Configuration;
+using PurrplingCore.Toolkit.Messaging;
 using System.Diagnostics;
 using System.Reflection;
 
@@ -76,8 +77,8 @@ public class GameHostBuilder : IGameHostBuilder
 
         _hasGame = true;
         _env.GameVersion = GameVersion.Of<TGame>();
-        _services.AddSingleton<IServiceConfiguration>(new AssemblyServices(typeof(TGame).Assembly));
-        _services.AddTransient<IServiceConfiguration, GameServices<TGame>>();
+        _services.AddSingleton<IServicesConfiguration>(new AssemblyServices(typeof(TGame).Assembly));
+        _services.AddTransient<IServicesConfiguration, GameServices<TGame>>();
 
         return this;
     }
@@ -98,6 +99,7 @@ public class GameHostBuilder : IGameHostBuilder
         services.AddSingleton(_serviceProviderFactory);
         services.AddSingleton<IConfiguration>(_config);
         services.AddSingleton<IHostEnvironment>(_env);
+        services.TryAddSingleton<IMessageBus, NullMessageBus>();
         services.TryAddTransient(typeof(Lazy<>), typeof(LazyService<>));
     }
 

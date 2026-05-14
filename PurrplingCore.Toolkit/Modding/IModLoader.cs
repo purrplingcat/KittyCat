@@ -1,14 +1,12 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using PurrplingCore.Toolkit.Content;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Hosting;
-using System.Diagnostics;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
-using System.Text.Json;
+using Zio;
 
 namespace PurrplingCore.Toolkit.Modding;
 
@@ -34,7 +32,7 @@ public sealed class ModEntryAttribute : Attribute
 {
 }
 
-public abstract class Mod : IMod, IModInitializer, IModStartup, IServiceConfiguration
+public abstract class Mod : IMod, IModInitializer, IModStartup, IServicesConfiguration
 {
     private Assembly? _assembly;
 
@@ -49,6 +47,7 @@ public abstract class Mod : IMod, IModInitializer, IModStartup, IServiceConfigur
         if (Manifest != null) 
             throw new InvalidOperationException("Mod is already initialized.");
 
+        logger.LogTrace("Initializing mod ...");
         Manifest = manifest;
         DirectoryPath = directoryPath;
         Logger = logger;
@@ -60,22 +59,24 @@ public abstract class Mod : IMod, IModInitializer, IModStartup, IServiceConfigur
     public abstract void Startup(IServiceProvider provider);
 }
 
-internal sealed class ContentPack(ModManifest manifest, string directoryPath) : IMod
+internal sealed class ContentPack(ModManifest manifest, string directoryPath, ILogger? logger = null) : IMod
 {
     public ModManifest Manifest { get; } = manifest;
     public string DirectoryPath { get; } = directoryPath;
 
-    public ILogger Logger => NullLogger.Instance;
+    public ILogger Logger => logger ?? NullLogger.Instance;
 }
 
-public record ModManifest(
-    string Id,
-    string Name,
-    string Version,
-    string Author,
-    string[] Dependencies,
-    string? EntryPointAssembly = null
-);
+public record ModManifest
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public required string Version { get; init; }
+    public required string Author { get; init; }
+    public string[] Dependencies { get; init; } = [];
+    public MountPoint[]? Mounts { get; init; }
+    public string? EntryPointAssembly { get; init; } = null;
+}
 
 public interface IModRegistry
 {
@@ -92,14 +93,7 @@ internal class ModRegistry : IModRegistry
 
     public ModRegistry(IHostEnvironment env)
     {
-        var manifest = new ModManifest(
-            env.ApplicationName,
-            env.ApplicationName,
-            env.GameVersion.ToString(),
-            env.GameVersion.Author,
-            []
-        );
-
+        var manifest = env.GameVersion.ToManifest();
         Add(new ContentPack(manifest, env.HostDirectory));
     }
 
@@ -124,157 +118,6 @@ internal class ModRegistry : IModRegistry
 
 internal record struct ModEntry(ModManifest Manifest, string Directory);
 
-internal sealed class ModLoader
-{
-    private readonly ModRegistry _registry;
-    private readonly string _modsDirectory;
-    private readonly ILogger _logger;
-    private readonly ILoggerFactory _loggerFactory;
-    private readonly JsonSerializerOptions _jsonOptions;
-
-    public ModLoader(ModRegistry registry, ILoggerFactory loggerFactory, string modsDirectory)
-    {
-        _registry = registry;
-        _modsDirectory = modsDirectory;
-        _loggerFactory = loggerFactory;
-        _logger = _loggerFactory.CreateLogger("ModLoader");
-        _jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-    }
-
-    public void LoadMods(IServiceCollection appServices, IServiceProvider hostProvider)
-    {
-        int count = 0;
-        var watch = Stopwatch.StartNew();
-        _logger.LogInformation("Mods go here: {@Directory}", _modsDirectory);
-
-        if (Directory.Exists(_modsDirectory))
-        {
-            var resolver = new ModDependencyResolver(_registry, _logger);
-            List<ModEntry> modEntries = resolver.Resolve(DiscoverMods());
-            count = LoadMods(appServices, hostProvider, modEntries);
-        }
-
-        watch.Stop();
-        _logger.LogInformation(
-            "Loaded {Count} mods in {Duration} ms", 
-            count, watch.ElapsedMilliseconds
-        );
-    }
-
-    private int LoadMods(IServiceCollection appServices, IServiceProvider hostProvider, List<ModEntry> mods)
-    {
-        int count = 0;
-        for (int i = 0; i < mods.Count; i++)
-        {
-            ModEntry entry = mods[i];
-            try
-            {
-                IMod? mod = LoadModInstance(
-                    entry.Manifest, entry.Directory, hostProvider
-                );
-
-                if (mod == null) continue;
-
-                _registry.Add(mod); ++count;
-                ApplyMod(appServices, mod);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Fatal error while instantiating mod '{Id}'", entry.Manifest.Id);
-            }
-        }
-
-        return count;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void ApplyMod(IServiceCollection appServices, IMod mod)
-    {
-        if (mod is IServiceConfiguration serviceConfiguration)
-        {
-            mod.Logger.LogTrace("Registering mod services ...");
-            serviceConfiguration.ConfigureServices(appServices);
-        }
-
-        if (mod is IModStartup startup)
-        {
-            appServices.TryAddEnumerable(ServiceDescriptor.Singleton(startup));
-            mod.Logger.LogTrace("Recognised as startup mod");
-        }
-    }
-
-    private Dictionary<string, ModEntry> DiscoverMods()
-    {
-        var discovered = new Dictionary<string, ModEntry>(StringComparer.OrdinalIgnoreCase);
-        foreach (var dir in Directory.GetDirectories(_modsDirectory))
-        {
-            string manifestPath = Path.Combine(dir, "manifest.json");
-            if (!File.Exists(manifestPath)) continue;
-
-            try
-            {
-                var manifest = JsonSerializer.Deserialize<ModManifest>(File.ReadAllText(manifestPath), _jsonOptions);
-                if (manifest == null) continue;
-
-                if (!discovered.TryAdd(manifest.Id, new ModEntry(manifest, dir)))
-                {
-                    _logger.LogWarning("Duplicate mod '{Id}' found in '{Dir}'. Skipping.", manifest.Id, dir);
-                }
-
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to parse manifest from '{Path}'", manifestPath);
-            }
-        }
-
-        return discovered;
-    }
-
-    private IMod? LoadModInstance(ModManifest manifest, string directory, IServiceProvider hostProvider)
-    {
-        // CONTENT PACK
-        if (string.IsNullOrWhiteSpace(manifest.EntryPointAssembly))
-        {
-            _logger.LogTrace("Loaded content pack: {Id}", manifest.Id);
-            return new ContentPack(manifest, directory);
-        }
-
-        // ASSEMBLY MOD
-        string dllPath = Path.GetFullPath(Path.Combine(directory, manifest.EntryPointAssembly));
-        if (!File.Exists(dllPath))
-        {
-            _logger.LogError("Mod '{Id}' missing entry DLL: {DllPath}", manifest.Id, dllPath);
-            return null;
-        }
-
-        var alc = new ModAssemblyLoadContext(dllPath);
-        var assembly = alc.LoadFromAssemblyPath(dllPath);
-
-        var entryType = assembly.GetTypes()
-            .Where(t => !t.IsAbstract && !t.IsInterface)
-            .Where(t => t.GetCustomAttribute<ModEntryAttribute>(inherit: false) != null)
-            .SingleOrDefault(t => typeof(IMod).IsAssignableFrom(t));
-
-        if (entryType == null)
-        {
-            _logger.LogError("Mod '{Id}' has no valid IMod entry point in {Dll}", manifest.Id, dllPath);
-            return null;
-        }
-
-        var modInstance = (IMod)ActivatorUtilities.CreateInstance(hostProvider, entryType);
-
-        if (modInstance is IModInitializer initializer)
-        {
-            var modLogger = _loggerFactory.CreateLogger($"Mod[{manifest.Id}]");
-            initializer.Initialize(manifest, directory, modLogger);
-        }
-
-        _logger.LogTrace("Loaded mod assembly for '{Id}': {Assembly}", manifest.Id, assembly.FullName);
-        return modInstance;
-    }
-}
-
 internal sealed class ModDependencyResolver(IModRegistry registry, ILogger logger)
 {
     private Dictionary<string, ModEntry> _discoveredMods = [];
@@ -293,11 +136,8 @@ internal sealed class ModDependencyResolver(IModRegistry registry, ILogger logge
 
     public List<ModEntry> Resolve(Dictionary<string, ModEntry> discoveredMods)
     {
-        _discoveredMods = discoveredMods;   
-        _states.EnsureCapacity(discoveredMods.Count);
-        _sorted.EnsureCapacity(discoveredMods.Count);
-        _states.Clear();
-        _sorted.Clear();
+        _discoveredMods = discoveredMods;
+        EnsureClear();
 
         foreach (var modId in _discoveredMods.Keys)
         {
@@ -305,6 +145,14 @@ internal sealed class ModDependencyResolver(IModRegistry registry, ILogger logge
         }
 
         return _sorted;
+    }
+
+    private void EnsureClear()
+    {
+        _states.Clear();
+        _sorted.Clear();
+        _states.EnsureCapacity(_discoveredMods.Count);
+        _sorted.EnsureCapacity(_discoveredMods.Count);
     }
 
     private bool Visit(string modId)
@@ -400,32 +248,5 @@ internal sealed class ModStartupService(IEnumerable<IModStartup> startups, IServ
     {
         foreach(var mod in startups)
             mod.Startup(services);
-    }
-}
-
-public static class ModdingExtensions
-{
-    public static IGameHostBuilder AddMods(this IGameHostBuilder builder, string modsDirectory)
-    {
-        // Add mod-related common services
-        builder.Services.TryAddSingleton<ModRegistry>();
-        builder.Services.TryAddAlias<IModRegistry, ModRegistry>();
-
-        // Apply mod loader & app services
-        builder.AddServiceConfiguration((appServices, hostProvider) =>
-        {   
-            // Add necessary mod-related app services
-            appServices.AddStartup<ModStartupService>();
-
-            // Create mod loader
-            var registry = hostProvider.GetRequiredService<ModRegistry>();
-            var loggerFactory = hostProvider.GetRequiredService<ILoggerFactory>();
-            var modLoader = new ModLoader(registry, loggerFactory, modsDirectory);
-
-            // Load mods
-            modLoader.LoadMods(appServices, hostProvider);
-        });
-
-        return builder;
     }
 }

@@ -28,7 +28,6 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddVfsLayer(this IServiceCollection services, int order, Func<IServiceProvider, IFileSystem> factory)
     {
-        services.AddVfs();
         return services.AddSingleton(sp => new FileSystemLayer(factory(sp), order));
     }
 }
