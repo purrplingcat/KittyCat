@@ -5,6 +5,7 @@ using Android.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Toolkit.DI;
+using PurrplingCore.Toolkit.Hosting;
 
 namespace KittyCat.Android;
 /// <summary>

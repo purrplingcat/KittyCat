@@ -2,15 +2,7 @@
 
 namespace PurrplingCore.Toolkit.DI;
 
-internal sealed class DefaultServiceProviderFactory : IServiceProviderFactory
-{
-    public IServiceProvider CreateServiceProvider(IServiceCollection services)
-    {
-        return services.BuildServiceProvider();
-    }
-}
-
-internal sealed class ServiceProviderFactoryAdapter<TContainerBuilder> : IServiceProviderFactory where TContainerBuilder : notnull
+internal sealed class ServiceProviderFactoryAdapter<TContainerBuilder> : IServiceFactoryAdapter where TContainerBuilder : notnull
 {
     private readonly IServiceProviderFactory<TContainerBuilder> _serviceProviderFactory;
 

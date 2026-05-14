@@ -1,5 +1,5 @@
 ﻿using KittyCat;
-using PurrplingCore.Toolkit.DI;
+using PurrplingCore.Toolkit.Hosting;
 using System.Windows.Forms;
 
 internal class Program

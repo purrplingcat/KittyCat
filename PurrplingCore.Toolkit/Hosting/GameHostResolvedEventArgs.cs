@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 
-namespace PurrplingCore.Toolkit.DI;
+namespace PurrplingCore.Toolkit.Hosting;
 
 public class GameHostResolvedEventArgs(GameHost host) : EventArgs
 {

@@ -89,13 +89,13 @@ public class AssemblyServices(params Assembly[] assemblies) : IServiceConfigurat
         {
             foreach (var config in GetConfigurations())
             {
-                config.Configure(services);
+                config.ConfigureServices(services);
             }
         }
     }
     #endregion
 
-    public void Configure(IServiceCollection services)
+    public void ConfigureServices(IServiceCollection services)
     {
         var watch = Stopwatch.StartNew();
 

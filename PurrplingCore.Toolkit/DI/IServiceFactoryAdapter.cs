@@ -2,7 +2,7 @@
 
 namespace PurrplingCore.Toolkit.DI;
 
-public interface IServiceProviderFactory
+internal interface IServiceFactoryAdapter
 {
     IServiceProvider CreateServiceProvider(IServiceCollection services);
 }

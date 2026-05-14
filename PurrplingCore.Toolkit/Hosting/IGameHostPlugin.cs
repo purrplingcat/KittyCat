@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace PurrplingCore.Toolkit.DI;
+namespace PurrplingCore.Toolkit.Hosting;
 
 public interface IGameHostPlugin 
 {

@@ -30,7 +30,7 @@ public class KittyCatGameServices : IServiceConfiguration
         return provider.GetRequiredService<ContentManagerProvider>().Default;
     }
 
-    public void Configure(IServiceCollection services)
+    public void ConfigureServices(IServiceCollection services)
     {
         // Register world and their systems
         static void ConfigureSystems(IWorldBuilder builder)

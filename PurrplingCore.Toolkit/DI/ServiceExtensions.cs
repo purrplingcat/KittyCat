@@ -24,19 +24,6 @@ public static partial class ServiceExtensions
                        .AddAlias<Game, TGame>();
     }
 
-    public static IServiceCollection AddServices(this IServiceCollection services, IServiceConfiguration configuration)
-    {
-        configuration.Configure(services);
-        return services;
-    }
-
-    public static IServiceCollection AddServices<T>(this IServiceCollection services) where T : IServiceConfiguration, new()
-    {
-        IServiceConfiguration configuration = new T();
-        configuration.Configure(services);
-        return services;
-    }
-
     public static IServiceCollection AddAlias<TService, TAliased>(this IServiceCollection services)
         where TService : class
         where TAliased : class, TService
@@ -79,20 +66,6 @@ public static partial class ServiceExtensions
         where TSource : class
     {
         services.TryAddTransient(provider => exposeDelegate(provider.GetRequiredService<TSource>()));
-    }
-
-    public static IServiceCollection AddSetup<T>(this IServiceCollection services, Action<T> setup)
-    {
-        services.TryAddSingleton(typeof(ISetup<T>), typeof(Setup<T>));
-        services.AddSingleton(new Setup<T>.SetupAction(setup));
-        return services;
-    }
-
-    public static IServiceCollection AddKeyedSetup<T>(this IServiceCollection services, Action<T> setup, object? key)
-    {
-        services.TryAddKeyedSingleton(typeof(ISetup<T>), key, typeof(Setup<T>));
-        services.AddKeyedSingleton(key, new Setup<T>.SetupAction(setup));
-        return services;
     }
 
     public static IServiceCollection AddStartup<TStartup>(this IServiceCollection services) where TStartup : class, IStartupService

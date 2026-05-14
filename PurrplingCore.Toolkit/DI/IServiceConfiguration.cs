@@ -9,8 +9,7 @@ namespace PurrplingCore.Toolkit.DI;
 
 public interface IServiceConfiguration
 {
-    //object? Key { get; }
-    public void Configure(IServiceCollection services);
+    public void ConfigureServices(IServiceCollection services);
 }
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
