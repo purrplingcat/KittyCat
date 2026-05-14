@@ -6,6 +6,7 @@ using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Hosting;
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Text.Json;
 
@@ -162,7 +163,7 @@ internal sealed class ModLoader
 
     private int LoadMods(IServiceCollection appServices, IServiceProvider hostProvider, List<ModEntry> mods)
     {
-        int count = mods.Count;
+        int count = 0;
         for (int i = 0; i < mods.Count; i++)
         {
             ModEntry entry = mods[i];
@@ -174,28 +175,32 @@ internal sealed class ModLoader
 
                 if (mod == null) continue;
 
-                if (mod is IModStartup startup)
-                {
-                    appServices.TryAddEnumerable(ServiceDescriptor.Singleton(startup));
-                    mod.Logger.LogTrace("Recognised as startup mod");
-                }
-
-                if (mod is IServiceConfiguration serviceConfiguration)
-                {
-                    mod.Logger.LogTrace("Registering mod services ...");
-                    serviceConfiguration.ConfigureServices(appServices);
-                }
-
-                _registry.Add(mod);
+                _registry.Add(mod); ++count;
+                ApplyMod(appServices, mod);
             }
             catch (Exception ex)
             {
-                --count;
                 _logger.LogError(ex, "Fatal error while instantiating mod '{Id}'", entry.Manifest.Id);
             }
         }
 
         return count;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void ApplyMod(IServiceCollection appServices, IMod mod)
+    {
+        if (mod is IServiceConfiguration serviceConfiguration)
+        {
+            mod.Logger.LogTrace("Registering mod services ...");
+            serviceConfiguration.ConfigureServices(appServices);
+        }
+
+        if (mod is IModStartup startup)
+        {
+            appServices.TryAddEnumerable(ServiceDescriptor.Singleton(startup));
+            mod.Logger.LogTrace("Recognised as startup mod");
+        }
     }
 
     private Dictionary<string, ModEntry> DiscoverMods()
