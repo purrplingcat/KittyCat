@@ -121,6 +121,7 @@ public class GameHostBuilder : IGameHostBuilder
 
         AddComonServices(_services);
         _services.MakeReadOnly();
+
         var gameServices = _services.Clone();
         var provider = _serviceProviderFactory.CreateServiceProvider(_services);
 

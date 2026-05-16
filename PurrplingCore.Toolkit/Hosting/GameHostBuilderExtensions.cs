@@ -38,21 +38,26 @@ public static class GameHostBuilderExtensions
         // Default logging config
         builder.Logging
                .SetMinimumLevel(LogLevel.Information)
-               .AddFilter("Microsoft", LogLevel.Warning)
+               .AddDefaultConfiguration(builder.Environment)
+               .AddConfiguration(builder.Configuration.GetSection("Logging"));
+
+        return builder;
+    }
+
+    private static ILoggingBuilder AddDefaultConfiguration(this ILoggingBuilder builder, IHostEnvironment env)
+    {
+        // Common settings
+        builder.AddFilter("Microsoft", LogLevel.Warning)
                .AddFilter("System", LogLevel.Warning)
                .AddFilter("PurrplingCore.Ecs", LogLevel.Debug);
 
-        // Only for development purposes
-        if (builder.Environment.IsDevelopment())
+        // Development-only settings
+        if (env.IsDevelopment())
         {
-            builder.Logging
-                   .SetMinimumLevel(LogLevel.Debug)
+            // Enable debug logging for development
+            builder.SetMinimumLevel(LogLevel.Debug)
                    .AddDebug();
         }
-
-        // Apply user loging configuration
-        builder.Logging
-               .AddConfiguration(builder.Configuration.GetSection("Logging"));
 
         return builder;
     }

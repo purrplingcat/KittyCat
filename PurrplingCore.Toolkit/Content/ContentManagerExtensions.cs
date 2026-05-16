@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
-using Zio;
+using PurrplingCore.Toolkit.Vfs;
 
 namespace PurrplingCore.Toolkit.Content;
 
@@ -21,16 +21,12 @@ public static class ContentManagerExtensions
 
     public static Stream OpenStream(this ContentManager contentManager, string path)
     {
-        var fs = contentManager.ServiceProvider.GetService<IFileSystem>();
+        var fs = contentManager.ServiceProvider.GetService<IVirtualFileSystem>();
 
         if (fs != null)
         {
-            var uPath = UPath.Combine(UPath.Root, contentManager.RootDirectory, path);
-
-            if (fs.FileExists(uPath))
-            {
-                return fs.OpenFile(uPath, FileMode.Open, FileAccess.Read);
-            }
+            path = Path.Combine(contentManager.RootDirectory, path);
+            return fs.OpenRead(path);
         }
 
         return TitleContainer.OpenStream(Path.Combine(contentManager.RootDirectory, path));
