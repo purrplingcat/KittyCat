@@ -6,6 +6,7 @@ using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.DI.Configuration;
 using PurrplingCore.Toolkit.Messaging;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 
@@ -24,11 +25,7 @@ public class GameHostBuilder : IGameHostBuilder
     private readonly ILoggingBuilder _logging;
     private readonly HostEnvironment _env;
     private readonly ConfigurationManager _config;
-
-    private IServiceFactoryAdapter _serviceProviderFactory =
-        new ServiceProviderFactoryAdapter<IServiceCollection>(
-            new DefaultServiceProviderFactory()
-        );
+    private IServiceFactoryAdapter _serviceProviderFactory;
 
     public IServiceCollection Services => _services;
     public ILoggingBuilder Logging => _logging;
@@ -46,6 +43,7 @@ public class GameHostBuilder : IGameHostBuilder
         _config = new ConfigurationManager();
         _args = args ?? [];
 
+        UseServiceProviderFactory(new DefaultServiceProviderFactory());
         Initialize();
     }
 
@@ -83,7 +81,8 @@ public class GameHostBuilder : IGameHostBuilder
         return this;
     }
 
-    /// <inheritdoc />
+    /// <inheritdoc 
+    [MemberNotNull(nameof(_serviceProviderFactory))]
     public IGameHostBuilder UseServiceProviderFactory<TContainerBuilder>(IServiceProviderFactory<TContainerBuilder> factory)
         where TContainerBuilder : notnull
     {
