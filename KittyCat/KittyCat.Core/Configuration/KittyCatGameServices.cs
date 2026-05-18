@@ -49,17 +49,15 @@ public class KittyCatGameServices : IServicesConfiguration
         {
             var physicalFs = new PhysicalFileSystem();
             var env = sp.GetRequiredService<IHostEnvironment>();
-            var contentPath = UPath.Combine(
-                physicalFs.ConvertPathFromInternal(env.BaseDirectory),
-                "Content"
-            );
+            var appDir = physicalFs.ConvertPathFromInternal(env.BaseDirectory);
             var appData = physicalFs.ConvertPathFromInternal(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
             );
             var temp = Path.GetTempPath();
 
             
-            vfs.AddShadow("/Content", physicalFs.GetOrCreateSubFileSystem(contentPath));
+            vfs.AddContentLayer("/Content", physicalFs.GetOrCreateSubFileSystem(UPath.Combine(appDir, "Content")));
+            //vfs.AddContentLayer("/Content", physicalFs.GetOrCreateSubFileSystem(appDir));
             //vfs.Mount("/Content", new MemoryFileSystem());
             vfs.Mount("/User", physicalFs.GetOrCreateSubFileSystem(UPath.Combine(appData, env.ApplicationName)));
             //vfs.Mount("/Cache", vfs.CreateSubFileSystem(temp, env.ApplicationName, "Cache"));

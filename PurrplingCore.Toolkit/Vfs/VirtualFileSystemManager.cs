@@ -46,7 +46,7 @@ internal partial class VirtualFileSystemManager
         _rootFs.Mount(target, fs);
     }
 
-    public void AddShadow(string target, IFileSystem fs)
+    public void AddContentLayer(string target, IFileSystem fs)
     {
         if (fs == _rootFs)
             throw new ArgumentException("Cannot shadow itself", nameof(fs));
@@ -56,12 +56,12 @@ internal partial class VirtualFileSystemManager
         
         if (_rootFs.IsMounted(path)) 
             LogCoverWarn(_logger, path);
-
+        
         layer.Mount(path, fs);
         _shadow.AddFileSystem(layer);
     }
 
-    public void AddShadow(IFileSystem fs)
+    public void AddContentLayer(IFileSystem fs)
     {
         if (fs == _rootFs)
             throw new ArgumentException("Cannot shadow itself", nameof(fs));

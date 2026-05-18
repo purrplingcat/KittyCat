@@ -104,8 +104,16 @@ public sealed class GameHost : IDisposable
         if (_disposed) return;
 
         _disposed = true;
-        _hostServiceProvider.TryDispose();
-        _gameServiceProvider?.TryDispose();
+        DisposeProvider(_gameServiceProvider);
+        DisposeProvider(_hostServiceProvider);
+    }
+
+    private static void DisposeProvider(IServiceProvider? provider)
+    {
+        if (provider is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
     }
 
     private void OnGameExited(object? sender, EventArgs e)

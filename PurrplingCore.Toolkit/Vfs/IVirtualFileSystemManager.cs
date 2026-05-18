@@ -7,6 +7,6 @@ public interface IVirtualFileSystemManager
 {
     IFileSystem Root { get; }
     void Mount(string target, IFileSystem fs);
-    void AddShadow(string target, IFileSystem fs);
-    void AddShadow(IFileSystem fs);
+    void AddContentLayer(string target, IFileSystem fs);
+    void AddContentLayer(IFileSystem fs);
 }
