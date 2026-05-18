@@ -1,4 +1,5 @@
 ﻿
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -25,11 +26,9 @@ public static class ServiceCollectionExtensions
     {
         services.TryAddSingleton(sp =>
         {
-            
-            var env = sp.GetRequiredService<IHostEnvironment>();
             var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
             var logger = loggerFactory.CreateLogger("VfsManager");
-            var vfs = new VirtualFileSystemManager(env, logger);
+            var vfs = new VirtualFileSystemManager(logger);
             var actions = sp.GetServices<VfsMountAction>();
 
             foreach (var action in actions)

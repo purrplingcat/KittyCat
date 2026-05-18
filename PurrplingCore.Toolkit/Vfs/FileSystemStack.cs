@@ -1,4 +1,5 @@
-﻿using Zio;
+﻿using PurrplingCore.Toolkit.DI;
+using Zio;
 using Zio.FileSystems;
 
 namespace PurrplingCore.Toolkit.Vfs;
@@ -79,8 +80,34 @@ public class FileSystemStack()
     }
 }
 
-public interface IMountPoint
+public record struct MountPoint(
+    string Target,
+    IFileSystem FileSystem, 
+    int Order = 0, 
+    bool Exclusive = true
+);
+
+public enum VfsMountStrategy
 {
-    string Route { get; }
-    IFileSystem FileSystem { get; }
+    /// <summary>
+    /// Očekává, že bude na cestě absolutně sám. 
+    /// Vrací původní raw IFileSystem (zachovává RW práva).
+    /// </summary>
+    Strict,
+
+    /// <summary>
+    /// Explicitně vyžaduje agregaci. 
+    /// VFS z toho VŽDY postaví AggregateFileSystem (RO stack), i kdyby tam byla jen 1 vrstva.
+    /// </summary>
+    Aggregate
+}
+
+internal class VirtualFileSystemSetup() : IStartupService
+{
+    public int Order => 10;
+
+    public void OnStartup()
+    {
+        throw new NotImplementedException();
+    }
 }

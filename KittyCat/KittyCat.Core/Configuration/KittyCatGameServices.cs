@@ -17,6 +17,7 @@ using PurrplingCore.Toolkit.Content;
 using System.IO;
 using PurrplingCore.Toolkit.Hosting;
 using Zio.FileSystems;
+using Zio;
 
 namespace KittyCat.Configuration;
 
@@ -46,13 +47,23 @@ public class KittyCatGameServices : IServicesConfiguration
 
         services.AddVfs((vfs, sp) =>
         {
+            var physicalFs = new PhysicalFileSystem();
             var env = sp.GetRequiredService<IHostEnvironment>();
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var contentPath = UPath.Combine(
+                physicalFs.ConvertPathFromInternal(env.BaseDirectory),
+                "Content"
+            );
+            var appData = physicalFs.ConvertPathFromInternal(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
+            );
             var temp = Path.GetTempPath();
 
-            vfs.Mount("/Saves", vfs.CreateSubFileSystem(appData, env.ApplicationName, "SaveGame"));
-            vfs.Mount("/Cache", vfs.CreateSubFileSystem(temp, env.ApplicationName, "Cache"));
-            vfs.Mount("/Temp", new MemoryFileSystem());
+            
+            vfs.AddShadow("/Content", physicalFs.GetOrCreateSubFileSystem(contentPath));
+            //vfs.Mount("/Content", new MemoryFileSystem());
+            vfs.Mount("/User", physicalFs.GetOrCreateSubFileSystem(UPath.Combine(appData, env.ApplicationName)));
+            //vfs.Mount("/Cache", vfs.CreateSubFileSystem(temp, env.ApplicationName, "Cache"));
+            vfs.Mount("/Memory", new MemoryFileSystem());
         });
 
         services.AddWorld()

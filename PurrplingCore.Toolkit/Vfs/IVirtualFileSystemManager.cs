@@ -1,12 +1,12 @@
 ﻿using Zio;
+using Zio.FileSystems;
 
 namespace PurrplingCore.Toolkit.Vfs;
 
 public interface IVirtualFileSystemManager
 {
     IFileSystem Root { get; }
-    string BaseDirectory { get; }
-
-    IFileSystem CreateSubFileSystem(params string[] paths);
     void Mount(string target, IFileSystem fs);
+    void AddShadow(string target, IFileSystem fs);
+    void AddShadow(IFileSystem fs);
 }
