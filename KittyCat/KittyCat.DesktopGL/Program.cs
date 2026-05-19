@@ -8,7 +8,6 @@ using PurrplingCore.Toolkit.Vfs;
 using System;
 using System.IO;
 using System.Text;
-using Zio;
 
 Console.OutputEncoding = Encoding.UTF8;
 
@@ -22,10 +21,13 @@ using var host = builder.Build();
 
 var vfs = host.Services.GetRequiredService<IVirtualFileSystemManager>();
 
-foreach(var path in vfs.Root.EnumerateItems(UPath.Root, SearchOption.AllDirectories))
+foreach(var path in vfs.Root.EnumerateItems("/", SearchOption.AllDirectories))
 {
-    host.Logger.LogTrace("[{Type}] {FullName} {Attrs}", path.IsDirectory ? "D" : "F", path.FullName, (int)path.Attributes);
+    host.Logger.LogTrace("{Path}", path.FullName);
 }
+
 //vfs.Open("test", FileMode.Open, FileAccess.ReadWrite);
+
+
 
 host.Run();

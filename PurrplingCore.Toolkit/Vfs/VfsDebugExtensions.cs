@@ -1,4 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
+using PurrplingCore.Toolkit.Metadata;
+using PurrplingCore.Toolkit.Vfs.FileSystems;
 using System.Text;
 using Zio;
 using Zio.FileSystems;
@@ -19,35 +21,47 @@ public static class VfsDebugExtensions
         }
     }
 
+    public static string GetName(this IFileSystem fs)
+    {
+        if (fs is FileSystem fs0 && fs0.Name != null)
+        {
+            return fs0.Name;
+        }
+
+        var name = fs.GetType().GetDisplayName();
+        return name.EndsWith("FileSystem") 
+            ? name[..^10] 
+            : name;
+    }
+
     public static string DumpStructure(this IFileSystem? fs, int indentLevel = 0)
     {
         if (fs == null) return "null";
 
         var sb = new StringBuilder();
         string indent = new(' ', indentLevel * 2);
-        string typeName = fs.GetType().Name;
+        string name = fs.GetName();
         
         switch (fs)
         {
             case MountFileSystem mountFs:
-                var mounts = mountFs.GetMounts();
-                int count = mounts.Count + (mountFs.Fallback != null ? 1 : 0);
-                sb.AppendLine($"{indent}📁 {typeName} (Mounts: {count})");
+                SortedList<UPath, IFileSystem> mounts = new(mountFs.GetMounts());
                 if (mountFs.Fallback != null)
                 {
-                    sb.AppendLine($"{indent}  🔗 [{UPath.Root}] ->");
-                    sb.Append(mountFs.Fallback.DumpStructure(indentLevel + 2));
+                    mounts.Add(UPath.Root, mountFs.Fallback);
                 }
+
+                sb.AppendLine($"{indent}📁 {name} (Mounts: {mounts.Count})");
                 foreach (var kvp in mounts)
                 {
-                    sb.AppendLine($"{indent}  🔗 [{kvp.Key}] ->");
-                    sb.Append(kvp.Value.DumpStructure(indentLevel + 2));
+                    sb.Append($"{indent}  🔗 [{kvp.Key}] -> ");
+                    sb.Append(kvp.Value.DumpStructure(indentLevel + 2).TrimStart());
                 }
                 break;
 
             case AggregateFileSystem aggFs:
                 var layers = aggFs.GetFileSystems();
-                sb.AppendLine($"{indent}🥞 {typeName} (Layers: {layers.Count})");
+                sb.AppendLine($"{indent}🥞 {name} (Layers: {layers.Count})");
 
                 // Zio bere vrstvy odzadu (nejvyšší index = nejvyšší priorita)
                 // Takže to vypíšeme shora dolů, ať vidíš, co přebíjí co.
@@ -60,34 +74,39 @@ public static class VfsDebugExtensions
             case SubFileSystem subFs:
                 // Zio's SubFileSystem obvykle publikuje SubPath, 
                 // k podkladovému FS se dostaneme přes Fallback
-                sb.AppendLine($"{indent}✂️ {typeName} (SubPath: {subFs.SubPath})");
+                sb.AppendLine($"{indent}✂️ {name} (SubPath: {subFs.SubPath})");
                 if (subFs.Fallback != null)
                     sb.Append(subFs.Fallback.DumpStructure(indentLevel + 1));
                 break;
 
             case ReadOnlyFileSystem roFs:
-                sb.AppendLine($"{indent}🔒 {typeName}");
+                sb.AppendLine($"{indent}🔒 {name}");
                 if (roFs.Fallback != null)
                     sb.Append(roFs.Fallback.DumpStructure(indentLevel + 1));
                 break;
 
-            case ZipArchiveFileSystem zipFs:
-                sb.AppendLine($"{indent}📦 {typeName}");
+            case ZipArchiveFileSystem zip:
+                sb.AppendLine($"{indent}📦 {name}");
                 break;
 
-            case PhysicalFileSystem physFs:
-                sb.AppendLine($"{indent}💻 {typeName}");
+            case PhysicalFileSystem:
+                sb.AppendLine($"{indent}💻 {name}");
+                break;
+
+            case PrefixedFileSystem prefixFs:
+                sb.Append($"{indent}🏷️ [{prefixFs.Prefix}] -> ");
+                sb.Append(prefixFs.Inner.DumpStructure(indentLevel + 1).TrimStart());
                 break;
 
             default:
                 if (fs is ComposeFileSystem composeFs && composeFs.Fallback != null)
                 {
-                    sb.AppendLine($"{indent}🔄 {typeName}");
+                    sb.AppendLine($"{indent}📦 {name}");
                     sb.Append(composeFs.Fallback.DumpStructure(indentLevel + 1));
                 }
                 else
                 {
-                    sb.AppendLine($"{indent}📄 {typeName}");
+                    sb.AppendLine($"{indent}📄 {name}");
                 }
                 break;
         }

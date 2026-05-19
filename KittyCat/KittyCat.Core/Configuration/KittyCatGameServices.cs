@@ -18,6 +18,8 @@ using System.IO;
 using PurrplingCore.Toolkit.Hosting;
 using Zio.FileSystems;
 using Zio;
+using PurrplingCore.Toolkit.Vfs;
+using PurrplingCore.Toolkit;
 
 namespace KittyCat.Configuration;
 
@@ -47,21 +49,14 @@ public class KittyCatGameServices : IServicesConfiguration
 
         services.AddVfs((vfs, sp) =>
         {
-            var physicalFs = new PhysicalFileSystem();
             var env = sp.GetRequiredService<IHostEnvironment>();
-            var appDir = physicalFs.ConvertPathFromInternal(env.BaseDirectory);
-            var appData = physicalFs.ConvertPathFromInternal(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
-            );
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             var temp = Path.GetTempPath();
 
-            
-            vfs.AddContentLayer("/Content", physicalFs.GetOrCreateSubFileSystem(UPath.Combine(appDir, "Content")));
-            //vfs.AddContentLayer("/Content", physicalFs.GetOrCreateSubFileSystem(appDir));
-            //vfs.Mount("/Content", new MemoryFileSystem());
-            vfs.Mount("/User", physicalFs.GetOrCreateSubFileSystem(UPath.Combine(appData, env.ApplicationName)));
-            //vfs.Mount("/Cache", vfs.CreateSubFileSystem(temp, env.ApplicationName, "Cache"));
-            vfs.Mount("/Memory", new MemoryFileSystem());
+            vfs.AddPhysicalLayer("/Content", Path.Combine(env.BaseDirectory, "Content"));
+            vfs.MountPhysical("/User", Path.Combine(appData, env.ApplicationName));
+            vfs.MountPhysical("/Cache", Path.Combine(temp, env.ApplicationName));
+            vfs.MountMemory("/Memory");
         });
 
         services.AddWorld()
