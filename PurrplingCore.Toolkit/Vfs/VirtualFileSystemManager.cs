@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection.Emit;
 using Zio;
@@ -33,6 +34,11 @@ internal partial class VirtualFileSystemManager
         }
 
         return path;
+    }
+
+    public bool TryGetMount(string target, [MaybeNullWhen(false)] out IFileSystem fs)
+    {
+        return _fsTab.TryGetMount(SanitizePath(target), out _, out fs, out _);
     }
 
     public void Mount(string target, IFileSystem fs)

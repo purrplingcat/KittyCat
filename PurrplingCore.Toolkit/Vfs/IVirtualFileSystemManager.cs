@@ -1,4 +1,5 @@
-﻿using Zio;
+﻿using System.Diagnostics.CodeAnalysis;
+using Zio;
 
 namespace PurrplingCore.Toolkit.Vfs;
 
@@ -39,4 +40,5 @@ public interface IVirtualFileSystemManager
     /// </summary>
     /// <param name="fs">The exact file system instance to remove.</param>
     void RemoveFileSystem(IFileSystem fs);
+    bool TryGetMount(string target, [MaybeNullWhen(false)] out IFileSystem fs);
 }
