@@ -65,11 +65,11 @@ public sealed class GameHost : IDisposable
     {
         Debug.Assert(_gameServiceProvider != null, "Initialize must be called first.");
         ObjectDisposedException.ThrowIf(_disposed, this);
-
-        var startups = _gameServiceProvider.GetServices<IStartupService>();
+        
         _game = ResolveGame();
 
         _logger.LogDebug("Executing startup services");
+        var startups = _gameServiceProvider.GetServices<IStartupService>();
         foreach (var startupService in startups.OrderBy(s => s.Order))
         {
             _logger.LogTrace("Startup: {serviceType}, Order: {Order}", 
@@ -96,6 +96,7 @@ public sealed class GameHost : IDisposable
         if (_game != null && _game.IsRunning)
         {
             _game.Exit();
+            _logger.LogTrace("Requested game application exit");
         }
     }
 

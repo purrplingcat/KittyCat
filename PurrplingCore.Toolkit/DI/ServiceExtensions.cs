@@ -10,23 +10,6 @@ namespace PurrplingCore.Toolkit.DI;
 
 public static partial class ServiceExtensions
 {
-    internal static IServiceCollection AddGame<TGame>(this IServiceCollection services) where TGame : Game, IGame 
-    {
-        if (services.Any(service => service.ServiceType == typeof(TGame)))
-        {
-            throw new InvalidOperationException($"A service of type '{typeof(TGame)}' is already registered. Only one game can be registered.");
-        }
-
-        return services.AddSingleton<TGame>() // Main game service singleton
-                       .ExposeMonoGameService<IGraphicsDeviceService>()
-                       .ExposeMonoGameService<IGraphicsDeviceManager>()
-                       .ExposeMonoGameService<GraphicsDeviceManager>()
-                       .Expose((TGame game) => game.Services)
-                       .AddAlias<Microsoft.Xna.Framework.Game, TGame>()
-                       .AddAlias<IGame, TGame>()
-                       .AddAlias<Game, TGame>();
-    }
-
     public static IServiceCollection AddAlias<TService, TAliased>(this IServiceCollection services)
         where TService : class
         where TAliased : class, TService

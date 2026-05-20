@@ -88,6 +88,11 @@ public sealed class GameVersion
         return sb.ToString();
     }
 
+    public string GetVersionString()
+    {
+        return _informationalVersion ?? $"v{Version}";
+    }
+
     public ModManifest ToManifest()
     {
         return new ModManifest()

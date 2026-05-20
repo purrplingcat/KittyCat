@@ -1,25 +1,22 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Xna.Framework.Content;
-using PurrplingCore.Toolkit.DI;
-using PurrplingCore.Toolkit.Graphics;
-using System;
-using System.Reflection;
+﻿using KittyCat.Ecs.Systems;
+using KittyCat.Scenes;
 using KittyCat.Services;
 using KittyCat.Services.Options;
-using KittyCat.Scenes;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Xna.Framework.Content;
 using PurrplingCore.Ecs;
-using PurrplingCore.Ecs.Systems.Builder;
-using KittyCat.Ecs.Systems;
-using PurrplingCore.Ecs.Systems;
 using PurrplingCore.Ecs.DI;
-using Microsoft.Extensions.DependencyInjection.Extensions;
+using PurrplingCore.Ecs.Systems;
 using PurrplingCore.Toolkit.Content;
-using System.IO;
+using PurrplingCore.Toolkit.DI;
+using PurrplingCore.Toolkit.Graphics;
 using PurrplingCore.Toolkit.Hosting;
-using Zio.FileSystems;
-using Zio;
 using PurrplingCore.Toolkit.Vfs;
-using PurrplingCore.Toolkit;
+using System;
+using System.IO;
+using System.Reflection;
+using Zio;
+using Zio.FileSystems;
 
 namespace KittyCat.Configuration;
 
@@ -46,18 +43,6 @@ public class KittyCatGameServices : IServicesConfiguration
                  .Add<TestGroup>()
                  .Add<PhysicsCleanupSystem>(SystemOrder.Last);
         }
-
-        services.AddVfs((vfs, sp) =>
-        {
-            var env = sp.GetRequiredService<IHostEnvironment>();
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var temp = Path.GetTempPath();
-
-            vfs.AddPhysicalLayer("/Content", Path.Combine(env.BaseDirectory, "Content"));
-            vfs.MountPhysical("/User", Path.Combine(appData, env.ApplicationName));
-            vfs.MountPhysical("/Cache", Path.Combine(temp, env.ApplicationName));
-            vfs.MountMemory("/Memory");
-        });
 
         services.AddWorld()
                 .AddModule(ConfigureSystems);

@@ -283,7 +283,7 @@ internal static class ServiceCollectionExtensions
 {
     public static void RegisterModVfs(this IServiceCollection services, ModEntry entry, IFileSystem baseFs, int loadOrder)
     {
-        services.AddVfsLayer(loadOrder, sp =>
+        /*services.AddVfsLayer(loadOrder, sp =>
         {
             var mountFs = new MountFileSystem();
 
@@ -299,6 +299,6 @@ internal static class ServiceCollectionExtensions
             }
 
             return mountFs;
-        });
+        });*/
     }
 }

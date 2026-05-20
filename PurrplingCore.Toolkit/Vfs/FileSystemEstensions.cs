@@ -1,5 +1,4 @@
 ﻿using PurrplingCore.Toolkit.Vfs.FileSystems;
-using System.IO.Compression;
 using Zio;
 using Zio.FileSystems;
 
@@ -11,56 +10,30 @@ public static class FileSystemEstensions
     {
         return new PrefixedFileSystem(fs, prefix);
     }
-}
 
-public static class VfsExtensions
-{
-    private static readonly PhysicalFileSystem _phys = new();
-
-    public static void AddPhysicalLayer(this IVirtualFileSystemManager vfs, string folderName, string basePath)
+    public static IFileSystem? GetLowerLevel(this IFileSystem fs)
     {
-        var path = _phys.ConvertPathFromInternal(basePath);
+        if (fs is ComposeFileSystem composeFs)
+        {
+            return composeFs.Fallback;
+        }
 
-        vfs.AddFileSystem(_phys.GetOrCreateSubFileSystem(path).WithPrefix(folderName));
+        return null;
     }
 
-    public static void AddPhysicalLayer(this IVirtualFileSystemManager vfs, string basePath)
+    public static SubFileSystem CreateSubFileSystem(this IFileSystem fs, string path)
     {
-        var path = _phys.ConvertPathFromInternal(basePath);
-
-        vfs.AddFileSystem(_phys.GetOrCreateSubFileSystem(path));
+        var safePath = fs.ConvertPathFromInternal(path);
+        return fs.GetOrCreateSubFileSystem(safePath);
     }
 
-    public static void MountPhysical(this IVirtualFileSystemManager vfs, string mountPath, string physicalPath)
+    public static Stream OpenRead(this IFileSystem fs, UPath path)
     {
-        var path = _phys.ConvertPathFromInternal(physicalPath);
-
-        vfs.Mount(mountPath, _phys.GetOrCreateSubFileSystem(path));
+        return fs.OpenFile(path.ToAbsolute(), FileMode.Open, FileAccess.Read);
     }
 
-    public static void MountPhysicalReadOnly(this IVirtualFileSystemManager vfs, string mountPath, string physicalPath)
+    public static Stream OpenWrite(this IFileSystem fs, UPath path)
     {
-        var uPath = _phys.ConvertPathFromInternal(physicalPath);
-        var subFs = _phys.GetOrCreateSubFileSystem(uPath);
-        vfs.Mount(mountPath, new ReadOnlyFileSystem(subFs));
-    }
-
-    public static void MountMemory(this IVirtualFileSystemManager vfs, string mountPath)
-    {
-        vfs.Mount(mountPath, new MemoryFileSystem());
-    }
-
-    public static void MountZip(this IVirtualFileSystemManager vfs, string target, string zipPath)
-    {
-        var uPath = _phys.ConvertPathFromInternal(zipPath);
-        var stream = _phys.OpenFile(uPath, FileMode.Open, FileAccess.Read);
-        vfs.Mount(target, new ZipArchiveFileSystem(stream, ZipArchiveMode.Read));
-    }
-
-    public static void AddZipLayer(this IVirtualFileSystemManager vfs, string zipPath)
-    {
-        var uPath = _phys.ConvertPathFromInternal(zipPath);
-        var stream = _phys.OpenFile(uPath, FileMode.Open, FileAccess.Read);
-        vfs.AddFileSystem(new ZipArchiveFileSystem(stream, ZipArchiveMode.Read));
+        return fs.OpenFile(path.ToAbsolute(), FileMode.Create, FileAccess.Write);
     }
 }

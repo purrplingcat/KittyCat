@@ -1,4 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Extensions;
@@ -20,6 +22,8 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
     private readonly IServiceProvider _provider;
     private readonly IMessageBus? _bus;
     private readonly GraphicsDeviceManager _graphicsManager;
+    private readonly ILogger _logger;
+    private GameVersion? _version;
     private bool _isInitialized;
     private bool _isRunning;
 
@@ -36,6 +40,8 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
     /// Indicates if the game is initialized by <see cref="Initialize"/> method.
     /// </summary>
     public bool IsInitialized => _isInitialized;
+
+    protected ILogger Logger => _logger;
 
     /// <summary>
     /// Indicates if the game is running on a mobile platform.
@@ -70,11 +76,18 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
         IsMouseVisible = true; // Default to showing the mouse cursor
         Content.RootDirectory = "Content";
 
+        // Create game loggr
+        var loggerFactory = provider.GetService<ILoggerFactory>();
+        _logger = loggerFactory?.CreateLogger(GetType()) ?? NullLogger.Instance;
+
+        // Resolve content manager
         var content = provider.GetService<IContentManagerProvider>();
         if (content is not null)
         {
             Content = content.Default;
         }
+
+        _logger.LogTrace("Game created: {Game}", this);
     }
 
     /// <summary>
@@ -91,10 +104,12 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
             Components.Add(gameComponent);
         }
 
-        Window.Title = Title;
         _isInitialized = true;
+        Window.Title = Title;
+        
         base.Initialize();
         _bus?.Publish(new GameMessage(this, GameMessages.Initialized));
+        _logger.LogTrace("Game initialized!");
     }
 
     /// <summary>
@@ -112,6 +127,7 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
         base.BeginRun();
         _isRunning = true;
         _bus?.Publish(new GameMessage(this, GameMessages.Lanuched));
+        _logger.LogInformation("Game started!");
     }
 
     protected override void EndRun()
@@ -130,5 +146,12 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
     protected T? GetService<T>() where T : class
     {
         return _provider.GetService<T>();
+    }
+
+    public override string ToString()
+    {
+        _version ??= _provider.GetService<GameVersion>() ?? new GameVersion(GetType());
+
+        return $"{_version.Name} {_version.GetVersionString()}";
     }
 }

@@ -2,6 +2,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using PurrplingCore.Toolkit.Vfs;
+using Zio;
 
 namespace PurrplingCore.Toolkit.Content;
 
@@ -21,7 +22,7 @@ public static class ContentManagerExtensions
 
     public static Stream OpenStream(this ContentManager contentManager, string path)
     {
-        var fs = contentManager.ServiceProvider.GetService<IVirtualFileSystem>();
+        var fs = contentManager.ServiceProvider.GetService<IFileSystem>();
 
         if (fs != null)
         {

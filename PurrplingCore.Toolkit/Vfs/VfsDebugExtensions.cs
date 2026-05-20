@@ -46,29 +46,23 @@ public static class VfsDebugExtensions
         {
             case MountFileSystem mountFs:
                 SortedList<UPath, IFileSystem> mounts = new(mountFs.GetMounts());
-                if (mountFs.Fallback != null)
-                {
-                    mounts.Add(UPath.Root, mountFs.Fallback);
-                }
-
                 sb.AppendLine($"{indent}📁 {name} (Mounts: {mounts.Count})");
                 foreach (var kvp in mounts)
                 {
                     sb.Append($"{indent}  🔗 [{kvp.Key}] -> ");
                     sb.Append(kvp.Value.DumpStructure(indentLevel + 2).TrimStart());
                 }
+                sb.AppendFallback(mountFs, indentLevel + 1);
                 break;
 
             case AggregateFileSystem aggFs:
                 var layers = aggFs.GetFileSystems();
                 sb.AppendLine($"{indent}🥞 {name} (Layers: {layers.Count})");
-
-                // Zio bere vrstvy odzadu (nejvyšší index = nejvyšší priorita)
-                // Takže to vypíšeme shora dolů, ať vidíš, co přebíjí co.
                 for (int i = layers.Count - 1; i >= 0; i--)
                 {
                     sb.Append(layers[i].DumpStructure(indentLevel + 1));
                 }
+                sb.AppendFallback(aggFs, indentLevel + 1);
                 break;
 
             case SubFileSystem subFs:
@@ -102,7 +96,7 @@ public static class VfsDebugExtensions
                 if (fs is ComposeFileSystem composeFs && composeFs.Fallback != null)
                 {
                     sb.AppendLine($"{indent}📦 {name}");
-                    sb.Append(composeFs.Fallback.DumpStructure(indentLevel + 1));
+                    sb.AppendFallback(composeFs, indentLevel);
                 }
                 else
                 {
@@ -112,5 +106,16 @@ public static class VfsDebugExtensions
         }
 
         return sb.ToString();
+    }
+
+    private static StringBuilder AppendFallback(this StringBuilder sb, ComposeFileSystem fs, int indentLevel)
+    {
+        if (fs.Fallback != null)
+        {
+            string indent = new(' ', indentLevel * 2);
+            sb.Append($"{indent}↪️ Fallback -> ");
+            sb.Append(fs.Fallback.DumpStructure(indentLevel + 1).TrimStart());
+        }
+        return sb;
     }
 }

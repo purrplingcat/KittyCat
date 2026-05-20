@@ -21,7 +21,7 @@ using var host = builder.Build();
 
 var vfs = host.Services.GetRequiredService<IVirtualFileSystemManager>();
 
-foreach(var path in vfs.Root.EnumerateItems("/", SearchOption.AllDirectories))
+foreach(var path in vfs.GetFileSystem().EnumerateItems("/", SearchOption.AllDirectories))
 {
     host.Logger.LogTrace("{Path}", path.FullName);
 }

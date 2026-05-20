@@ -1,129 +1,80 @@
 ﻿using Microsoft.Extensions.Logging;
-using Microsoft.Xna.Framework;
+using PurrplingCore.Toolkit.DI;
+using PurrplingCore.Toolkit.Hosting;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
-using System.Reflection.Emit;
 using Zio;
 using Zio.FileSystems;
 
 namespace PurrplingCore.Toolkit.Vfs;
 
-internal partial class VirtualFileSystemManager 
-    : IVirtualFileSystemManager, IVirtualFileSystem, IDisposable
+public partial class VirtualFileSystemManager 
+    : IVirtualFileSystemManager, IDisposable
 {
-
-    private readonly AggregateFileSystem _rootFs;
-    private readonly MountFileSystem _fsTab;
-    private readonly ILogger _logger;
+    private readonly IFileSystem _physicalFs;
+    private IFileSystem _topmostFileSystem;
     private bool _disposed;
 
-    public IFileSystem Root => _fsTab;
+    public IFileSystem Physical => _physicalFs;
 
-    public VirtualFileSystemManager(ILogger logger)
+    public VirtualFileSystemManager(IHostEnvironment env)
     {
-        _rootFs = new AggregateFileSystem();
-        _fsTab = new MountFileSystem(_rootFs);
-        _logger = logger;
+        _physicalFs = CreatePlatformPhysical(env);
+        _topmostFileSystem = _physicalFs.CreateSubFileSystem(env.BaseDirectory);
     }
 
-    private static UPath SanitizePath(UPath path)
+    public IFileSystem GetFileSystem()
     {
-        if (!path.IsAbsolute)
+        return _topmostFileSystem;
+    }
+
+    private static IFileSystem CreatePlatformPhysical(IHostEnvironment env)
+    {
+        return env.PlatformType switch
         {
-            path = path.ToAbsolute();
+            PlatformType.Desktop => new PhysicalFileSystem(),
+            _ => throw new NotSupportedException($"Platform {env.PlatformType} is not supported"),
+        };
+    }
+
+    public void SetFileSystem(IFileSystem fileSystem)
+    {
+        ArgumentNullException.ThrowIfNull(fileSystem, nameof(fileSystem));
+        _topmostFileSystem = fileSystem;
+    }
+
+    public T? FindFileSystem<T>() where T : IFileSystem
+    {
+        var current = _topmostFileSystem;
+        while (current != null)
+        {
+            if (current is T matched)
+            {
+                return matched;
+            }
+            current = current.GetLowerLevel();
         }
 
-        return path;
+        return default;
     }
 
-    public bool TryGetMount(string target, [MaybeNullWhen(false)] out IFileSystem fs)
+    public IFileSystem? FindFileSystem(string name)
     {
-        return _fsTab.TryGetMount(SanitizePath(target), out _, out fs, out _);
-    }
-
-    public void Mount(string target, IFileSystem fs)
-    {
-        if (fs == _fsTab) 
-            throw new ArgumentException("Cannot mount itself", nameof(fs));
-
-        UPath path = SanitizePath(target);
-        if (_rootFs.FileExists(path) || _rootFs.DirectoryExists(path))
-            LogCoverWarn(_logger, path, fs);
-
-        _fsTab.Mount(path, fs);
-        LogMount(_logger, fs, path);
-    }
-
-    public void AddFileSystem(IFileSystem fs)
-    {  
-        foreach (var mount in _fsTab.GetMounts())
+        var current = _topmostFileSystem;
+        while (current != null)
         {
-            if (_rootFs.FileExists(mount.Key) || _rootFs.DirectoryExists(mount.Key))
-                LogCoverWarn(_logger, mount.Key, mount.Value);
+            if (current is FileSystem fs && fs.Name == name)
+            {
+                return fs;
+            }
+            if (current.GetType().Name == name)
+            {
+                return current;
+            }
+            current = current.GetLowerLevel();
         }
 
-        _rootFs.AddFileSystem(fs);
+        return default;
     }
-
-    public void Unmount(string target)
-    {
-        UPath path = SanitizePath(target);
-
-        if (_fsTab.IsMounted(path))
-            _fsTab.Unmount(path);
-    }
-
-    public void RemoveFileSystem(IFileSystem fs)
-    {
-        _rootFs.RemoveFileSystem(fs);
-    }
-
-    #region IVirtualFileSystem implementation
-    bool IVirtualFileSystem.FileExists(string path)
-    {
-        return _fsTab.FileExists(SanitizePath(path));
-    }
-
-    Stream IVirtualFileSystem.OpenRead(string path)
-    {
-        LogFileOpenRead(_logger, path);
-        return _fsTab.OpenFile(SanitizePath(path), FileMode.Open, FileAccess.Read);
-    }
-
-    Stream IVirtualFileSystem.OpenWrite(string path)
-    {
-        LogFileOpenWrite(_logger, path);
-        return _fsTab.OpenFile(SanitizePath(path), FileMode.Create, FileAccess.Write);
-    }
-
-    bool IVirtualFileSystem.DirectoryExists(string path)
-    {
-        return _fsTab.DirectoryExists(SanitizePath(path));
-    }
-
-    Stream IVirtualFileSystem.Open(string path, FileMode mode, FileAccess access)
-    {
-        LogFileOpen(_logger, mode, access, path);
-        return _fsTab.OpenFile(SanitizePath(path), mode, access);
-    }
-    #endregion
-
-    #region Logging
-    [LoggerMessage(EventId = 15, Level = LogLevel.Warning, Message = "Shadow '{Target}' is hidden by active mount: {FileSystem} \nShadow FS will not be used for this path.")]
-    static partial void LogCoverWarn(ILogger logger, UPath target, IFileSystem fileSystem);
-
-    [LoggerMessage(EventId = 10, Level = LogLevel.Trace, Message = "Mount {Fs} as '{Path}'")]
-    static partial void LogMount(ILogger logger, IFileSystem fs, UPath path);
-
-    [LoggerMessage(EventId = 3, Level = LogLevel.Trace, Message = "Open file for READ: {Path}")]
-    static partial void LogFileOpenRead(ILogger logger, string path);
-
-    [LoggerMessage(EventId = 3, Level = LogLevel.Trace, Message = "Open file for WRITE: {Path}")]
-    static partial void LogFileOpenWrite(ILogger logger, string path);
-
-    [LoggerMessage(EventId = 3, Level = LogLevel.Trace, Message = "Open file \"{Path}\" Mode: {Mode}, Access: {Access}")]
-    static partial void LogFileOpen(ILogger logger, FileMode mode, FileAccess access, string path);
-    #endregion
 
     #region Disposing
     protected virtual void Dispose(bool disposing)
@@ -132,8 +83,7 @@ internal partial class VirtualFileSystemManager
         {
             if (disposing)
             {
-                _rootFs.Dispose();
-                _fsTab.Dispose();
+                _topmostFileSystem.Dispose();
             }
 
             _disposed = true;
@@ -147,4 +97,86 @@ internal partial class VirtualFileSystemManager
     }
     #endregion
 
+}
+
+public static class VirtualFileSystemManagerExtensions
+{
+    public static IFileSystem Chain(this IVirtualFileSystemManager vfs, Func<IFileSystem, IFileSystem> factory)
+    {
+        var chainedFs = factory.Invoke(vfs.GetFileSystem());
+        
+        vfs.SetFileSystem(chainedFs);
+        return chainedFs;
+    }
+
+    public static T GetRequiredFileSystem<T>(this IVirtualFileSystemManager vfs) where T : IFileSystem
+    {
+        return vfs.FindFileSystem<T>() 
+            ?? throw new InvalidCastException($"FileSystem '{typeof(T)}' not found in chain.");
+    }
+
+    public static bool TryGetFileSystem<T>(this IVirtualFileSystemManager vfs, [MaybeNullWhen(false)] out T result) 
+        where T : IFileSystem
+    {
+        result = vfs.FindFileSystem<T>();
+        return result != null;
+    }
+}
+
+public interface IFileSystemBootstrap
+{
+    void Initialize(IVirtualFileSystemManager vfs);
+}
+
+public class DefaultFileSystemBootstrap(IHostEnvironment env) : IFileSystemBootstrap
+{
+    public void Initialize(IVirtualFileSystemManager vfs)
+    {
+        var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), env.ApplicationName);
+        var temp = Path.Combine(Path.GetTempPath(), env.ApplicationName);
+
+        var mountFs = vfs.FindFileSystem<MountFileSystem>();
+        if (mountFs != null)
+        {
+            mountFs.Mount("/Memory", new MemoryFileSystem());
+            mountFs.Mount("/User", vfs.Physical.CreateSubFileSystem(appData));
+            mountFs.Mount("/Cache", vfs.Physical.CreateSubFileSystem(temp));
+        }
+
+        var aggregateFs = vfs.FindFileSystem<AggregateFileSystem>();
+        if (aggregateFs != null)
+        {
+            // Příklad: aggregateFs.AddFileSystem(new ZipFileSystem("Content/BaseGame.pak"));
+        }
+    }
+}
+
+internal class VirtualFileSystemStartup : IStartupService
+{
+    private readonly IEnumerable<IFileSystemBootstrap> _bootstraps;
+    private readonly IVirtualFileSystemManager _vfs;
+    private readonly ILogger _logger;
+
+    public int Order => -600;
+
+    public VirtualFileSystemStartup(
+        IVirtualFileSystemManager vfs,
+        IEnumerable<IFileSystemBootstrap> bootstraps,
+        ILoggerFactory loggerFactory
+    )
+    {
+        _vfs = vfs;
+        _bootstraps = bootstraps;
+        _logger = loggerFactory.CreateLogger(nameof(VirtualFileSystemStartup));
+    }
+
+    public void OnStartup()
+    {
+        foreach (var bootstrap in _bootstraps)
+        {
+            bootstrap.Initialize(_vfs);
+        }
+
+        _logger.LogVfsStructure(_vfs.GetFileSystem());
+    }
 }

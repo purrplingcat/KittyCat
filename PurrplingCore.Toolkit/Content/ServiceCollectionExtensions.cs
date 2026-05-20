@@ -15,47 +15,39 @@ public delegate void VfsMountAction(IVirtualFileSystemManager vfs, IServiceProvi
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddVfs(this IServiceCollection services, VfsMountAction setup)
-    {
-        services.AddVfs();
-        services.AddSingleton(setup);
-        return services;
-    }
 
     public static IServiceCollection AddVfs(this IServiceCollection services)
     {
-        services.TryAddSingleton(sp =>
+        services.TryAddSingleton<IFileSystemBootstrap, DefaultFileSystemBootstrap>();
+        services.AddVfsCore((vfs, _) =>
         {
-            var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-            var logger = loggerFactory.CreateLogger("VfsManager");
-            var vfs = new VirtualFileSystemManager(logger);
-            var actions = sp.GetServices<VfsMountAction>();
-
-            foreach (var action in actions)
-            {
-                action(vfs, sp);
-            }
-
-            logger.LogVfsStructure(vfs.Root);
-            return vfs;
+            vfs.Chain(fs => new AggregateFileSystem(fs));
+            vfs.Chain(fs => new MountFileSystem(fs));
         });
-        services.TryAddAlias<IVirtualFileSystem, VirtualFileSystemManager>();
-        services.TryAddAlias<IVirtualFileSystemManager, VirtualFileSystemManager>();
 
         return services;
     }
 
-    public static IServiceCollection AddPhysicalVfs(this IServiceCollection services, string path, int order = 0)
+    public static IServiceCollection AddVfsCore(
+        this IServiceCollection services,
+        Action<IVirtualFileSystemManager, IServiceProvider>? configureChain = null)
     {
-        return services.AddVfsLayer(order, sp =>
+        services.AddStartup<VirtualFileSystemStartup>();
+        services.TryAddSingleton<IVirtualFileSystemManager>(sp =>
         {
-            var rootFs = new PhysicalFileSystem();
-            return new SubFileSystem(rootFs, rootFs.ConvertPathFromInternal(path));
-        });
-    }
+            var env = sp.GetRequiredService<IHostEnvironment>();
+            var logger = sp.GetRequiredService<ILogger<VirtualFileSystemManager>>();
+            var vfs = new VirtualFileSystemManager(env);
 
-    public static IServiceCollection AddVfsLayer(this IServiceCollection services, int order, Func<IServiceProvider, IFileSystem> factory)
-    {
-        return services.AddSingleton(sp => new FileSystemLayer(factory(sp), order));
+            configureChain?.Invoke(vfs, sp);
+
+            return vfs;
+        });
+        services.TryAddTransient(sp => 
+            sp.GetRequiredService<IVirtualFileSystemManager>()
+              .GetFileSystem()
+        );
+        
+        return services;
     }
 }
