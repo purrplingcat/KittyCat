@@ -55,3 +55,32 @@ internal sealed class AutoActivator : IStartupService
         }
     }
 }
+
+internal sealed class StartupServiceExecutor(
+    IEnumerable<IStartupService> startups,
+    IEnumerable<ICleanupService> cleanups,
+    ILogger<StartupServiceExecutor> logger
+)
+{
+    public void Startup()
+    {
+        foreach (var startup in startups.OrderBy(x => x.Order))
+        {
+            logger.LogTrace("Startup: {serviceType}, Order: {Order}",
+                startup.GetType(), startup.Order
+            );
+            startup.OnStartup();
+        }
+    }
+
+    public void CleanUp()
+    {
+        foreach (var cleanup in cleanups.OrderBy(x => x.Order))
+        {
+            logger.LogTrace("Cleanup: {serviceType}, Order: {Order}",
+                cleanup.GetType(), cleanup.Order
+            );
+            cleanup.OnCleanup();
+        }
+    }
+}

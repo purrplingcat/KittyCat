@@ -31,9 +31,10 @@ public static class GameHostBuilderExtensions
     {
         // Configuration
         builder.Configuration
-               .SetFileProvider(new TitleContainerFileProvider())
+               .SetFileProvider(new VirtualFileProvider(builder.Environment))
                .AddJsonFile("appsettings.json", optional: true)
                .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true);
+               
 
         // Default logging config
         builder.Logging

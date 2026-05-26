@@ -18,7 +18,7 @@ public partial class VirtualFileSystemManager
 
     public VirtualFileSystemManager(IHostEnvironment env)
     {
-        _physicalFs = CreatePlatformPhysical(env);
+        _physicalFs = CreatePlatformFileSystem(env);
         _topmostFileSystem = _physicalFs.CreateSubFileSystem(env.BaseDirectory);
     }
 
@@ -27,7 +27,7 @@ public partial class VirtualFileSystemManager
         return _topmostFileSystem;
     }
 
-    private static IFileSystem CreatePlatformPhysical(IHostEnvironment env)
+    internal static IFileSystem CreatePlatformFileSystem(IHostEnvironment env)
     {
         return env.PlatformType switch
         {

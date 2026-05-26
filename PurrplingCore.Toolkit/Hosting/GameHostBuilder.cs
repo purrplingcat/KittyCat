@@ -33,6 +33,8 @@ public class GameHostBuilder : IGameHostBuilder
 
     public IHostEnvironment Environment => _env;
 
+    public Dictionary<object, object> Properties { get; } = [];
+
     public GameHostBuilder(string[]? args = null)
     {
         _logging = new LoggingBuilder(_services);

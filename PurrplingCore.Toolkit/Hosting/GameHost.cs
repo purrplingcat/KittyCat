@@ -12,6 +12,7 @@ public sealed class GameHost : IDisposable
     private readonly IServiceCollection _gameServiceCollection;
     private readonly ILogger _logger;
     private readonly IHostEnvironment _environment;
+    private StartupServiceExecutor? _startupServiceExecutor;
     private IGame? _game;
     
     private IServiceProvider? _gameServiceProvider;
@@ -24,6 +25,8 @@ public sealed class GameHost : IDisposable
         _gameServiceCollection = gameServices;
         _logger = logger;
         _environment = environment;
+
+        _gameServiceCollection.AddSingleton<StartupServiceExecutor>();
     }
 
     public ILogger Logger => _logger;
@@ -65,18 +68,12 @@ public sealed class GameHost : IDisposable
     {
         Debug.Assert(_gameServiceProvider != null, "Initialize must be called first.");
         ObjectDisposedException.ThrowIf(_disposed, this);
-        
+
+        _startupServiceExecutor = _gameServiceProvider.GetRequiredService<StartupServiceExecutor>();
         _game = ResolveGame();
 
         _logger.LogDebug("Executing startup services");
-        var startups = _gameServiceProvider.GetServices<IStartupService>();
-        foreach (var startupService in startups.OrderBy(s => s.Order))
-        {
-            _logger.LogTrace("Startup: {serviceType}, Order: {Order}", 
-                startupService.GetType(), startupService.Order
-            );
-            startupService.OnStartup();
-        }
+        _startupServiceExecutor.Startup();
 
         _logger.LogDebug("Executing {gameType}::Run()", _game.GetType());
         _game.Run();
@@ -118,18 +115,10 @@ public sealed class GameHost : IDisposable
     }
 
     private void OnGameExited(object? sender, EventArgs e)
-    {
-        var cleanups = Services.GetServices<ICleanupService>();
-        
+    {        
         _logger.LogInformation("Shutdown");
         _logger.LogDebug("Executing cleanup services ...");
-        foreach (var cleanupService in cleanups.OrderBy(s => s.Order))
-        {
-            _logger.LogTrace("Cleanup: {serviceType}, Order: {Order}", 
-                cleanupService.GetType(), cleanupService.Order
-            );
-            cleanupService.OnCleanup();
-        }
+        _startupServiceExecutor?.CleanUp();
     }
 
     private void OnGameDisposed(object? sender, EventArgs e)
