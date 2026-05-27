@@ -1,13 +1,14 @@
 ﻿using Microsoft.Extensions.Logging;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Hosting;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Zio;
 using Zio.FileSystems;
 
 namespace PurrplingCore.Toolkit.Vfs;
 
-public partial class VirtualFileSystemManager 
+public partial class VirtualFileSystemManager
     : IVirtualFileSystemManager, IDisposable
 {
     private readonly IFileSystem _physicalFs;
@@ -27,13 +28,19 @@ public partial class VirtualFileSystemManager
         return _topmostFileSystem;
     }
 
-    internal static IFileSystem CreatePlatformFileSystem(IHostEnvironment env)
+    private static IFileSystem CreatePlatformFileSystem(IHostEnvironment env)
     {
         return env.PlatformType switch
         {
             PlatformType.Desktop => new PhysicalFileSystem(),
             _ => throw new NotSupportedException($"Platform {env.PlatformType} is not supported"),
         };
+    }
+
+    internal static IFileSystem CreateBaseFileSystem(IHostEnvironment env)
+    {
+        var platform = CreatePlatformFileSystem(env);
+        return platform.CreateSubFileSystem(env.BaseDirectory);
     }
 
     public void SetFileSystem(IFileSystem fileSystem)
@@ -120,6 +127,19 @@ public static class VirtualFileSystemManagerExtensions
     {
         result = vfs.FindFileSystem<T>();
         return result != null;
+    }
+
+    public static IFileSystem GetBaseFileSystem(this IVirtualFileSystemManager vfs)
+    {
+        var fs = vfs.GetFileSystem();
+
+        while (fs.GetLowerLevel() is IFileSystem lowerFs)
+        {
+            fs = lowerFs;
+        }
+
+        Debug.Assert(fs != null, "Base file system cannot be null");
+        return fs;
     }
 }
 
