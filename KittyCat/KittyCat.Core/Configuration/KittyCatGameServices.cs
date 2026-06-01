@@ -1,4 +1,5 @@
-﻿using KittyCat.Ecs.Systems;
+﻿using KittyCat.Core;
+using KittyCat.Ecs.Systems;
 using KittyCat.Scenes;
 using KittyCat.Services;
 using KittyCat.Services.Options;
@@ -7,16 +8,12 @@ using Microsoft.Xna.Framework.Content;
 using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.DI;
 using PurrplingCore.Ecs.Systems;
-using PurrplingCore.Toolkit.Content;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Graphics;
 using PurrplingCore.Toolkit.Hosting;
-using PurrplingCore.Toolkit.Vfs;
 using System;
-using System.IO;
 using System.Reflection;
-using Zio;
-using Zio.FileSystems;
+using static Microsoft.Extensions.DependencyInjection.ActivatorUtilities;
 
 namespace KittyCat.Configuration;
 
@@ -48,11 +45,7 @@ public class KittyCatGameServices : IServicesConfiguration
                 .AddModule(ConfigureSystems);
 
         //services.AddSystemRoot(ConfigureSystems);
-        //services.AddRenderPipeline<World>(builder => { });
-
-        // Register Game helpers & tools
-        services.AddSingleton(GetDefaultContentManager)
-                .Expose<Resolution, GraphicsManager>(source => source.Resolution);
+        //services.AddRenderPipeline<World>(builder => { });                
     }
 }
 
@@ -61,5 +54,15 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddInitScene<TScene>(this IServiceCollection services) where TScene : Scene
     {
         return services.Configure<SceneManagerOptions>(options => options.InitialSceneType = typeof(TScene));
+    }
+
+    public static IGameHostBuilder UsePurrplingCore(this IGameHostBuilder builder)
+    {
+        builder.Services.AddWorld();
+        builder.Services.AddStartup(GetServiceOrCreateInstance<VirtualFileSystemStartup>);
+        builder.Services.Expose<ContentManager, ContentManagerProvider>(provider => provider.Default)
+                        .Expose<Resolution, GraphicsManager>(source => source.Resolution);
+
+        return builder;
     }
 }

@@ -8,19 +8,21 @@ using Zio.FileSystems;
 
 namespace PurrplingCore.Toolkit.Vfs;
 
-public partial class VirtualFileSystemManager
-    : IVirtualFileSystemManager, IDisposable
+public class VirtualFileSystemManager : IVirtualFileSystemManager, IDisposable
 {
-    private readonly IFileSystem _physicalFs;
+    private readonly IFileSystem _baseFs;
     private IFileSystem _topmostFileSystem;
     private bool _disposed;
 
-    public IFileSystem Physical => _physicalFs;
+    public static PhysicalFileSystem Physical { get; } = new PhysicalFileSystem();
+
+    IFileSystem IVirtualFileSystemManager.Physical => Physical;
+    public IFileSystem Base => _baseFs;
 
     public VirtualFileSystemManager(IHostEnvironment env)
     {
-        _physicalFs = CreatePlatformFileSystem(env);
-        _topmostFileSystem = _physicalFs.CreateSubFileSystem(env.BaseDirectory);
+        _baseFs = CreatePlatformFileSystem(env);
+        _topmostFileSystem = _baseFs;
     }
 
     public IFileSystem GetFileSystem()
@@ -28,19 +30,13 @@ public partial class VirtualFileSystemManager
         return _topmostFileSystem;
     }
 
-    private static IFileSystem CreatePlatformFileSystem(IHostEnvironment env)
+    internal static IFileSystem CreatePlatformFileSystem(IHostEnvironment env)
     {
         return env.PlatformType switch
         {
-            PlatformType.Desktop => new PhysicalFileSystem(),
+            PlatformType.Desktop => Physical.CreateSubFileSystem(env.BaseDirectory),
             _ => throw new NotSupportedException($"Platform {env.PlatformType} is not supported"),
         };
-    }
-
-    internal static IFileSystem CreateBaseFileSystem(IHostEnvironment env)
-    {
-        var platform = CreatePlatformFileSystem(env);
-        return platform.CreateSubFileSystem(env.BaseDirectory);
     }
 
     public void SetFileSystem(IFileSystem fileSystem)
@@ -146,57 +142,4 @@ public static class VirtualFileSystemManagerExtensions
 public interface IFileSystemBootstrap
 {
     void Initialize(IVirtualFileSystemManager vfs);
-}
-
-public class DefaultFileSystemBootstrap(IHostEnvironment env) : IFileSystemBootstrap
-{
-    public void Initialize(IVirtualFileSystemManager vfs)
-    {
-        var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), env.ApplicationName);
-        var temp = Path.Combine(Path.GetTempPath(), env.ApplicationName);
-
-        var mountFs = vfs.FindFileSystem<MountFileSystem>();
-        if (mountFs != null)
-        {
-            mountFs.Mount("/Memory", new MemoryFileSystem());
-            mountFs.Mount("/User", vfs.Physical.CreateSubFileSystem(appData));
-            mountFs.Mount("/Cache", vfs.Physical.CreateSubFileSystem(temp));
-        }
-
-        var aggregateFs = vfs.FindFileSystem<AggregateFileSystem>();
-        if (aggregateFs != null)
-        {
-            // Příklad: aggregateFs.AddFileSystem(new ZipFileSystem("Content/BaseGame.pak"));
-        }
-    }
-}
-
-internal class VirtualFileSystemStartup : IStartupService
-{
-    private readonly IEnumerable<IFileSystemBootstrap> _bootstraps;
-    private readonly IVirtualFileSystemManager _vfs;
-    private readonly ILogger _logger;
-
-    public int Order => -600;
-
-    public VirtualFileSystemStartup(
-        IVirtualFileSystemManager vfs,
-        IEnumerable<IFileSystemBootstrap> bootstraps,
-        ILoggerFactory loggerFactory
-    )
-    {
-        _vfs = vfs;
-        _bootstraps = bootstraps;
-        _logger = loggerFactory.CreateLogger(nameof(VirtualFileSystemStartup));
-    }
-
-    public void OnStartup()
-    {
-        foreach (var bootstrap in _bootstraps)
-        {
-            bootstrap.Initialize(_vfs);
-        }
-
-        _logger.LogVfsStructure(_vfs.GetFileSystem());
-    }
 }

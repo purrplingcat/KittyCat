@@ -17,6 +17,7 @@
       <PrivateAssets>All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Scrutor" Version="6.1.0" />
+	<PackageReference Include="Zio" Version="0.22.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\PurrplingCore.Ecs\PurrplingCore.Ecs.csproj" />

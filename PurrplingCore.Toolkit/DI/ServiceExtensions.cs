@@ -54,9 +54,17 @@ public static partial class ServiceExtensions
         services.TryAddTransient(provider => exposeDelegate(provider.GetRequiredService<TSource>()));
     }
 
-    public static IServiceCollection AddStartup<TStartup>(this IServiceCollection services) where TStartup : class, IStartupService
+    public static IServiceCollection AddStartup<TStartup>(this IServiceCollection services) 
+        where TStartup : class, IStartupService
     {
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupService, TStartup>());
+        return services;
+    }
+
+    public static IServiceCollection AddStartup<TStartup>(this IServiceCollection services, Func<IServiceProvider, TStartup> factory) 
+        where TStartup : class, IStartupService
+    {
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupService, TStartup>(factory));
         return services;
     }
 

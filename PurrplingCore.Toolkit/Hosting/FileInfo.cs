@@ -9,7 +9,7 @@ namespace PurrplingCore.Toolkit.Hosting;
 
 public class VirtualFileProvider(IHostEnvironment env) : IFileProvider
 {
-    private readonly IFileSystem _fileSystem = VirtualFileSystemManager.CreateBaseFileSystem(env);
+    private readonly IFileSystem _fileSystem = VirtualFileSystemManager.CreatePlatformFileSystem(env);
 
     public IFileInfo GetFileInfo(string subpath)
     {

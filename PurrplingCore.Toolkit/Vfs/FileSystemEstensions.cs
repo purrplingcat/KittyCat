@@ -21,7 +21,7 @@ public static class FileSystemEstensions
         return null;
     }
 
-    internal static SubFileSystem CreateSubFileSystem(this IFileSystem fs, string path)
+    public static SubFileSystem CreateSubFileSystem(this IFileSystem fs, string path)
     {
         var safePath = fs.ConvertPathFromInternal(path);
         return fs.GetOrCreateSubFileSystem(safePath);

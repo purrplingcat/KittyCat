@@ -1,4 +1,5 @@
-﻿using Zio;
+﻿using PurrplingCore.Toolkit.Modding;
+using Zio;
 using Zio.FileSystems;
 
 namespace PurrplingCore.Toolkit.Vfs.FileSystems;

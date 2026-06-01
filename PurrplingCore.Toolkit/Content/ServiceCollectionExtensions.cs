@@ -18,7 +18,6 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddVfs(this IServiceCollection services)
     {
-        services.TryAddSingleton<IFileSystemBootstrap, DefaultFileSystemBootstrap>();
         services.AddVfsCore((vfs, _) =>
         {
             vfs.Chain(fs => new AggregateFileSystem(fs));
@@ -32,7 +31,6 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         Action<IVirtualFileSystemManager, IServiceProvider>? configureChain = null)
     {
-        services.AddStartup<VirtualFileSystemStartup>();
         services.TryAddSingleton<IVirtualFileSystemManager>(sp =>
         {
             var env = sp.GetRequiredService<IHostEnvironment>();

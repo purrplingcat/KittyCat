@@ -22,10 +22,9 @@ public class ContentManagerProvider : IContentManagerProvider
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ContentManager CreateContentManager() => CreateContentManager(_rootDir);
 
-    public virtual ContentManager CreateContentManager(string rootDirectory)
+    public virtual ContentManager CreateContentManager(string? rootDirectory = null)
     {
-        return new ContentManager(_provider, rootDirectory);
+        return new ContentManager(_provider, rootDirectory ?? _rootDir);
     }
 }
