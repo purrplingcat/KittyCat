@@ -15,4 +15,16 @@ public static class ReflectionExtensions
             || type.Name.Contains("<>") // Common pattern for generated types
             || type.Name.Contains("AnonymousType"); // Anonymous types
     }
+
+    public static byte[] GetEmbeddedKey(string name)
+    {
+        var assembly = Assembly.GetExecutingAssembly();
+        string resourceName = $"{assembly.GetName().Name}.Resources.{name}.key";
+        using Stream stream = assembly.GetManifestResourceStream(resourceName) 
+            ?? throw new Exception("Key not found!");
+        
+        byte[] key = new byte[stream.Length];
+        stream.Read(key, 0, (int)stream.Length);
+        return key;
+    }
 }

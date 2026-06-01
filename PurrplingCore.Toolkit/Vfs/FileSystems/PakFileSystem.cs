@@ -8,6 +8,9 @@ public class PakFileSystem : FileSystem
 {
     private readonly PakArchive _pak;
     private readonly string[] _sortedPaths;
+    private bool _disposed;
+
+    public string? Source { get; }
 
     public PakFileSystem(PakArchive pak)
     {
@@ -18,6 +21,11 @@ public class PakFileSystem : FileSystem
                    .Select(e => e.Path)
         ];
         Array.Sort(_sortedPaths, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public PakFileSystem(string pakFilePath) : this(new PakArchive(pakFilePath))
+    {
+        Source = pakFilePath;
     }
 
     protected override bool FileExistsImpl(UPath path)
@@ -105,7 +113,11 @@ public class PakFileSystem : FileSystem
 
     protected override FileAttributes GetAttributesImpl(UPath path)
     {
-        throw new NotImplementedException();
+        var attrs = FileAttributes.ReadOnly | FileAttributes.Archive;
+        attrs |= DirectoryExists(path) ? FileAttributes.Directory : FileAttributes.Normal;
+        attrs |= path == UPath.Root ? FileAttributes.Directory : FileAttributes.None;
+
+        return attrs;
     }
 
     protected override void SetAttributesImpl(UPath path, FileAttributes attributes)
@@ -219,7 +231,7 @@ public class PakFileSystem : FileSystem
 
     private IEnumerable<FileSystemItem> EnumerateCore(UPath path)
     {
-        string query = path == UPath.Root ? "/" : path.FullName + "/";
+        string query = ConvertPathToInternal(path) + "/";
         int startIndex = path == UPath.Root ? 0 : FindStartIndex(query);
         string? lastYieldedDir = null;
 
@@ -235,7 +247,7 @@ public class PakFileSystem : FileSystem
 
             if (slashIndex == -1)
             {
-                yield return new FileSystemItem(this, (UPath)entryPath, false);
+                yield return new FileSystemItem(this, ConvertPathFromInternal(entryPath), false);
             }
             else
             {
@@ -247,5 +259,20 @@ public class PakFileSystem : FileSystem
                 }
             }
         }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (!_disposed)
+        {
+            if (disposing)
+            {
+                _pak.Dispose();
+            }
+
+            _disposed = true;
+        }
+
+        base.Dispose(disposing);
     }
 }

@@ -21,18 +21,15 @@ builder.Logging.AddDefaultLogging();
 
 using var host = builder.Build();
 
-var myKey = new byte[32];
-RandomNumberGenerator.Fill(myKey);
-
 var env = host.Services.GetRequiredService<IHostEnvironment>();
-var paker = new PakPacker(myKey)
+var paker = new PakPacker()
 {
     Compression = CompressionMethod.LZ4,
 };
 paker.AddDirectory(Path.Combine(env.BaseDirectory, "Content"), "Content");
 paker.Pack(Path.Combine(env.BaseDirectory, "Content.pak"));
 
-var pak = new PakArchive(File.OpenRead(Path.Combine(env.BaseDirectory, "Content.pak")), myKey);
+var pak = new PakArchive(File.OpenRead(Path.Combine(env.BaseDirectory, "Content.pak")));
 var stream = pak.OpenFile("Content/Test.txt");
 var reader = new StreamReader(stream);
 

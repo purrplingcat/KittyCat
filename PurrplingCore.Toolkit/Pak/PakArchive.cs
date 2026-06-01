@@ -12,25 +12,31 @@ public enum CompressionMethod : byte
     Brotli = 4   // Vyvážená volba pro web a obecné použití
 }
 
-public class PakArchive
+public class PakArchive : IDisposable
 {
     public const int MAGIC = 0x54414350; // PCAT in little-endian
     public const int SUPPORTED_VERSION = 0x00_01_00; // Minor.Major.Patch (0.1.0)
 
-    private readonly Stream _stream;
+    private readonly FileStream _stream;
     private readonly Dictionary<ulong, PakEntry> _entries = [];
     private readonly byte[] _encryptionKey;
+    private bool _disposed;
 
     public int Version { get; private set; }
     public CompressionMethod Compression { get; private set; }
     public DateTime PackedDate { get; private set; }
     public bool Encrypted { get; private set; }
 
-    public PakArchive(Stream stream, byte[]? encryptionKey = null)
+    public PakArchive(FileStream stream, byte[]? encryptionKey = null)
     {
         _stream = stream;
         _encryptionKey = encryptionKey ?? [];
         ReadMetadata();
+    }
+
+    public PakArchive(string filePath, byte[]? encryptionKey = null)
+        : this(File.OpenRead(filePath), encryptionKey)
+    {
     }
 
     public bool FileExists(string path)
@@ -179,5 +185,31 @@ public class PakArchive
         public readonly long Offset = offset;
         public readonly int UncompressedSize = size;
         public readonly long CompressedLength = compressedLength;
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed)
+        {
+            if (disposing)
+            {
+                _entries.Clear();
+            }
+
+            _stream.Dispose();
+            _disposed = true;
+        }
+    }
+
+    ~PakArchive()
+    {
+        Dispose(disposing: false);
+    }
+
+    public void Dispose()
+    {
+        // Neměňte tento kód. Kód pro vyčištění vložte do metody Dispose(bool disposing).
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
     }
 }

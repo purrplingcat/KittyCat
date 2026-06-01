@@ -1,9 +1,12 @@
 ﻿using Microsoft.Extensions.Logging;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Hosting;
+using PurrplingCore.Toolkit.Pak;
 using PurrplingCore.Toolkit.Vfs;
 using PurrplingCore.Toolkit.Vfs.Comparers;
+using PurrplingCore.Toolkit.Vfs.FileSystems;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -49,18 +52,30 @@ public class VirtualFileSystemStartup : IStartupService
         var aggregateFs = _vfs.FindFileSystem<AggregateFileSystem>();
         if (aggregateFs != null && Top.DirectoryExists("/Content/Paks"))
         {
-            AddContentPaks(aggregateFs, Top.EnumerateFiles("/Content/Paks"));
+            AddContentPaks(
+                aggregateFs, 
+                Top.GetPhysicalPaths("/Content/Paks", SearchOption.TopDirectoryOnly, SearchTarget.File)
+            );
         }
 
         _logger.LogVfsStructure(_vfs.GetFileSystem());
-    }
+    } 
 
-    private void AddContentPaks(AggregateFileSystem aggregateFs, IEnumerable<UPath> enumerable)
+    private void AddContentPaks(AggregateFileSystem aggregateFs, IEnumerable<string> enumerable)
     {
         foreach(var path in enumerable.Order(new PakPathComparer()))
         {
-            var stream = Top.OpenRead(path);
-            aggregateFs.AddFileSystem(new ZipArchiveFileSystem(stream));
+            switch (Path.GetExtension(path).ToLower())
+            {
+                case ".pak":
+                    aggregateFs.AddFileSystem(new PakFileSystem(path));
+                    break;
+                case ".zip":
+                    aggregateFs.AddFileSystem(new ZipArchiveFileSystem(path));
+                    break;
+                default:
+                    continue;
+            }
         }
     }
 }

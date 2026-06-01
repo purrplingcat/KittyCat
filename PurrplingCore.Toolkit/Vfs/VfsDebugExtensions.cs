@@ -79,7 +79,10 @@ public static class VfsDebugExtensions
                     sb.Append(roFs.Fallback.DumpStructure(indentLevel + 1));
                 break;
 
-            case ZipArchiveFileSystem zip:
+            case PakFileSystem pak:
+                sb.AppendLine($"{indent}📦 {name} {pak.Source}");
+                break;
+            case ZipArchiveFileSystem:
                 sb.AppendLine($"{indent}📦 {name}");
                 break;
 

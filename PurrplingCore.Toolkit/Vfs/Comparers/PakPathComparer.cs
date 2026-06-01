@@ -2,7 +2,7 @@
 
 namespace PurrplingCore.Toolkit.Vfs.Comparers;
 
-public class PakPathComparer : IComparer<UPath>
+public class PakPathComparer : IComparer<string>
 {
     public static PakPathComparer Default { get; } = new PakPathComparer();
 
@@ -18,10 +18,10 @@ public class PakPathComparer : IComparer<UPath>
         }
     }
 
-    public int Compare(UPath x, UPath y)
+    public int Compare(string? x, string? y)
     {
-        var fileX = new PakInfo(x);
-        var fileY = new PakInfo(y);
+        var fileX = new PakInfo(new UPath(x ?? string.Empty));
+        var fileY = new PakInfo(new UPath(y ?? string.Empty));
 
         if (fileX.IsPatch != fileY.IsPatch)
         {
