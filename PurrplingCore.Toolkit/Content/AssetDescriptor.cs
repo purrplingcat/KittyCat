@@ -10,14 +10,14 @@ using System.Runtime.InteropServices;
 namespace PurrplingCore.Toolkit.Content;
 
 [DebuggerDisplay("{QualifiedId}")]
-public readonly struct AssetId : IEquatable<AssetId>
+public readonly struct AssetDescriptor : IEquatable<AssetDescriptor>
 {
     public readonly Guid Guid;
     public readonly string QualifiedId;
     private readonly ushort _colon;
     private readonly ushort _lastSlash;
 
-    public static readonly AssetId Empty = default;
+    public static readonly AssetDescriptor Empty = default;
 
     public ReadOnlySpan<char> Ns => QualifiedId.AsSpan(0, _colon);
 
@@ -30,7 +30,7 @@ public readonly struct AssetId : IEquatable<AssetId>
         : QualifiedId.AsSpan(_lastSlash + 1);
 
     [Cold]
-    public AssetId(string ns, string? categoryPath, string key)
+    public AssetDescriptor(string ns, string? categoryPath, string key)
     {
         QualifiedId = Qualify(ns, categoryPath, key);
         Guid = GetGuid(QualifiedId);
@@ -42,7 +42,7 @@ public readonly struct AssetId : IEquatable<AssetId>
     }
 
     [Cold]
-    public static AssetId Parse(string raw)
+    public static AssetDescriptor Parse(string raw)
     {
         int colon = raw.IndexOf(':');
         int lastSlash = raw.LastIndexOf('/');
@@ -56,10 +56,10 @@ public readonly struct AssetId : IEquatable<AssetId>
         if (lastSlash < colon) 
             lastSlash = -1;
 
-        return new AssetId(raw, (ushort)colon, lastSlash == -1 ? (ushort)0 : (ushort)lastSlash);
+        return new AssetDescriptor(raw, (ushort)colon, lastSlash == -1 ? (ushort)0 : (ushort)lastSlash);
     }
 
-    private AssetId(string raw, ushort colon, ushort lastSlash)
+    private AssetDescriptor(string raw, ushort colon, ushort lastSlash)
     {
         QualifiedId = raw;
         _colon = colon;
@@ -76,7 +76,7 @@ public readonly struct AssetId : IEquatable<AssetId>
         return $"{ns}:{path}/{id}";
     }
 
-    public bool Equals(AssetId other) => Guid == other.Guid;
+    public bool Equals(AssetDescriptor other) => Guid == other.Guid;
 
     public override string ToString() => QualifiedId;
 
@@ -94,14 +94,14 @@ public readonly struct AssetId : IEquatable<AssetId>
     [Cold]
     public override bool Equals(object? obj)
     {
-        return obj is AssetId id && Equals(id);
+        return obj is AssetDescriptor id && Equals(id);
     }
-    public static bool operator ==(AssetId left, AssetId right)
+    public static bool operator ==(AssetDescriptor left, AssetDescriptor right)
     {
         return left.Equals(right);
     }
 
-    public static bool operator !=(AssetId left, AssetId right)
+    public static bool operator !=(AssetDescriptor left, AssetDescriptor right)
     {
         return !left.Equals(right);
     }
@@ -116,7 +116,7 @@ public interface IAsset
 public interface IRegistry
 {
     IAsset? Get(Guid guid);
-    IEnumerable<AssetId> GetAllIds(); // Pro výpis tabulky
+    IEnumerable<AssetDescriptor> GetAllIds(); // Pro výpis tabulky
     bool Has(Guid id);
     bool TryGet(Guid id, [MaybeNullWhen(false)] out IAsset result);
 }
@@ -124,15 +124,15 @@ public interface IRegistry
 public class AssetRegistry<T>(ILogger<AssetRegistry<T>>? logger = null) : IRegistry where T : IAsset
 {
     private readonly ILogger<AssetRegistry<T>> _logger = logger ?? NullLogger<AssetRegistry<T>>.Instance;
-    private readonly struct Entry(AssetId cid, T def)
+    private readonly struct Entry(AssetDescriptor cid, T def)
     {
-        public readonly AssetId Cid = cid;
+        public readonly AssetDescriptor Cid = cid;
         public readonly T Definition = def;
     }
 
     private readonly Dictionary<Guid, Entry> _storage = [];
 
-    public void Add(AssetId cid, T content, bool overwrite = false)
+    public void Add(AssetDescriptor cid, T content, bool overwrite = false)
     {
         ref var entry = ref CollectionsMarshal.GetValueRefOrAddDefault(_storage, cid.Guid, out bool exists);
         
@@ -161,7 +161,7 @@ public class AssetRegistry<T>(ILogger<AssetRegistry<T>>? logger = null) : IRegis
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public T? Get(AssetId cid) => Get(cid.Guid);
+    public T? Get(AssetDescriptor cid) => Get(cid.Guid);
 
     public bool TryGet(Guid id, [MaybeNullWhen(false)] out T content)
     {
@@ -175,19 +175,19 @@ public class AssetRegistry<T>(ILogger<AssetRegistry<T>>? logger = null) : IRegis
         return false;
     }
 
-    public AssetId GetIndentifier(Guid id)
+    public AssetDescriptor GetDescriptor(Guid id)
     {
         if (_storage.TryGetValue(id, out var entry))
         {
             return entry.Cid;
         }
 
-        return AssetId.Empty;
+        return AssetDescriptor.Empty;
     }
 
     public bool Has(Guid id) => _storage.ContainsKey(id);
 
-    public IEnumerable<AssetId> GetAllIds() => _storage.Values.Select(e => e.Cid);
+    public IEnumerable<AssetDescriptor> GetAllIds() => _storage.Values.Select(e => e.Cid);
 
     IAsset? IRegistry.Get(Guid guid)
     {
@@ -209,6 +209,8 @@ public class AssetRegistry<T>(ILogger<AssetRegistry<T>>? logger = null) : IRegis
 
 public class AssetRegistry(IEnumerable<IRegistry> registries)
 {
+    private readonly Dictionary<Type, IRegistry> _registriesByType = registries.ToDictionary(r => r.GetType());
+
     [Cold]
     public IEnumerable<IAsset> FindAll(Guid id)
     {
@@ -219,5 +221,17 @@ public class AssetRegistry(IEnumerable<IRegistry> registries)
                 yield return entry;
             }
         }
+    }
+
+    public T? Get<T>(AssetDescriptor id) where T : class, IAsset
+    {
+        if (_registriesByType.TryGetValue(typeof(AssetRegistry<T>), out var registry))
+        {
+            if (registry.TryGet(id.Guid, out var asset))
+            {
+                return asset as T;
+            }
+        }
+        return null;
     }
 }

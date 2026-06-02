@@ -12,11 +12,12 @@ public static class FileSystemEstensions
     }
 
     /// <summary>
-    /// Enumerates items under the specified virtual <paramref name="path"/> and returns the corresponding
+    /// Enumerates items under the specified virtual <paramref name="path"/> and returns only corresponding
     /// physical file system paths for items that reside on a <see cref="PhysicalFileSystem"/> and actually
     /// exist on the host file system. The enumeration respects the provided <paramref name="option"/>
     /// (search depth) and <paramref name="searchTarget"/> (files, directories, or both). Only non-empty
     /// physical paths for which the underlying file system reports existence are yielded.
+    /// If a file is not physical on disk or does not exist, it is silently skipped and not included in the results.
     /// </summary>
     /// <param name="fs">The virtual file system to search.</param>
     /// <param name="path">The virtual path to enumerate.</param>
@@ -42,6 +43,38 @@ public static class FileSystemEstensions
                 }
             }
         }
+    }
+
+    public static IEnumerable<FileSystemEntry> EnumerateFileSystems(this IFileSystem fs, UPath path)
+    {
+        if (fs.Exists(path))
+        {
+            yield return fs.GetFileSystemEntry(path);   
+        }
+
+        if (fs is AggregateFileSystem aggregateFs)
+        {
+            foreach (IFileSystem layer in aggregateFs.GetFileSystems())
+            {
+                foreach (FileSystemEntry entry in layer.EnumerateFileSystems(path))
+                {
+                    yield return entry;
+                }
+            }
+        }
+
+        if (fs is ComposeFileSystem composeFs && composeFs.Fallback != null)
+        {
+            foreach (FileSystemEntry entry in composeFs.Fallback.EnumerateFileSystems(path))
+            {
+                yield return entry;
+            }
+        }
+    }
+
+    public static bool Exists(this IFileSystem fs, UPath path)
+    {
+        return fs.FileExists(path) || fs.DirectoryExists(path);
     }
 
     public static IFileSystem? GetLowerLevel(this IFileSystem fs)

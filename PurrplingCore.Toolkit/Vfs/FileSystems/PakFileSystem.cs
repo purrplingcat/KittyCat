@@ -1,4 +1,5 @@
 ﻿using PurrplingCore.Toolkit.Pak;
+using System.IO.Compression;
 using Zio;
 using Zio.FileSystems;
 
@@ -7,8 +8,11 @@ namespace PurrplingCore.Toolkit.Vfs.FileSystems;
 public class PakFileSystem : FileSystem
 {
     private readonly PakArchive _pak;
-    private readonly string[] _sortedPaths;
+    private readonly List<Node> _sortedPaths;
+    private readonly ReaderWriterLockSlim _entriesLock = new();
     private bool _disposed;
+
+    private const char DirectorySeparator = '/';
 
     public string? Source { get; }
 
@@ -16,16 +20,51 @@ public class PakFileSystem : FileSystem
     {
         _pak = pak ?? throw new ArgumentNullException(nameof(pak));
 
-        _sortedPaths = [.. 
-            pak.GetAllEntries()
-                   .Select(e => e.Path)
-        ];
-        Array.Sort(_sortedPaths, StringComparer.OrdinalIgnoreCase);
+        _sortedPaths = CreateDirectoryStructure(pak.GetAllEntries());
+        _sortedPaths.Sort();
+        _sortedPaths.EnsureCapacity(_sortedPaths.Count);
     }
 
     public PakFileSystem(string pakFilePath) : this(new PakArchive(pakFilePath))
     {
         Source = pakFilePath;
+    }
+
+    private readonly struct Node(UPath path, bool directory) : IComparable<Node>
+    {
+        public UPath Path => path;
+        public bool IsDirectory => directory;
+        public bool IsNull => path.IsNull;
+        public string FullName => path.FullName;
+
+        public int CompareTo(Node other)
+        {
+            return string.Compare(FullName, other.FullName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public override string ToString()
+        {
+            return FullName;
+        }
+
+        public Node GetParent() => new(path.GetDirectory(), directory: true);
+    }
+
+    private List<Node> CreateDirectoryStructure(IEnumerable<PakArchive.PakEntry> entries)
+    {
+        var hashset = new SortedSet<Node>();
+
+        foreach (var entry in entries)
+        {
+            var node = new Node(ConvertPathFromInternal(entry.Path), directory: false);
+            while (!node.IsNull)
+            {
+                hashset.Add(node);
+                node = node.GetParent();
+            }
+        }
+
+        return [.. hashset];
     }
 
     protected override bool FileExistsImpl(UPath path)
@@ -58,16 +97,11 @@ public class PakFileSystem : FileSystem
         if (path == UPath.Root)
             return true;
 
-        // Normalize: ensure single trailing slash
-        var directory = path.FullName.TrimEnd('/') + '/';
+        var directory = new Node(path, directory: true);
+        int index = _sortedPaths.BinarySearch(directory);
+        if (index < 0) return false;
 
-        // Use binary search to find the first candidate
-        int index = FindStartIndex(directory);
-        if (index >= _sortedPaths.Length)
-            return false;
-
-        // Check only the candidate at the found index (sorted list guarantees locality)
-        return _sortedPaths[index].StartsWith(directory, StringComparison.OrdinalIgnoreCase);
+        return _sortedPaths[index].IsDirectory;
     }
 
     protected override void CreateDirectoryImpl(UPath path)
@@ -167,44 +201,83 @@ public class PakFileSystem : FileSystem
 
     protected override IEnumerable<FileSystemItem> EnumerateItemsImpl(UPath path, SearchOption searchOption, SearchPredicate? searchPredicate)
     {
-        foreach (var item in EnumerateCore(path))
-        {
-            var fsItem = item;
-            if (searchPredicate == null || searchPredicate(ref fsItem))
-            {
-                yield return fsItem;
-            }
-
-            if (item.IsDirectory && searchOption == SearchOption.AllDirectories)
-            {
-                foreach (var subItem in EnumerateItemsImpl(item.Path, searchOption, searchPredicate))
-                {
-                    yield return subItem;
-                }
-            }
-        }
+        return EnumeratePathsStr(path, "*", searchOption, SearchTarget.Both).Select(p => new FileSystemItem(this, p, p[p.Length - 1] == DirectorySeparator));
     }
 
+    /// <inheritdoc />
     protected override IEnumerable<UPath> EnumeratePathsImpl(UPath path, string searchPattern, SearchOption searchOption, SearchTarget searchTarget)
     {
-        bool wantsFiles = searchTarget == SearchTarget.Both || searchTarget == SearchTarget.File;
-        bool wantsDirs = searchTarget == SearchTarget.Both || searchTarget == SearchTarget.Directory;
+        return EnumeratePathsStr(path, searchPattern, searchOption, searchTarget).Select(x => new UPath(x));
+    }
 
-        foreach (var item in EnumerateCore(path))
+    private IEnumerable<string> EnumeratePathsStr(UPath path, string searchPattern, SearchOption searchOption, SearchTarget searchTarget)
+    {
+        var search = SearchPattern.Parse(ref path, ref searchPattern);
+
+        _entriesLock.EnterReadLock();
+        IEnumerable<Node> entries;
+        try
         {
-            if ((item.IsDirectory && wantsDirs) || (!item.IsDirectory && wantsFiles))
-            {
-                yield return item.Path;
-            }
+            entries = GetEntriesInDirectory(path.FullName).Where(p => p.FullName.Length > path.FullName.Length);
 
-            if (item.IsDirectory && searchOption == SearchOption.AllDirectories)
+            if (searchOption == SearchOption.TopDirectoryOnly)
             {
-                foreach (var subItemPath in EnumeratePathsImpl(item.Path, searchPattern, searchOption, searchTarget))
-                {
-                    yield return subItemPath;
-                }
+                entries = entries.Where(node => node.Path.IsInDirectory(path, false));
             }
         }
+        finally
+        {
+            _entriesLock.ExitReadLock();
+        }
+
+        if (!entries.Any())
+        {
+            return [];
+        }
+
+        if (searchTarget == SearchTarget.File)
+        {
+            entries = entries.Where(e => !e.IsDirectory);
+        }
+        else if (searchTarget == SearchTarget.Directory)
+        {
+            entries = entries.Where(e => e.IsDirectory);
+        }
+
+        if (!string.IsNullOrEmpty(searchPattern))
+        {
+            entries = entries.Where(e => search.Match(GetName(e.Path)));
+        }
+
+        return entries.Select(e => e.FullName);
+    }
+
+    private static readonly char[] s_slashChars = ['/', '\\'];
+
+    private static ReadOnlySpan<char> GetName(UPath entry)
+    {
+        var name = entry.FullName.TrimEnd(s_slashChars);
+        var index = name.LastIndexOfAny(s_slashChars);
+        return index == -1 ? name.AsSpan() : name.AsSpan(index + 1);
+    }
+
+    private IEnumerable<Node> GetEntriesInDirectory(string srcDir)
+    {
+        return _sortedPaths.Where(e =>
+        {
+            if (!e.FullName.StartsWith(srcDir, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (e.FullName.Length == srcDir.Length)
+            {
+                return true;
+            }
+
+            // ensure that we are matching only subdirectories/files
+            return e.Path.IsInDirectory(srcDir, recursive: true);
+        });
     }
 
     protected override IFileSystemWatcher WatchImpl(UPath path)
@@ -221,44 +294,6 @@ public class PakFileSystem : FileSystem
     {
         var path = new UPath(innerPath);
         return path.ToAbsolute();
-    }
-
-    private int FindStartIndex(string prefix)
-    {
-        int index = Array.BinarySearch(_sortedPaths, prefix, StringComparer.OrdinalIgnoreCase);
-        return index < 0 ? ~index : index;
-    }
-
-    private IEnumerable<FileSystemItem> EnumerateCore(UPath path)
-    {
-        string query = ConvertPathToInternal(path) + "/";
-        int startIndex = path == UPath.Root ? 0 : FindStartIndex(query);
-        string? lastYieldedDir = null;
-
-        for (int i = startIndex; i < _sortedPaths.Length; i++)
-        {
-            string entryPath = _sortedPaths[i];
-
-            if (!entryPath.StartsWith(query, StringComparison.OrdinalIgnoreCase))
-                break;
-
-            ReadOnlySpan<char> relativePath = entryPath.AsSpan(query.Length);
-            int slashIndex = relativePath.IndexOf('/');
-
-            if (slashIndex == -1)
-            {
-                yield return new FileSystemItem(this, ConvertPathFromInternal(entryPath), false);
-            }
-            else
-            {
-                ReadOnlySpan<char> currentDirSpan = relativePath[..slashIndex];
-                if (lastYieldedDir == null || !currentDirSpan.Equals(lastYieldedDir, StringComparison.OrdinalIgnoreCase))
-                {
-                    lastYieldedDir = currentDirSpan.ToString();
-                    yield return new FileSystemItem(this, UPath.Combine(path, lastYieldedDir), true);
-                }
-            }
-        }
     }
 
     protected override void Dispose(bool disposing)

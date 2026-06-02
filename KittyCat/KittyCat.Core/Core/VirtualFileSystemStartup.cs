@@ -1,12 +1,10 @@
 ﻿using Microsoft.Extensions.Logging;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Hosting;
-using PurrplingCore.Toolkit.Pak;
 using PurrplingCore.Toolkit.Vfs;
 using PurrplingCore.Toolkit.Vfs.Comparers;
 using PurrplingCore.Toolkit.Vfs.FileSystems;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -41,6 +39,14 @@ public class VirtualFileSystemStartup : IStartupService
         string appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), _env.ApplicationName);
         string temp = Path.Combine(Path.GetTempPath(), _env.ApplicationName);
 
+        var watcher = _vfs.GetFileSystem().Watch(UPath.Root);
+
+        watcher.EnableRaisingEvents = true;
+        watcher.Changed += (s, e) =>
+        {
+            _logger.LogInformation("File system changed: {ChangeType} {Path}", e.ChangeType, e.FullPath);
+        };
+
         var mountFs = _vfs.FindFileSystem<MountFileSystem>();
         if (mountFs != null)
         {
@@ -58,6 +64,7 @@ public class VirtualFileSystemStartup : IStartupService
             );
         }
 
+        Top.EnumerateFileSystems("/Content/Test.txt").ToArray();
         _logger.LogVfsStructure(_vfs.GetFileSystem());
     } 
 
@@ -68,7 +75,9 @@ public class VirtualFileSystemStartup : IStartupService
             switch (Path.GetExtension(path).ToLower())
             {
                 case ".pak":
-                    aggregateFs.AddFileSystem(new PakFileSystem(path));
+                    var pakFs = new PakFileSystem(path);
+                    pakFs.EnumeratePaths(UPath.Root);
+                    aggregateFs.AddFileSystem(pakFs);
                     break;
                 case ".zip":
                     aggregateFs.AddFileSystem(new ZipArchiveFileSystem(path));
