@@ -64,7 +64,6 @@ public class VirtualFileSystemStartup : IStartupService
             );
         }
 
-        Top.EnumerateFileSystems("/Content/Test.txt").ToArray();
         _logger.LogVfsStructure(_vfs.GetFileSystem());
     } 
 

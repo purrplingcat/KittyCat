@@ -7,6 +7,7 @@ using PurrplingCore.Toolkit.Attributes;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Zio;
@@ -176,65 +177,78 @@ public sealed record AssetMetadata
 
 public interface IAssetCache
 {
-    void Add(Guid uid, object value);
-    object? Get(Guid uid);
-    IEnumerable<Guid> GetKeys();
-    bool Exists(Guid uid);
-    bool Clear(Guid uid);
-    void Clear();
+    bool TryRetain(Guid id, [NotNullWhen(true)] out object? value);
+    bool Release(Guid id);
 }
 
 public class AssetCache<T> : IAssetCache
 {
-    private readonly ConcurrentDictionary<Guid, T> _storage = [];
+    private readonly Dictionary<Guid, CacheEntry> _storage = [];
+    private readonly object _syncRoot = new();
 
-    public void Add(Guid uid, T asset)
+    struct CacheEntry
     {
-        _storage[uid] = asset;
+        public T Asset;
+        public int RefCount;
     }
 
-    public T? Get(Guid id)
+    public bool TryRetain(Guid id, [NotNullWhen(true)] out T? asset)
     {
-        if (_storage.TryGetValue(id, out var asset))
+        lock (_syncRoot)
         {
-            return asset;
+            ref var entry = ref CollectionsMarshal.GetValueRefOrNullRef(_storage, id);
+
+            if (!Unsafe.IsNullRef(ref entry) && entry.Asset != null)
+            {
+                entry.RefCount++;
+                asset = entry.Asset;
+                return true;
+            }
+
+            asset = default;
+            return false;
         }
-        return default;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public T? Get(AssetId cid) => Get(cid.Guid);
-
-    public bool TryGet(Guid id, [MaybeNullWhen(false)] out T asset)
+    public void Add(Guid id, T asset)
     {
-        return _storage.TryGetValue(id, out asset);
+        ArgumentNullException.ThrowIfNull(asset, nameof(asset));
+
+        lock (_syncRoot)
+        {
+            _storage.Add(id, new CacheEntry
+            {
+                Asset = asset,
+                RefCount = 1
+            });
+        }
     }
 
-    public bool Exists(Guid id) => _storage.ContainsKey(id);
-
-    void IAssetCache.Add(Guid uid, object value)
+    public bool Release(Guid id)
     {
-        throw new NotImplementedException();
+        lock (_syncRoot)
+        {
+            ref var entry = ref CollectionsMarshal.GetValueRefOrNullRef(_storage, id);
+
+            if (!Unsafe.IsNullRef(ref entry))
+            {
+                if (--entry.RefCount <= 0)
+                {
+                    _storage.Remove(id);
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 
-    object? IAssetCache.Get(Guid uid)
+    bool IAssetCache.TryRetain(Guid id, [NotNullWhen(true)] out object? value)
     {
-        return Get(uid);
-    }
+        bool found = TryRetain(id, out var asset);
+        value = asset;
 
-    public IEnumerable<Guid> GetKeys()
-    {
-        return _storage.Keys;
-    }
-
-    public bool Clear(Guid uid)
-    {
-        return _storage.TryRemove(uid, out var _);
-    }
-
-    public void Clear()
-    {
-        _storage.Clear();
+        return found;
     }
 }
 
@@ -375,9 +389,9 @@ public class AssetRegistry(ILogger<AssetRegistry> logger)
     }
 }
 
-public class AssetBank<T> where T : class
+public class AssetBank<T> : IDisposable
 {
-    private T[] _values;
+    private AssetHandle<T>[] _handles;
     private readonly Dictionary<Guid, ushort> _lookup = [];
     private readonly AssetManager _assets;
     private ushort _count = 0;
@@ -385,7 +399,7 @@ public class AssetBank<T> where T : class
     public AssetBank(AssetManager assets, ushort capacity = 8)
     {
         _assets = assets ?? throw new ArgumentNullException(nameof(assets));
-        _values = new T[capacity];
+        _handles = new AssetHandle<T>[capacity];
     }
 
     public AssetBank(AssetManager assets) : this(assets, 8) { }
@@ -394,11 +408,11 @@ public class AssetBank<T> where T : class
 
     private ushort FindFreeIndex()
     {
-        if (_count >= _values.Length)
+        if (_count >= _handles.Length)
         {
             if (_count == ushort.MaxValue)
                 throw new InvalidOperationException("AssetBank exceeded their maximum capacity!");
-            Array.Resize(ref _values, _values.Length * 2);
+            Array.Resize(ref _handles, _handles.Length * 2);
         }
 
         return _count++;
@@ -406,21 +420,22 @@ public class AssetBank<T> where T : class
 
     public ushort GetIndex(AssetId assetId)
     {
-        bool found = _lookup.TryGetValue(assetId, out var index);
-        
-        if (found && _assets.IsLoaded<T>(assetId))
+        ObjectDisposedException.ThrowIf(_handles == null, this);
+
+        if (_lookup.TryGetValue(assetId.Guid, out var index))
             return index;
 
-        T loadedAsset = _assets.Get<T>(assetId);
-        if (!found)
-            index = FindFreeIndex();
+        // Vydáme Handle. Cache zvedne ref-counter.
+        var handle = _assets.Get<T>(assetId);
 
-        _values[index] = loadedAsset;
+        index = FindFreeIndex();
+        _handles[index] = handle;
         _lookup[assetId.Guid] = index;
 
         return index;
     }
 
+    [Hot]
     public T Get(ushort index)
     {
         if (index >= _count)
@@ -428,7 +443,42 @@ public class AssetBank<T> where T : class
             throw new ArgumentOutOfRangeException(nameof(index));
         }
 
-        return _values[index];
+        ref var handle = ref _handles[index];
+        return handle.Asset;
+    }
+
+    public void Dispose()
+    {
+        if (_handles == null) return;
+
+        foreach (var handle in _handles)
+        {
+            handle.Dispose();
+        }
+
+        _count = 0;
+        _handles = null!; // Object disposed
+        _lookup.Clear();
+        GC.SuppressFinalize(this);
+    }
+}
+
+public readonly struct AssetHandle<T> : IDisposable
+{
+    public readonly T Asset;
+    private readonly AssetManager _manager; // Konkrétní třída, žádný interface
+    private readonly Guid _assetId;
+
+    internal AssetHandle(AssetManager manager, T asset, Guid assetId)
+    {
+        Asset = asset;
+        _manager = manager;
+        _assetId = assetId;
+    }
+
+    public void Dispose()
+    {
+        _manager?.Release<T>(_assetId);
     }
 }
 
@@ -461,35 +511,19 @@ public class AssetManager
         );
     }
 
-    public T Get<T>(AssetId assetID)
+    public AssetHandle<T> Get<T>(AssetId assetId)
     {
         var cache = GetAssetCache<T>();
 
-        if (!cache.TryGet(assetID, out var loadedAsset))
+        if (!cache.TryRetain(assetId, out var loadedAsset))
         {
-            var descriptor = _masterRegistry.GetMetadata(assetID) 
-                ?? throw new KeyNotFoundException($"Asset {assetID} is not registered!");
+            var descriptor = _masterRegistry.GetMetadata(assetId) 
+                ?? throw new KeyNotFoundException($"Asset {assetId} is not registered!");
             loadedAsset = LoadAsset<T>(in descriptor);
-            cache.Add(assetID, loadedAsset);
+            cache.Add(assetId, loadedAsset);
         }
 
-        return loadedAsset;
-    }
-
-    public bool IsLoaded<T>(AssetId assetId)
-    {
-        return GetAssetCache<T>().Exists(assetId);
-    }
-
-    public bool IsLoaded(AssetId assetId)
-    {
-        foreach (var cache in _cacheMap.Values)
-        {
-            if (cache.Exists(assetId)) 
-                return true;
-        }
-
-        return false;
+        return new AssetHandle<T>(this, loadedAsset, assetId);
     }
 
     protected virtual T LoadAsset<T>(in AssetMetadata descriptor)
@@ -500,25 +534,19 @@ public class AssetManager
         return loader.Load(_content, descriptor.GetAssetPath());
     }
 
-    public void UnloadAsset(AssetId assetId)
+    internal void Release<T>(Guid assetId)
     {
-        var metadata = _masterRegistry.GetMetadata(assetId);
-        if (metadata != null)
+        var cache = GetAssetCache<T>();
+
+        if (cache.Release(assetId))
         {
-            foreach (var cache in _cacheMap.Values)
+            var descriptor = _masterRegistry.GetMetadata(assetId);
+            if (descriptor != null)
             {
-                cache.Clear(assetId);
+                _content.UnloadAsset(descriptor.GetAssetPath());
+                AssetsUnloaded?.Invoke([descriptor.Id]);
             }
-
-            _content.UnloadAsset(metadata.GetAssetPath());
-            AssetsUnloaded?.Invoke([assetId]);
         }
-    }
-
-    public void Unload()
-    {
-        _cacheMap.Clear();
-        _content.Unload();
     }
 }
 

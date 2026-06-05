@@ -45,33 +45,6 @@ public static class FileSystemEstensions
         }
     }
 
-    public static IEnumerable<FileSystemEntry> EnumerateFileSystems(this IFileSystem fs, UPath path)
-    {
-        if (fs.Exists(path))
-        {
-            yield return fs.GetFileSystemEntry(path);   
-        }
-
-        if (fs is AggregateFileSystem aggregateFs)
-        {
-            foreach (IFileSystem layer in aggregateFs.GetFileSystems())
-            {
-                foreach (FileSystemEntry entry in layer.EnumerateFileSystems(path))
-                {
-                    yield return entry;
-                }
-            }
-        }
-
-        if (fs is ComposeFileSystem composeFs && composeFs.Fallback != null)
-        {
-            foreach (FileSystemEntry entry in composeFs.Fallback.EnumerateFileSystems(path))
-            {
-                yield return entry;
-            }
-        }
-    }
-
     public static bool Exists(this IFileSystem fs, UPath path)
     {
         return fs.FileExists(path) || fs.DirectoryExists(path);
