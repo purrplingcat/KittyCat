@@ -1,6 +1,7 @@
 ﻿
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Xna.Framework.Content;
 using PurrplingCore.Toolkit.Vfs;
@@ -11,33 +12,15 @@ using Zio.FileSystems;
 
 namespace PurrplingCore.Toolkit.Content;
 
-public class ExtensibleContentManager(
+public class DefaultContentManager(
     IServiceProvider serviceProvider,
     string rootDirectory,
+    ILogger logger,
     IFileSystem? fileSystem = null
 ) : ContentManager(serviceProvider, rootDirectory)
 {
-    private readonly ContentLoaderOptions _options = serviceProvider.GetService<IOptions<ContentLoaderOptions>>()?.Value
-                   ?? new ContentLoaderOptions();
-    private readonly Dictionary<Type, IContentLoader> _loaders = [];
     private readonly IFileSystem? _fileSystem = fileSystem ?? serviceProvider.GetService<IFileSystem>();
-
-    protected bool TryGetLoader(string extension, [MaybeNullWhen(false)] out IContentLoader loader)
-    {
-        if (!string.IsNullOrEmpty(extension) && _options.ExtensionMappings.TryGetValue(extension, out var loaderType))
-        {
-            if (!_loaders.TryGetValue(loaderType, out loader))
-            {
-                loader = (IContentLoader)ActivatorUtilities.GetServiceOrCreateInstance(ServiceProvider, loaderType);
-                _loaders[loaderType] = loader;
-            }
-
-            return true;
-        }
-
-        loader = null;
-        return false;
-    }
+    private readonly ILogger _logger = logger;
 
     public override T Load<T>(string assetName)
     {
@@ -48,16 +31,7 @@ public class ExtensibleContentManager(
             return result;
         }
 
-        var extension = Path.GetExtension(assetName);
-        
-        if (TryGetLoader(extension, out var loader))
-        {
-            var loadedAsset = loader.Load<T>(this, assetName);
-            LoadedAssets[assetName] = loadedAsset;
-
-            return loadedAsset;
-        }
-
+        _logger.LogDebug("Loading asset: {AssetName}", assetName);
         return base.Load<T>(assetName);
     }
 

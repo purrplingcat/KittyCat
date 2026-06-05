@@ -8,6 +8,7 @@ using Microsoft.Xna.Framework.Content;
 using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.DI;
 using PurrplingCore.Ecs.Systems;
+using PurrplingCore.Toolkit;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Graphics;
 using PurrplingCore.Toolkit.Hosting;
@@ -27,7 +28,7 @@ public class KittyCatGameServices : IServicesConfiguration
 
     protected virtual ContentManager GetDefaultContentManager(IServiceProvider provider)
     {
-        return provider.GetRequiredService<ContentManagerProvider>().Default;
+        return provider.GetRequiredService<IContentManagerProvider>().ContentManager;
     }
 
     public void ConfigureServices(IServiceCollection services)
@@ -60,7 +61,7 @@ public static class ServiceCollectionExtensions
     {
         builder.Services.AddWorld();
         builder.Services.AddStartup(GetServiceOrCreateInstance<VirtualFileSystemStartup>);
-        builder.Services.Expose<ContentManager, ContentManagerProvider>(provider => provider.Default)
+        builder.Services.Expose<ContentManager, IContentManagerProvider>(provider => provider.ContentManager)
                         .Expose<Resolution, GraphicsManager>(source => source.Resolution);
 
         return builder;

@@ -84,7 +84,7 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
         var content = provider.GetService<IContentManagerProvider>();
         if (content is not null)
         {
-            Content = content.Default;
+            Content = content.ContentManager;
         }
 
         _logger.LogTrace("Game created: {Game}", this);
