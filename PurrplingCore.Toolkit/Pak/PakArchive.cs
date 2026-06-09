@@ -16,8 +16,9 @@ public class PakArchive : IDisposable
 {
     public const int MAGIC = 0x54414350; // PCAT in little-endian
     public const int SUPPORTED_VERSION = 0x00_01_00; // Minor.Major.Patch (0.1.0)
+    public const byte HEADER_SIZE = 64;
 
-    private readonly FileStream _stream;
+    private readonly Stream _stream;
     private readonly Dictionary<ulong, PakEntry> _entries = [];
     private readonly byte[] _encryptionKey;
     private bool _disposed;
@@ -27,8 +28,15 @@ public class PakArchive : IDisposable
     public DateTime PackedDate { get; private set; }
     public bool Encrypted { get; private set; }
 
-    public PakArchive(FileStream stream, byte[]? encryptionKey = null)
+    public PakArchive(Stream stream, byte[]? encryptionKey = null)
     {
+        if (!stream.CanRead) 
+            throw new ArgumentException("Cannot read from passed stream!", nameof(stream));
+        if (!stream.CanSeek) 
+            throw new ArgumentException("Passed stream is not seekable!", nameof(stream));
+        if (stream.Length <= HEADER_SIZE)
+            throw new ArgumentException("Stream is empty or corrupted!");
+
         _stream = stream;
         _encryptionKey = encryptionKey ?? [];
         ReadMetadata();

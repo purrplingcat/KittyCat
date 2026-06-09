@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PurrplingCore.Ecs.Diagnostics;
 using PurrplingCore.Ecs.Extensions;
-using PurrplingCore.Toolkit.Extensions;
 using System.Diagnostics.CodeAnalysis;
 
 namespace PurrplingCore.Ecs;
@@ -289,7 +288,7 @@ public class SystemRegistry
         return _groups.TryGetValue(key, out systemSet);
     }
 
-    public SortedSystemSet GetOrCreate<TGroup>() where TGroup : SystemGroup
+    public SortedSystemSet GetOrCreateGroup<TGroup>() where TGroup : SystemGroup
         => GetOrCreate(typeof(TGroup));
 
     public static SystemRegistry Create(IEnumerable<SystemMetadata> systems)
@@ -315,7 +314,7 @@ public static class SystemRegistryExtensions
     /// <summary>
     /// Registers a system of type <typeparamref name="TSystem"/> in the appropriate system group based on its metadata.
     /// </summary>
-    public static SystemRegistry Add<TSystem>(this SystemRegistry registry) where TSystem : BaseSystem
+    public static SystemRegistry Register<TSystem>(this SystemRegistry registry) where TSystem : BaseSystem
     {
         var metadata = SystemMetadata.For<TSystem>();
         var entry = new SortedSystemSet.SystemEntry(metadata.SystemType, metadata.Order) 

@@ -19,7 +19,7 @@ public class VirtualFileSystemStartup : IStartupService
     private readonly IVirtualFileSystemManager _vfs;
     private readonly ILogger _logger;
 
-    public int Order => -1;
+    public int Order => -100;
 
     protected IFileSystem Top => _vfs.GetFileSystem();
 
@@ -75,7 +75,6 @@ public class VirtualFileSystemStartup : IStartupService
             {
                 case ".pak":
                     var pakFs = new PakFileSystem(path);
-                    pakFs.EnumeratePaths(UPath.Root);
                     aggregateFs.AddFileSystem(pakFs);
                     break;
                 case ".zip":
@@ -84,6 +83,7 @@ public class VirtualFileSystemStartup : IStartupService
                 default:
                     continue;
             }
+            _logger.LogDebug("Mount: {Path}", Path.GetRelativePath(_env.BaseDirectory, path));
         }
     }
 }

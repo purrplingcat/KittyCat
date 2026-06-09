@@ -3,14 +3,14 @@ using System.Text;
 
 namespace PurrplingCore.Toolkit.Pak;
 
-public class PakPacker()
+public class PakArchivePacker()
 {
     private readonly List<PendingFile> _files = [];
     private readonly byte[]? _encryptionKey;
 
     public CompressionMethod Compression { get; set; } = CompressionMethod.None;
 
-    public PakPacker(byte[] encryptionKey) : this()
+    public PakArchivePacker(byte[] encryptionKey) : this()
     {
         _encryptionKey = encryptionKey;
     }
@@ -36,7 +36,7 @@ public class PakPacker()
         byte[] keySignature = _encryptionKey != null 
             ? PakHelper.GetKeySignature(_encryptionKey!) 
             : new byte[32];
-        
+
         // Header structure (18 bytes + variable length mount point)
         writer.Write(PakArchive.MAGIC); // 4 bytes
         writer.Write(PakArchive.SUPPORTED_VERSION); // 4 bytes
@@ -44,7 +44,7 @@ public class PakPacker()
         writer.Write(DateTime.UtcNow.ToBinary()); // Packed date (8 bytes)
         writer.Write(_encryptionKey != null); // Encrypted flag (1 byte)
         writer.Write(keySignature); // 32 bytes (key signature or zeros)
-        writer.Write(stackalloc byte[14]); // Padding (Header 64 bytes total)
+        writer.Write(stackalloc byte[14]); // 14 bytes padding (Header 64 bytes total)
         writer.Flush();
     }
 

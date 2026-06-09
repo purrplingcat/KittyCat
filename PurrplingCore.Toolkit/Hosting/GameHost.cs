@@ -102,6 +102,7 @@ public sealed class GameHost : IDisposable
         if (_disposed) return;
 
         _disposed = true;
+        DisposeGameServices();
         DisposeProvider(_gameServiceProvider);
         DisposeProvider(_hostServiceProvider);
     }
@@ -111,6 +112,16 @@ public sealed class GameHost : IDisposable
         if (provider is IDisposable disposable)
         {
             disposable.Dispose();
+        }
+    }
+
+    private void DisposeGameServices()
+    {
+        if (_gameServiceProvider == null) return;
+
+        foreach (var disposableService in _gameServiceProvider.GetServices<IDisposable>())
+        {
+            disposableService.Dispose();
         }
     }
 

@@ -21,7 +21,7 @@ public enum WorldFlags
 public readonly struct WorldSignature : IEquatable<WorldSignature>
 {
     public static WorldSignature Default { get; } = For<DefaultWorld>();
-    public static WorldSignature None { get; }
+    public static WorldSignature None { get; } = default;
 
     private static class Cache<T> where T : IWorldMarker
     {

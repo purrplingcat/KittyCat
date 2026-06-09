@@ -1,5 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace PurrplingCore.Toolkit.Graphics;
 public class Canvas
@@ -7,11 +8,11 @@ public class Canvas
     private readonly GraphicsDevice _graphics;
     private readonly Resolution _resolution;
     private readonly float _pixelZoom;
-    private RenderTarget2D? _renderTarget;
+    private RenderTarget2D _renderTarget;
     private Rectangle _bounds;
 
     public GraphicsDevice GraphicsDevice => _graphics;
-    public RenderTarget2D RenderTarget => _renderTarget ?? throw new InvalidOperationException("RenderTarget is not set");
+    public RenderTarget2D RenderTarget => _renderTarget;
     public Rectangle Bounds => _bounds;
 
     public Canvas(GraphicsDevice graphics, Resolution resolution, float pixelZoom = 1f)
@@ -25,6 +26,8 @@ public class Canvas
 
     public Snapshot CreateSnapshot() => new(this);
 
+
+    [MemberNotNull(nameof(_renderTarget))]
     private void OnResolutionChanged()
     {
         var screenSize = _graphics.PresentationParameters.Bounds;

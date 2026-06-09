@@ -141,6 +141,12 @@ public static partial class ServiceExtensions
         return provider.GetGameServices()
                        .GetRequiredService<T>();
     }
+
+    public static IServiceCollection AddDisposable(this IServiceCollection services, IDisposable disposable)
+    {
+        services.TryAddEnumerable(ServiceDescriptor.Singleton(disposable));
+        return services;
+    }
 }
 
 public static partial class ServiceExtensions

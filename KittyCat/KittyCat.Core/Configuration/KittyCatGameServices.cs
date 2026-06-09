@@ -36,8 +36,8 @@ public class KittyCatGameServices : IServicesConfiguration
         // Register world and their systems
         static void ConfigureSystems(IWorldBuilder builder)
         {
-            builder.Registry.Add<PhysicsSystem>();
-            builder.Registry.GetOrCreate<UpdateSystemGroup>()
+            builder.Registry.Register<PhysicsSystem>();
+            builder.Registry.GetOrCreateGroup<UpdateSystemGroup>()
                  .Add<TestGroup>()
                  .Add<PhysicsCleanupSystem>(SystemOrder.Last);
         }

@@ -79,7 +79,7 @@ public class World : IWorld, IDisposable
         }
 
         throw new InvalidOperationException(
-            $"World topology is locked. Cannot {actionName} system '{systemName}' after the World has been initialized."
+            $"Cannot {actionName} system '{systemName}': World has been initialized."
         );
     }
 

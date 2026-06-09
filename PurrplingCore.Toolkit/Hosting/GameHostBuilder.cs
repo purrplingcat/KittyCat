@@ -14,7 +14,6 @@ namespace PurrplingCore.Toolkit.Hosting;
 
 public class GameHostBuilder : IGameHostBuilder
 {
-    private readonly List<Action<IServiceCollection, GameHostBuilderContext>> _serviceActions = [];
     private readonly string[] _args;
     
     private bool _hasGame;

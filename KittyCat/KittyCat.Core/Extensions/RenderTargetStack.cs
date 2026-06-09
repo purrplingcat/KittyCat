@@ -84,9 +84,9 @@ public static class RenderTargetStack
     }
 }
 
-public struct RenderTargetSession : IDisposable
+public ref struct RenderTargetSession
 {
-    private readonly RenderTargetBinding[] _restoreTargets;
+    private readonly ReadOnlySpan<RenderTargetBinding> _restoreTargets;
     private readonly GraphicsDevice _graphics;
     private bool closed;
 
@@ -97,16 +97,14 @@ public struct RenderTargetSession : IDisposable
         _graphics.SetRenderTarget(target);
     }
 
-    public void Close()
+    public void Dispose()
     {
         if (!closed)
         {
             closed = true;
-            _graphics.SetRenderTargets(_restoreTargets);
+            _graphics.SetRenderTargets(_restoreTargets.ToArray());
         }
     }
-
-    public void Dispose() => Close();
 
     public static RenderTargetSession Open(GraphicsDevice graphics, RenderTarget2D target)
     {

@@ -72,11 +72,27 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
+    public static IWorldServicesBuilder AddModule<TModule>(this IWorldServicesBuilder builder, TModule module)
+        where TModule : class, IWorldModule
+    {
+        if (module is IDisposable disposable)
+        {
+            builder.Services.AddDisposable(disposable);
+        }
+
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.KeyedSingleton<IWorldModule>(builder.Key, module)
+        );
+        
+        return builder;
+    }
+
     public static IWorldServicesBuilder AddModule<TModule>(this IWorldServicesBuilder builder)
         where TModule : class, IWorldModule
     {
-        // Tady je schovaný ten nehezký zápis
-        builder.Services.AddKeyedSingleton<IWorldModule, TModule>(builder.Key);
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.KeyedSingleton<IWorldModule, TModule>(builder.Key)
+        );
         return builder;
     }  
 
@@ -85,8 +101,11 @@ public static class ServiceCollectionExtensions
         Func<IServiceProvider, TModule> factory)
         where TModule : class, IWorldModule
     {
-        builder.Services.AddKeyedSingleton<IWorldModule, TModule>(
-            builder.Key, (provider, _) => factory(provider)
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.KeyedSingleton<IWorldModule, TModule>(
+                serviceKey: builder.Key,
+                implementationFactory: (provider, _) => factory(provider)
+             )
         );
 
         return builder;

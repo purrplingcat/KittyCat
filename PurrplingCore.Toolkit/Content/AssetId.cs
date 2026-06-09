@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework.Content;
 using PurrplingCore.Toolkit.Attributes;
+using PurrplingCore.Toolkit.Graphics;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -560,7 +561,7 @@ public static class AssetHelper
             return path.FullName;
         }
 
-        return descriptor.PhysicalPath;
+        return UPath.Combine(descriptor.PackageName, descriptor.PhysicalPath).FullName;
     }
 
     public static AssetBank<T> CreateBank<T>(this AssetManager assetmanager) where T : class

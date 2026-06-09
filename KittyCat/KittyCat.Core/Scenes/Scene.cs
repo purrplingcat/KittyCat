@@ -112,11 +112,9 @@ public abstract class Scene : IDisposable
     {
         if (_initialized)
         {
-            using (GraphicsDevice.UseCanvas(_canvas))
-            {
-                GraphicsDevice.Clear(clearColor);
-                Draw(time);
-            }
+            using var _ = _canvas.Open();
+            GraphicsDevice.Clear(clearColor);
+            Draw(time);
         }
 
         return _canvas;
