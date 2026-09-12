@@ -77,8 +77,17 @@ public class PakArchivePacker()
 
     public void Pack(string outputPath)
     {
+        string outDir = Path.GetDirectoryName(outputPath) ?? outputPath;
+        if (!Directory.Exists(outDir))
+            Directory.CreateDirectory(outDir);
+
         using var fs = new FileStream(outputPath, FileMode.Create, FileAccess.Write);
         Pack(fs);
+    }
+
+    public void Clear()
+    {
+        _files.Clear();
     }
 
     private void WriteToc(BinaryWriter writer, TocEntry[] toc)
@@ -193,7 +202,7 @@ public class PakArchivePacker()
         return path.Replace('\\', '/').TrimStart('/');
     }
 
-    public void AddDirectory(string physicalDir, string virtualPrefix = "")
+    public void AddDirectory(string physicalDir, string virtualPath = "")
     {
         if (!Directory.Exists(physicalDir))
             throw new DirectoryNotFoundException($"Directory not found: {physicalDir}");
@@ -201,7 +210,7 @@ public class PakArchivePacker()
         foreach (string file in Directory.GetFiles(physicalDir, "*", SearchOption.AllDirectories))
         {
             string relative = Path.GetRelativePath(physicalDir, file).Replace('\\', '/');
-            string vPath = string.IsNullOrEmpty(virtualPrefix) ? relative : $"{virtualPrefix}/{relative}";
+            string vPath = string.IsNullOrEmpty(virtualPath) ? relative : $"{virtualPath}/{relative}";
 
             AddFile(file, vPath);
         }

@@ -22,6 +22,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.editorconfig = .editorconfig
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KittyCat.Content", "KittyCat\KittyCat.Content\KittyCat.Content.csproj", "{68A3020C-7873-44BC-BA4E-8C8333C204E2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -60,6 +62,10 @@ Global
 		{20BE5385-5BDD-4BE1-8C4C-61B237F67248}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{20BE5385-5BDD-4BE1-8C4C-61B237F67248}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{20BE5385-5BDD-4BE1-8C4C-61B237F67248}.Release|Any CPU.Build.0 = Release|Any CPU
+		{68A3020C-7873-44BC-BA4E-8C8333C204E2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{68A3020C-7873-44BC-BA4E-8C8333C204E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{68A3020C-7873-44BC-BA4E-8C8333C204E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{68A3020C-7873-44BC-BA4E-8C8333C204E2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
