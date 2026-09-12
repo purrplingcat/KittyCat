@@ -9,13 +9,13 @@ public sealed class GameHostCrashLoggerOptions
     /// Gets or sets the file name used for a captured exception.
     /// Relative names are written to the application's base directory.
     /// </summary>
-    public string LogFileName { get; init; } = GameHostCrashLogger.DefaultLogFileName;
+    public string LogFileName { get; init; } = GameCrashLogger.DefaultLogFileName;
 }
 
 /// <summary>
 /// Installs process-wide logging for unhandled application and task exceptions.
 /// </summary>
-public static class GameHostCrashLogger
+public static class GameCrashLogger
 {
     public const string DefaultLogFileName = "crash.log";
 

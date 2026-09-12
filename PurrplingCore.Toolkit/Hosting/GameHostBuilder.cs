@@ -51,10 +51,10 @@ public class GameHostBuilder : IGameHostBuilder
         _config.AddCommandLine(_args);
         _env.EnvironmentName = _config[HostDefaults.EnvironmentKey] ?? _env.EnvironmentName;
 
-        if (_env.IsProduction() && !GameHostCrashLogger.IsRegistered)
+        if (_env.IsProduction() && !GameCrashLogger.IsRegistered)
         {
             // Fallback when the entry point did not register the process-wide crash logger.
-            GameHostCrashLogger.Register(_env);
+            GameCrashLogger.Register(_env);
         }
 
         if (_env.IsDevelopment())

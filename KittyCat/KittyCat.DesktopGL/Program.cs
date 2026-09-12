@@ -7,7 +7,7 @@ using System;
 using System.IO;
 using System.Text;
 
-GameHostCrashLogger.Register();
+GameCrashLogger.Register();
 
 #if DEBUG
 Console.OutputEncoding = Encoding.UTF8;
