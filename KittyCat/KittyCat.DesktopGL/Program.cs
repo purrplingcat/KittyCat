@@ -7,7 +7,11 @@ using System;
 using System.IO;
 using System.Text;
 
+GameHostCrashLogger.Register();
+
+#if DEBUG
 Console.OutputEncoding = Encoding.UTF8;
+#endif
 
 var builder = GameHost.CreateBuilder(args);
 

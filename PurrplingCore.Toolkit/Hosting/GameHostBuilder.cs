@@ -51,6 +51,12 @@ public class GameHostBuilder : IGameHostBuilder
         _config.AddCommandLine(_args);
         _env.EnvironmentName = _config[HostDefaults.EnvironmentKey] ?? _env.EnvironmentName;
 
+        if (_env.IsProduction() && !GameHostCrashLogger.IsRegistered)
+        {
+            // Fallback when the entry point did not register the process-wide crash logger.
+            GameHostCrashLogger.Register(_env);
+        }
+
         if (_env.IsDevelopment())
         {
             var opts = new ServiceProviderOptions()
@@ -107,22 +113,22 @@ public class GameHostBuilder : IGameHostBuilder
     /// <returns>The <see cref="GameHost"/> instance</returns>
     public GameHost Build()
     {
-        if (_hostBuilt)
+            if (_hostBuilt)
         {
-            throw new InvalidOperationException("GameHostBuilder can only build once");
-        }
-        _hostBuilt = true;
+                throw new InvalidOperationException("GameHostBuilder can only build once");
+            }
+            _hostBuilt = true;
 
-        if (!_hasGame) 
-            GameHostBuildException.ThrowNoGameAddedException();
+            if (!_hasGame)
+                GameHostBuildException.ThrowNoGameAddedException();
 
-        AddComonServices(_services);
-        _services.MakeReadOnly();
+            AddComonServices(_services);
+            _services.MakeReadOnly();
 
-        var gameServices = _services.Clone();
-        var provider = _serviceProviderFactory.CreateServiceProvider(_services);
+            var gameServices = _services.Clone();
+            var provider = _serviceProviderFactory.CreateServiceProvider(_services);
 
-        return ResolveHost(provider, gameServices);
+            return ResolveHost(provider, gameServices);
     }
 
     private static GameHost ResolveHost(IServiceProvider provider, IServiceCollection gameServices)
