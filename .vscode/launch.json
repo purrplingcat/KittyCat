@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "KittyCat DesktopGL (Debug)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build KittyCat DesktopGL (Debug)",
+      "program": "${workspaceFolder}/KittyCat/KittyCat.DesktopGL/bin/Debug/net8.0/KittyCat.dll",
+      "cwd": "${workspaceFolder}/KittyCat/KittyCat.DesktopGL",
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    },
+    {
+      "name": "KittyCat DesktopGL (Release)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build KittyCat DesktopGL (Release)",
+      "program": "${workspaceFolder}/KittyCat/KittyCat.DesktopGL/bin/Release/net8.0/KittyCat.dll",
+      "cwd": "${workspaceFolder}/KittyCat/KittyCat.DesktopGL",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    }
+  ]
+}
