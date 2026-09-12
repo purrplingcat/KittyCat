@@ -22,7 +22,7 @@ namespace PurrplingCore.Ecs;
 public interface IWorldModule
 {
     int Order { get; }
-    public void Setup(IWorldBuilder builder);
+    public void Setup(IWorldBlueprint builder);
 }
 
 public enum SystemOrder
@@ -50,7 +50,7 @@ public class SortedSystemSet()
     public SortedSystemSet Add(SystemEntry entry)
     {
         if (!_types.Add(entry.Type)) 
-            throw new InvalidOperationException($"System {entry.Type} is already added");
+            return this; // System type already exists, skip adding
 
         switch (entry.Order)
         {
@@ -186,10 +186,20 @@ public readonly record struct SystemMetadata
             SystemType = type,
             GroupType = groupAttr?.GroupType ?? typeof(UpdateSystemGroup),
             Order = groupAttr?.Order ?? SystemOrder.Default,
+            Flags = groupAttr?.Flags ?? WorldFlags.None,
             RunBefore = [.. type.GetCustomAttributes<RunBeforeAttribute>().Select(a => a.TargetType)],
             RunAfter = [.. type.GetCustomAttributes<RunAfterAttribute>().Select(a => a.TargetType)],
             TargetWorlds = [.. type.GetCustomAttributes<TargetWorldAttribute>().Select(a => a.WorldMarkerType)],
-            Flags = WorldFlags.None
+        };
+    }
+
+    public SortedSystemSet.SystemEntry ToSystemEntry()
+    {
+        return new SortedSystemSet.SystemEntry(SystemType, Order)
+        {
+            RunBefore = [.. RunBefore],
+            RunAfter = [.. RunAfter],
+            Flags = Flags
         };
     }
 

@@ -16,11 +16,11 @@ public static class ServiceCollectionExtensions
         public object Key => Signature.MarkerType;
     }
 
-    private sealed class DelegadeWorldModule(int order, Action<IWorldBuilder> setupAction) : IWorldModule
+    private sealed class DelegadeWorldModule(int order, Action<IWorldBlueprint> setupAction) : IWorldModule
     {
         public int Order { get; } = order;
 
-        public void Setup(IWorldBuilder builder)
+        public void Setup(IWorldBlueprint builder)
         {
             setupAction(builder);
         }
@@ -111,7 +111,7 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
-    public static IWorldServicesBuilder AddModule(this IWorldServicesBuilder builder, Action<IWorldBuilder> setupAction, int order = 0)
+    public static IWorldServicesBuilder AddModule(this IWorldServicesBuilder builder, Action<IWorldBlueprint> setupAction, int order = 0)
     {
         builder.Services.AddKeyedSingleton<IWorldModule>(builder.Key, new DelegadeWorldModule(order, setupAction));
         return builder;

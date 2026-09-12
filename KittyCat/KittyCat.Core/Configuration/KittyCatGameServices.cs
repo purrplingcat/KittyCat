@@ -34,7 +34,7 @@ public class KittyCatGameServices : IServicesConfiguration
     public void ConfigureServices(IServiceCollection services)
     {
         // Register world and their systems
-        static void ConfigureSystems(IWorldBuilder builder)
+        static void ConfigureSystems(IWorldBlueprint builder)
         {
             builder.Registry.Register<PhysicsSystem>();
             builder.Registry.GetOrCreateGroup<UpdateSystemGroup>()

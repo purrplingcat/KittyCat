@@ -1,11 +1,11 @@
 ﻿using Friflo.Engine.ECS;
 using Friflo.Engine.ECS.Systems;
-using PurrplingCore.Ecs.Systems;
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using PurrplingCore.Ecs.Extensions;
+using PurrplingCore.Ecs.Systems;
 using PurrplingCore.Toolkit.Attributes;
-using Friflo.Engine.ECS.Serialize;
+using System.Runtime.CompilerServices;
 
 namespace PurrplingCore.Ecs;
 
@@ -15,11 +15,11 @@ namespace PurrplingCore.Ecs;
 public class World : IWorld, IDisposable
 {
     private readonly EntityStore _store;
-    private readonly UpdateSystemGroup _updateSystems = [];
-    private readonly DrawSystemGroup _drawSystems = [];
-    private readonly InitializeSystemGroup _initializeSystems = [];
-    private readonly FixedUpdateSystemGroup _fixedUpdateSystems = [];
-    private readonly SystemRoot _systemRoot;
+    private InitializeSystemGroup _initializeSystems = null!;
+    private FixedUpdateSystemGroup _fixedUpdateSystems = null!;
+    private UpdateSystemGroup _updateSystems = null!;
+    private DrawSystemGroup _drawSystems = null!;
+    private readonly WorldSystemRoot _systemRoot;
     private readonly ILogger _logger;
     private UpdateTick _time;
     private bool _initialized;
@@ -43,7 +43,7 @@ public class World : IWorld, IDisposable
 
     public IReadOnlyCollection<BaseSystem> Systems => _systemRoot.ChildSystems;
 
-    public event EventHandler? Destroyed;
+    public event EventHandler? Disposed;
     public event EventHandler? Initialized;
     public event Action<IWorld, UpdateTick>? Updated;
     public event Action<IWorld, UpdateTick>? Drawn;
@@ -54,12 +54,7 @@ public class World : IWorld, IDisposable
     {
         _store = new EntityStore(pidType);
         _logger = logger ?? NullLogger<World>.Instance;
-        _systemRoot = new WorldSystemRoot(this) {
-            _initializeSystems,
-            _fixedUpdateSystems,
-            _updateSystems,
-            _drawSystems, 
-        };
+        _systemRoot = new WorldSystemRoot(this);
 
         Signature = signature;
         _systemRoot.OnSystemChanged += OnSystemRootChanged;
@@ -71,11 +66,11 @@ public class World : IWorld, IDisposable
         if (!_initialized) return;
 
         string systemName = changed.system.Name;
-        string actionName = changed.action.ToString().ToLower();
+        string actionName = changed.action.ToString().ToLowerInvariant();
 
         if (changed.field != null)
         {
-            actionName += $" field ${changed.field} in";
+            actionName += $" field {changed.field} in";
         }
 
         throw new InvalidOperationException(
@@ -95,12 +90,25 @@ public class World : IWorld, IDisposable
     {
         if (_initialized) return;
 
+        EnsureNotDisposed();
+        EnsureCoreGroups();
+
         OnInitialize();
         _initializeSystems.Update(new UpdateTick());
+
         _doFixedUpdate = _fixedUpdateSystems.ChildSystems.Count > 0;
         _fixedUpdateSystems.Enabled = _doFixedUpdate;
         _initialized = true;
         Initialized?.Invoke(this, EventArgs.Empty);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void EnsureCoreGroups()
+    {
+        _initializeSystems = _systemRoot.GetOrAddGroup<InitializeSystemGroup>();
+        _fixedUpdateSystems = _systemRoot.GetOrAddGroup<FixedUpdateSystemGroup>();
+        _updateSystems = _systemRoot.GetOrAddGroup<UpdateSystemGroup>();
+        _drawSystems = _systemRoot.GetOrAddGroup<DrawSystemGroup>();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -153,6 +161,23 @@ public class World : IWorld, IDisposable
         return _systemRoot.FindSystem<T>(recursive);
     }
 
+    internal void SetSystems(IEnumerable<BaseSystem> systems)
+    {
+        if (_initialized)
+        {
+            throw new InvalidOperationException(
+                "Cannot set systems after the World has been initialized. " +
+                "Call SetSystems() before calling Initialize()."
+            );
+        }
+
+        lock (_systemRoot)
+        {
+            _systemRoot.Clear();
+            _systemRoot.Add(systems);
+        }
+    }
+
     protected virtual void Dispose(bool disposing)
     {
         if (!_disposed)
@@ -165,8 +190,8 @@ public class World : IWorld, IDisposable
                 OnDispose();
             }
 
-            Destroyed?.Invoke(this, EventArgs.Empty);
-            Destroyed = null;
+            Disposed?.Invoke(this, EventArgs.Empty);
+            Disposed = null;
             _disposed = true;
         }
     }

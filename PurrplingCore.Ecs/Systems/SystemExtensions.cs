@@ -38,6 +38,15 @@ public static class SystemExtensions
         }
     }
 
+    public static void Clear(this SystemGroup root)
+    {
+        // Convert child systems to array for safe removal
+        foreach (var child in root.ChildSystems.ToArray())
+        {
+            root.Remove(child);
+        }
+    }
+
     public static void RemoveAllStores(this SystemRoot systemRoot)
     {
         ArgumentNullException.ThrowIfNull(systemRoot, nameof(systemRoot));

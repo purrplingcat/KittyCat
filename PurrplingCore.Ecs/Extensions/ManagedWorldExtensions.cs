@@ -6,22 +6,33 @@ namespace PurrplingCore.Ecs.Extensions;
 
 public static class WorldExtensions
 {
-    public static void AddTopLevelGroup(this World world, SystemGroup group)
+    public static void AddSystem(this World world, BaseSystem system)
     {
-        var groupType = group.GetType();
+        var type = system.GetType();
 
-        foreach (var sys in world.SystemRoot)
+        lock (world)
         {
-            if (ReferenceEquals(sys, group))
-                return;
-
-            if (sys.GetType() == groupType)
+            foreach (var sys in world.SystemRoot)
             {
-                throw new InvalidOperationException($"System of type {groupType.Name} already exists in the world.");
-            }
-        }
+                if (ReferenceEquals(sys, system))
+                    return;
 
-        world.SystemRoot.Add(group);
+                if (sys.GetType() == type)
+                {
+                    throw new InvalidOperationException($"System of type {type.Name} already exists in the world.");
+                }
+            }
+
+            world.SystemRoot.Add(system);
+        }
+    }
+
+    public static void SetSystems(this World world, IEnumerable<BaseSystem> systems)
+    {
+        lock (world)
+        {
+            world.SetSystems(systems);
+        }
     }
 
     public static T GetSystem<T>(this World world, bool recursive = true) where T : BaseSystem
@@ -34,24 +45,5 @@ public static class WorldExtensions
     {
         return world.FindGroup(name, recursive) 
             ?? throw new InvalidOperationException($"System group with name '{name}' not found in the world.");
-    }
-
-    public static UpdateSystemGroup GetUpdateGroup(this World world)
-    {
-        return GetSystem<UpdateSystemGroup>(world, recursive: false);
-    }
-
-    public static FixedUpdateSystemGroup GetFixedUpdateGroup(this World world)
-    {
-        return GetSystem<FixedUpdateSystemGroup>(world, recursive: false);
-    }
-    public static DrawSystemGroup GetDrawGroup(this World world)
-    {
-        return GetSystem<DrawSystemGroup>(world, recursive: false);
-    }
-
-    public static InitializeSystemGroup GetInitializeGroup(this World world)
-    {
-        return GetSystem<InitializeSystemGroup>(world, recursive: false);
     }
 }

@@ -27,7 +27,7 @@ public class WorldManager(IServiceProvider provider, IWorldFactory defaultFactor
     {
         lock (_lock)
         {
-            return _worlds.Where(w => w.Signature == tag);
+            return [.. _worlds.Where(w => w.Signature == tag)];
         }
     }
 
@@ -44,7 +44,7 @@ public class WorldManager(IServiceProvider provider, IWorldFactory defaultFactor
                 _worldsByName.Add(world.Name, world);
             }
             _worlds.Add(world);
-            world.Destroyed += OnWorldDisposed;
+            world.Disposed += OnWorldDisposed;
         }
     }
 
@@ -73,7 +73,6 @@ public class WorldManager(IServiceProvider provider, IWorldFactory defaultFactor
         {
             lock (_lock)
             {
-
                 _worlds.Remove(world);
                 if (!string.IsNullOrEmpty(world.Name))
                 {
@@ -85,15 +84,12 @@ public class WorldManager(IServiceProvider provider, IWorldFactory defaultFactor
 
     public bool DestroyWorld(string name)
     {
-        lock (_lock)
+        if (_worldsByName.TryGetValue(name, out var world))
         {
-            if (_worldsByName.TryGetValue(name, out var world))
-            {
-                world.Dispose();
-                return true;
-            }
-
-            return false;
+            world.Dispose();
+            return true;
         }
+
+        return false;
     }
 }

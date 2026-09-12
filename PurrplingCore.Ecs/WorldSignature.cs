@@ -90,7 +90,7 @@ public readonly struct WorldSignature : IEquatable<WorldSignature>
             && ReferenceEquals(MarkerType, other.MarkerType);
     }
 
-    public override int GetHashCode() => MarkerType?.GetHashCode() ?? 0;
+    public override int GetHashCode() => HashCode.Combine(MarkerType, Flags);
     public override string ToString() => Name;
 
     public static bool operator ==(WorldSignature? left, WorldSignature? right) => Equals(left, right);

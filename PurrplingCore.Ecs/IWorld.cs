@@ -9,7 +9,7 @@ public interface IWorld
     EntityStore Store { get; }
     IReadOnlyCollection<BaseSystem> Systems { get; }
 
-    public event EventHandler Destroyed;
+    public event EventHandler Disposed;
     public event EventHandler Initialized;
     public event Action<IWorld, UpdateTick> Updated;
     public event Action<IWorld, UpdateTick> Drawn;

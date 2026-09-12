@@ -7,6 +7,23 @@ namespace PurrplingCore.Ecs.Systems;
 public class WorldSystemRoot(World world) : SystemRoot(world.Store)
 {
     public World World => world;
+
+    internal T GetOrAddGroup<T>()
+        where T : SystemGroup, new()
+    {
+        foreach (var system in ChildSystems)
+        {
+            if (system is T group)
+            {
+                return group;
+            }
+        }
+
+        var newGroup = new T();
+        Add(newGroup);
+
+        return newGroup;
+    }
 }
 
 [TopLevelGroup]

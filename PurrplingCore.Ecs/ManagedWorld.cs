@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Runtime.CompilerServices;
-using static System.Formats.Asn1.AsnWriter;
 
 namespace PurrplingCore.Ecs;
 
@@ -14,8 +13,8 @@ public class ManagedWorld : World
 
     public IServiceProvider Services => _scope.ServiceProvider;
 
-    protected ManagedWorld(IServiceScope scope, ILogger? logger, string? name = null, WorldSignature? type = null) 
-        : base(PidType.RandomPids, type ?? WorldSignature.Default, logger)
+    protected ManagedWorld(IServiceScope scope, ILogger? logger, string? name = null, WorldSignature? signature = null)
+        : base(PidType.RandomPids, signature ?? WorldSignature.Default, logger)
     {
         ArgumentNullException.ThrowIfNull(scope);
 
@@ -25,27 +24,29 @@ public class ManagedWorld : World
 
     protected override void Dispose(bool disposing)
     {
-        if (!_disposed)
+        try
         {
-            if (disposing)
+            base.Dispose(disposing);
+        }
+        finally
+        {
+            if (disposing && !_disposed)
             {
+                _disposed = true;
                 _scope.Dispose();
             }
-
-            base.Dispose(disposing);
-            _disposed = true;
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ManagedWorld Create(IServiceScopeFactory scopeFactory, string? name = null, WorldSignature? tag = null)
+    public static ManagedWorld Create(IServiceScopeFactory scopeFactory, string? name = null, WorldSignature? signature = null)
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
 
         var scope = scopeFactory.CreateScope();
         var logger = scope.ServiceProvider.GetService<ILogger<ManagedWorld>>()
                      ?? NullLogger<ManagedWorld>.Instance;
-        var world = new ManagedWorld(scope, logger, name, tag);
+        var world = new ManagedWorld(scope, logger, name, signature);
 
         var context = scope.ServiceProvider.GetService<IWorldContext>();
         if (context is WorldContext worldContext)

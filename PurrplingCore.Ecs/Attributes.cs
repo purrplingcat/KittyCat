@@ -10,6 +10,7 @@ public class SystemAttribute(Type groupType) : Attribute
 
     public Type GroupType { get; } = groupType;
     public SystemOrder Order { get; set; } = SystemOrder.Default;
+    public WorldFlags Flags { get; set; } = WorldFlags.None;
 }
 
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
