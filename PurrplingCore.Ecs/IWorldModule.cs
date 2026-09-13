@@ -1,28 +1,15 @@
-﻿using Friflo.Engine.ECS;
-using Friflo.Engine.ECS.Systems;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
+﻿using Friflo.Engine.ECS.Systems;
 using PurrplingCore.Ecs.Attributes;
-using PurrplingCore.Ecs.Extensions;
 using PurrplingCore.Ecs.Systems;
-using PurrplingCore.Ecs.Systems.Builder;
-using PurrplingCore.Toolkit.DI;
-using PurrplingCore.Toolkit.Metadata;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
-using static PurrplingCore.Ecs.SortedSystemSet;
 
 namespace PurrplingCore.Ecs;
 
 public interface IWorldModule
 {
     int Order { get; }
-    public void Setup(IWorldBlueprint builder);
+    public void Setup(IWorldBlueprint world);
 }
 
 public enum SystemOrder
@@ -169,13 +156,24 @@ public readonly record struct SystemMetadata
 {
     private static readonly ConcurrentDictionary<Type, SystemMetadata> _metadataCache = new();
 
-    public Type SystemType { get; init; }
-    public Type GroupType { get; init; }
-    public Type[] RunBefore { get; init; }
-    public Type[] RunAfter { get; init; }
-    public Type[] TargetWorlds { get; init; }
+    public required Type SystemType { get; init; }
+    public required Type GroupType { get; init; }
+    public Type[] RunBefore { get; init; } = [];
+    public Type[] RunAfter { get; init; } = [];
+    public Type[] TargetWorlds { get; init; } = [];
     public WorldFlags Flags { get; init; }
     public SystemOrder Order { get; init; }
+
+    public SystemMetadata(Type systemType)
+    {
+        SystemType = systemType;
+        GroupType = typeof(UpdateSystemGroup);
+        RunBefore = [];
+        RunAfter = [];
+        TargetWorlds = [];
+        Flags = WorldFlags.None;
+        Order = SystemOrder.Default;
+    }
 
     private static SystemMetadata Create(Type type)
     {

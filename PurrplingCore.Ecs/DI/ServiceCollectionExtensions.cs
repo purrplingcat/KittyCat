@@ -16,7 +16,7 @@ public static class ServiceCollectionExtensions
         public object Key => Signature.MarkerType;
     }
 
-    private sealed class DelegadeWorldModule(int order, Action<IWorldBlueprint> setupAction) : IWorldModule
+    private sealed class DelegateWorldModule(int order, Action<IWorldBlueprint> setupAction) : IWorldModule
     {
         public int Order { get; } = order;
 
@@ -62,6 +62,11 @@ public static class ServiceCollectionExtensions
         services.TryAddKeyedSingleton<IWorldFactory, DefaultWorldFactory>(signature.MarkerType);
 
         return new WorldServicesBuilder(services, signature);
+    }
+
+    public static IWorldServicesBuilder AddWorld(this IServiceCollection services, Action<IWorldBlueprint> setupAction)
+    {
+        return services.AddWorld().Configure(setupAction);
     }
 
     public static IWorldServicesBuilder UseFactory<TFactory>(this IWorldServicesBuilder builder)
@@ -111,9 +116,9 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
-    public static IWorldServicesBuilder AddModule(this IWorldServicesBuilder builder, Action<IWorldBlueprint> setupAction, int order = 0)
+    public static IWorldServicesBuilder Configure(this IWorldServicesBuilder builder, Action<IWorldBlueprint> setupAction, int order = 0)
     {
-        builder.Services.AddKeyedSingleton<IWorldModule>(builder.Key, new DelegadeWorldModule(order, setupAction));
+        builder.Services.AddKeyedSingleton<IWorldModule>(builder.Key, new DelegateWorldModule(order, setupAction));
         return builder;
     }
 

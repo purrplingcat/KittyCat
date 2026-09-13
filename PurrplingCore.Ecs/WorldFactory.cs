@@ -5,7 +5,7 @@ using PurrplingCore.Ecs.Diagnostics;
 using PurrplingCore.Ecs.Extensions;
 using PurrplingCore.Ecs.Systems;
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
+using System.Reflection;
 
 namespace PurrplingCore.Ecs;
 
@@ -55,12 +55,14 @@ public sealed class DefaultWorldFactory(IServiceScopeFactory scopeFactory) : IWo
 
         try
         {
-            var composer = new WorldComposer(world, world.Services);
+            var blueprint = new WorldBlueprint();
             var modules = world.Services.GetKeyedServices<IWorldModule>(signature.MarkerType);
 
-            ApplyDefaultModule(composer);
-            composer.ApplyModules(modules);
-            composer.Compose();
+            ConfigureDefaults(blueprint);
+            ApplyModules(blueprint, modules);
+
+            blueprint.CreateComposer(world, world.Services)
+                     .Compose();
 
             return world;
         }
@@ -71,15 +73,22 @@ public sealed class DefaultWorldFactory(IServiceScopeFactory scopeFactory) : IWo
         }
     }
 
-    private void ApplyDefaultModule(IWorldBlueprint composer)
+    private void ConfigureDefaults(IWorldBlueprint blueprint)
     {
-        composer.OnPreBuild(context =>
+        blueprint.Systems
+            .AddRoot<InitializeSystemGroup>()
+            .AddRoot<FixedUpdateSystemGroup>()
+            .AddRoot<UpdateSystemGroup>()
+            .AddRoot<DrawSystemGroup>();
+    }
+
+    private static void ApplyModules(IWorldBlueprint blueprint, IEnumerable<IWorldModule> modules)
+    {
+        foreach (var module in modules.OrderBy(module => module.Order))
         {
-            context.Registry.AddRoot<InitializeSystemGroup>();
-            context.Registry.AddRoot<FixedUpdateSystemGroup>();
-            context.Registry.AddRoot<UpdateSystemGroup>();
-            context.Registry.AddRoot<DrawSystemGroup>();
-        });
+            ArgumentNullException.ThrowIfNull(module);
+            module.Setup(blueprint);
+        }
     }
 }
 
@@ -101,165 +110,6 @@ internal sealed class WorldFactory(IServiceProvider services, ILogger<WorldFacto
         );
 
         return world;
-    }
-}
-
-public sealed record PreBuildContext(SystemRegistry Registry, IServiceProvider Services);
-public sealed record InitializeContext(World World, IServiceProvider Services);
-public sealed record TearDownContext(World World, IServiceProvider Services);
-public sealed record PostBuildContext(World World, SystemProvider SystemProvider, IServiceProvider Services);
-
-public interface IWorldBlueprint
-{
-    SystemRegistry Registry { get; }
-    WorldSignature Signature { get; }
-    IServiceProvider Services { get; }
-
-    void OnPreBuild(Action<PreBuildContext> configure);
-    void OnPostBuild(Action<PostBuildContext> configure);
-    void OnInitialize(Action<InitializeContext> configure);
-    void OnTearDown(Action<TearDownContext> configure);
-}
-
-public sealed class WorldComposer : IWorldBlueprint
-{
-    private readonly World _world;
-    private readonly IServiceProvider _services;
-    private bool _composed;
-
-    private readonly List<Action<PreBuildContext>> _preBuildActions = [];
-    private readonly List<Action<PostBuildContext>> _postBuildActions = [];
-    private readonly List<Action<InitializeContext>> _initActions = [];
-    private readonly List<Action<TearDownContext>> _tearDownActions = [];
-
-    public SystemRegistry Registry { get; } = new();
-    public WorldSignature Signature => _world.Signature;
-    public IServiceProvider Services => _services;
-
-    public WorldComposer(World world, IServiceProvider services)
-    {
-        ArgumentNullException.ThrowIfNull(world, nameof(world));
-        ArgumentNullException.ThrowIfNull(services, nameof(services));
-        _world = world;
-        _services = services;
-    }
-
-    public void ApplyModules(IEnumerable<IWorldModule> modules)
-    {
-        foreach (var module in modules.OrderBy(m => m.Order))
-        {
-            ApplyModule(module);
-        }
-    }
-
-    public void ApplyModule(IWorldModule module)
-    {
-        ArgumentNullException.ThrowIfNull(module);
-
-        EnsureNotComposed();
-        module.Setup(this);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void EnsureNotComposed()
-    {
-        if (_composed)
-        {
-            throw new InvalidOperationException(
-                "Cannot modify a WorldComposer after it has composed the World."
-            );
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void ExecuteHooks<TContext>(List<Action<TContext>> actions, TContext context)
-    {
-        for (int i = 0; i < actions.Count; i++)
-        {
-            Action<TContext>? action = actions[i];
-            action(context);
-        }
-    }
-
-    private void AttachLifecycleHooks()
-    {
-        var initActions = _initActions.ToArray();
-        var tearDownActions = _tearDownActions.ToArray();
-        var services = _services;
-
-        if (initActions.Length > 0)
-        {
-            _world.Initialized += (_, _) =>
-            {
-                var context = new InitializeContext(_world, services);
-                foreach (var action in initActions) action(context);
-            };
-        }
-
-        if (tearDownActions.Length > 0)
-        {
-            _world.Disposed += (_, _) =>
-            {
-                var context = new TearDownContext(_world, services);
-                foreach (var action in tearDownActions) action(context);
-            };
-        }
-    }
-
-    private BaseSystem ResolveSystem(Type type)
-    {
-        if (_services is IKeyedServiceProvider keyedProvider)
-        {
-            if (keyedProvider.GetKeyedService(type, Signature.MarkerType) is BaseSystem keyedSystem)
-            {
-                return keyedSystem;
-            }
-        }
-    
-        return (BaseSystem)ActivatorUtilities.GetServiceOrCreateInstance(_services, type);
-    }
-
-    public void Compose()
-    {
-        if (_composed)
-        {
-            throw new InvalidOperationException("WorldComposer.Compose() can only be called once.");
-        }
-
-        _composed = true;
-        var provider = new SystemProvider(Registry, ResolveSystem, Signature);
-
-        // OnPreBuild hooks are executed before the system graph is built
-        ExecuteHooks(_preBuildActions, new PreBuildContext(Registry, _services));
-
-        // Populate the system graph
-        provider.Populate(_world.SystemRoot, typeof(SystemRoot));
-
-        // Attach lifecycle hooks
-        AttachLifecycleHooks();
-
-        // OnPostBuild hooks are executed after the system graph is built
-        ExecuteHooks(_postBuildActions, new PostBuildContext(_world, provider, _services));
-    }
-
-    public void OnPreBuild(Action<PreBuildContext> configure)
-    {
-        _preBuildActions.Add(configure);
-    }
-
-    public void OnPostBuild(Action<PostBuildContext> configure)
-    {
-        _postBuildActions.Add(configure);
-    }
-
-    public void OnInitialize(Action<InitializeContext> configure)
-    {
-        _initActions.Add(configure);
-    }
-
-    public void OnTearDown(Action<TearDownContext> configure)
-    {
-        _tearDownActions.Add(configure);
     }
 }
 
@@ -336,9 +186,6 @@ public class SystemRegistry
         return _groups.TryGetValue(key, out systemSet);
     }
 
-    public SortedSystemSet GetOrCreateGroup<TGroup>() where TGroup : SystemGroup
-        => GetOrCreate(typeof(TGroup));
-
     public static SystemRegistry Create(IEnumerable<SystemMetadata> systems)
     {
         var registry = new SystemRegistry();
@@ -362,9 +209,40 @@ public class SystemRegistry
 public static class SystemRegistryExtensions
 {
     /// <summary>
+    /// Adds all concrete systems from an assembly using their declared system metadata.
+    /// </summary>
+    public static SystemRegistry AddFromAssembly(this SystemRegistry systems, Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(systems);
+        ArgumentNullException.ThrowIfNull(assembly);
+
+        foreach (var typeInfo in assembly.DefinedTypes)
+        {
+            if (typeInfo.IsAbstract || typeInfo.ContainsGenericParameters || !typeof(BaseSystem).IsAssignableFrom(typeInfo))
+            {
+                continue;
+            }
+
+            systems.Register(typeInfo.AsType());
+        }
+
+        return systems;
+    }
+
+    /// <summary>
+    /// Gets the manual composition set for a Friflo system group.
+    /// Systems added to the returned set are placed directly in that group.
+    /// </summary>
+    public static SortedSystemSet In<TGroup>(this SystemRegistry systems) where TGroup : SystemGroup
+    {
+        ArgumentNullException.ThrowIfNull(systems);
+        return systems.GetOrCreate(typeof(TGroup));
+    }
+
+    /// <summary>
     /// Registers a system of type <typeparamref name="TSystem"/> in the appropriate system group based on its metadata.
     /// </summary>
-    public static SystemRegistry Register<TSystem>(this SystemRegistry registry) where TSystem : BaseSystem
+    public static SystemRegistry Add<TSystem>(this SystemRegistry registry) where TSystem : BaseSystem
     {
         var metadata = SystemMetadata.For<TSystem>();
         var entry = metadata.ToSystemEntry();
@@ -375,13 +253,23 @@ public static class SystemRegistryExtensions
         return registry;
     }
 
+    public static SystemRegistry Add<TSystem>(this SystemRegistry registry, SystemMetadata systemMetadata) where TSystem : BaseSystem
+    {
+        var entry = systemMetadata.ToSystemEntry();
+
+        registry.GetOrCreate(systemMetadata.GroupType)
+                .Add(entry);
+
+        return registry;
+    }
+
     public static SystemRegistry AddRoot<TSytemGroup>(this SystemRegistry registry) where TSytemGroup : SystemGroup
     {
         var metadata = SystemMetadata.For<TSytemGroup>();
         var entry = metadata.ToSystemEntry();
 
-        registry.GetOrCreateGroup<SystemRoot>()
-            .Add(entry);
+        registry.GetOrCreate(typeof(SystemRoot))
+                .Add(entry);
 
         return registry;
     }

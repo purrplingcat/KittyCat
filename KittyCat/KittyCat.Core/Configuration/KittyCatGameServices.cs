@@ -34,19 +34,15 @@ public class KittyCatGameServices : IServicesConfiguration
     public void ConfigureServices(IServiceCollection services)
     {
         // Register world and their systems
-        static void ConfigureSystems(IWorldBlueprint builder)
+        static void ConfigureWorld(IWorldBlueprint world)
         {
-            builder.Registry.Register<PhysicsSystem>();
-            builder.Registry.GetOrCreateGroup<UpdateSystemGroup>()
+            world.Systems.Add<PhysicsSystem>();
+            world.Systems.In<UpdateSystemGroup>()
                  .Add<TestGroup>()
                  .Add<PhysicsCleanupSystem>(SystemOrder.Last);
         }
 
-        services.AddWorld()
-                .AddModule(ConfigureSystems);
-
-        //services.AddSystemRoot(ConfigureSystems);
-        //services.AddRenderPipeline<World>(builder => { });                
+        services.AddWorld(ConfigureWorld);             
     }
 }
 
