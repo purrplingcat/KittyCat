@@ -9,8 +9,9 @@ projekt a jeho závislosti; změny drž malé, modulární a ověřitelné.
   konfiguraci, messaging, obsah, rendering a VFS. Nemá znát herní doménu.
 - `PurrplingCore.Ecs/` je ECS integrační vrstva nad `Friflo.Engine.ECS`.
   Obsahuje world, factory, moduly, systémy, skupiny a ECS DI extension metody.
-- `KittyCat/KittyCat.Core/` je herní doména: scény, služby, komponenty a
-  systémy. Platformní projekty (`DesktopGL`, `WindowsDX`, `Android`, `iOS`)
+- `KittyCat/KittyCat.Core/` obsahuje herní doménu a v současnosti také část
+  engine: scény, služby, komponenty a systémy. Samostatný engine se plánuje
+  extrahovat. Platformní projekty (`DesktopGL`, `WindowsDX`, `Android`, `iOS`)
   obsahují pouze platformní bootstrap a adaptace.
 - Kořenový `KittyCat.sln` zahrnuje všechny projekty. Jednotlivé projekty cílí
   na `net8.0`; automatické testovací projekty v repozitáři aktuálně nejsou.
@@ -29,10 +30,13 @@ Hra
 
 - `PurrplingCore.Toolkit` je univerzální základ a framework pro stavbu enginu;
   nesmí znát konkrétní engine ani herní doménu.
-- `PurrplingCore.Ecs` tvoří engine: poskytuje ECS world, factory, moduly,
-  systémy a jejich DI integraci. Engine může využívat Toolkit.
-- `KittyCat` je hra nad enginem. Může používat engine i univerzální nástroje
-  z Toolkitu, ale herní logika nesmí být přesunuta do těchto nižších vrstev.
+- `PurrplingCore.Ecs` je knihovna s ECS integrací, nikoli samostatný engine.
+  Poskytuje world, factory, moduly, systémy a jejich DI integraci jako základ
+  pro budoucí extrakci enginu; využívá `PurrplingCore.Toolkit`.
+- `KittyCat` je hra. V současné implementaci obsahuje `KittyCat.Core` také část
+  engine, která se má později extrahovat. Hra může využívat engine i univerzální
+  nástroje z Toolkitu, ale herní logika nesmí být přesunuta do těchto nižších
+  vrstev.
 
 ## Architektonická pravidla
 
