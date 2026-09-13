@@ -15,7 +15,6 @@ public static class ModdingExtensions
         // Add mod-related common services
         builder.Services.TryAddSingleton<ModRegistry>();
         builder.Services.TryAddAlias<IModRegistry, ModRegistry>();
-        builder.Services.AddVfs();
 
         // Apply mod loader & app services
         builder.AddServiceConfiguration((appServices, hostProvider) =>

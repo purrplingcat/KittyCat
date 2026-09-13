@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using PurrplingCore.Toolkit.Content;
 using PurrplingCore.Toolkit.DI;
+using PurrplingCore.Toolkit.Vfs.FileSystems;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -207,6 +208,10 @@ internal sealed class ModFactory
 
                     switch (ext)
                     {
+                        case ".pak":
+                            var pakPath = physicalFs.ConvertPathToInternal(path);
+                            aggregateFs.AddFileSystem(new PakFileSystem(pakPath));
+                            break;
                         case ".zip":
                             var zipStream = physicalFs.OpenFile(path, FileMode.Open, FileAccess.Read, FileShare.Read);
                             aggregateFs.AddFileSystem(new ZipArchiveFileSystem(zipStream));

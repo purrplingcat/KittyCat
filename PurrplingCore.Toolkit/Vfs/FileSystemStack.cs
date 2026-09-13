@@ -8,6 +8,7 @@ public class FileSystemStack()
 {
     private readonly AggregateFileSystem _aggregate = new();
     private readonly List<FileSystemLayer> _layers = [];
+    private readonly object _syncRoot = new();
 
     public IFileSystem FileSystem => _aggregate;
     public IReadOnlyList<FileSystemLayer> Layers => _layers;
@@ -20,60 +21,89 @@ public class FileSystemStack()
 
     public void AddLayers(IEnumerable<FileSystemLayer> newLayers)
     {
-        _layers.AddRange(newLayers);
-        Rebuild();
+        lock (_syncRoot)
+        {
+            _layers.AddRange(newLayers);
+            Rebuild();
+        }
     }
 
     public void AddLayer(IFileSystem fs, int order)
     {
-        _layers.Add(new FileSystemLayer(fs, order));
-        Rebuild();
+        lock (_syncRoot)
+        {
+            _layers.Add(new FileSystemLayer(fs, order));
+            Rebuild();
+        }
+    }
+
+    internal IReadOnlyList<IFileSystem> GetFileSystems()
+    {
+        lock (_syncRoot)
+        {
+            return _layers.OrderBy(layer => layer.Order)
+                          .Select(layer => layer.FileSystem)
+                          .ToArray();
+        }
     }
 
     public bool RemoveLayers(IEnumerable<FileSystemLayer> toRemove)
     {
-        bool removed = false;
-
-        foreach (FileSystemLayer layer in toRemove)
+        lock (_syncRoot)
         {
-            removed |= _layers.Remove(layer);
+            bool removed = false;
+
+            foreach (FileSystemLayer layer in toRemove)
+            {
+                removed |= _layers.Remove(layer);
+            }
+
+            if (removed) Rebuild();
+
+            return removed;
         }
-
-        if (removed) Rebuild();
-
-        return removed;
     }
 
     public bool RemoveLayer(IFileSystem fs)
     {
-        var layer = _layers.FirstOrDefault(l => l.FileSystem == fs);
-        if (layer != null)
+        lock (_syncRoot)
         {
-            _layers.Remove(layer);
-            Rebuild();
-            return true;
+            var layer = _layers.FirstOrDefault(l => l.FileSystem == fs);
+            if (layer != null)
+            {
+                _layers.Remove(layer);
+                Rebuild();
+                return true;
+            }
+
+            return false;
         }
-        return false;
     }
 
     public void ApplyChanges(Action<List<FileSystemLayer>> action)
     {
-        action(_layers);
-        Rebuild();
+        lock (_syncRoot)
+        {
+            action(_layers);
+            Rebuild();
+        }
     }
 
     public void Clear()
     {
-        _layers.Clear();
-        _aggregate.ClearFileSystems();
+        lock (_syncRoot)
+        {
+            _layers.Clear();
+            _aggregate.ClearFileSystems();
+        }
     }
 
     private void Rebuild()
     {
-        _layers.Sort((a, b) => a.Order.CompareTo(b.Order));
+        var orderedLayers = _layers.OrderBy(layer => layer.Order).ToArray();
 
         _aggregate.ClearFileSystems();
-        foreach (var layer in _layers)
+        foreach (var layer in orderedLayers)
         {
             _aggregate.AddFileSystem(layer.FileSystem);
         }

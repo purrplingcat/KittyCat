@@ -4,7 +4,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework.Content;
 using PurrplingCore.Toolkit.Attributes;
+using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Graphics;
+using PurrplingCore.Toolkit;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -25,101 +27,16 @@ public readonly struct AssetId : IEquatable<AssetId>
 
     public AssetId(string fullName)
     {
-        ValidateName(fullName);
-
+        ArgumentException.ThrowIfNullOrEmpty(fullName);
         FullName = fullName;
         Guid = CreateGuid(fullName);
     }
 
-    [Cold]
-    public AssetId(string ns, string? categoryPath, string name)
-    {
-        FullName = Qualify(ns, categoryPath, name);
-        Guid = CreateGuid(FullName);
-
-        ValidateName(FullName);
-    }
-
-    public ReadOnlySpan<char> Ns
-    {
-        get
-        {
-            if (FullName == null) return "unknown";
-            int colon = FullName.IndexOf(':');
-            return FullName.AsSpan(0, colon); // Dvojtečka tu 100% je díky validaci
-        }
-    }
-
-    public ReadOnlySpan<char> Category
-    {
-        get
-        {
-            if (FullName == null) return default;
-
-            int colon = FullName.IndexOf(':');
-            int lastSlash = FullName.LastIndexOf('/');
-
-            // Pokud tam není lomítko, nebo je před dvojtečkou, kategorie neexistuje
-            if (lastSlash < colon)
-                return default;
-
-            // Vyřízneme přesně to, co je mezi dvojtečkou a posledním lomítkem
-            return FullName.AsSpan(colon + 1, lastSlash - colon - 1);
-        }
-    }
-
-    public ReadOnlySpan<char> Name
-    {
-        get
-        {
-            if (FullName == null) return Guid.ToString();
-
-            int colon = FullName.IndexOf(':');
-            int lastSlash = FullName.LastIndexOf('/');
-
-            int nameStartIndex = Math.Max(colon, lastSlash) + 1;
-            return FullName.AsSpan(nameStartIndex);
-        }
-    }
-
     public bool IsEmpty => this == Empty;
-
-    [Cold]
-    public static void ValidateName(string raw)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(raw);
-
-        if (raw.Length > ushort.MaxValue)
-            Throw("Asset id is too long!");
-
-        int firstColon = raw.IndexOf(':');
-
-        if (firstColon == -1)
-            Throw("Missing ':'");
-
-        if (firstColon == 0)
-            Throw("Cannot start with ':'");
-
-        if (firstColon == raw.Length - 1)
-            Throw("Cannot end with ':'");
-
-        if (firstColon != raw.LastIndexOf(':'))
-            Throw("Multiple ':' found");
-
-        void Throw(string message)
-        {
-            throw new ArgumentException($"Invalid AssetId: '{raw}'. {message}", nameof(raw));
-        }
-    }
 
     public bool Equals(AssetId other) => Guid == other.Guid;
 
-    public override string ToString()
-    {
-        return !string.IsNullOrEmpty(FullName)
-            ? FullName 
-            : $"[Unknown asset: {Guid}]";
-    }
+    public override string ToString() => FullName ?? "[Empty asset]";
 
     public override int GetHashCode()
     {
@@ -130,15 +47,6 @@ public readonly struct AssetId : IEquatable<AssetId>
     public static Guid CreateGuid(string qualifiedId)
     {
         return DeterministicGuid.Create(Namespaces.Assets, qualifiedId);
-    }
-
-    [Cold]
-    public static string Qualify(string ns, string? categoryPath, string id)
-    {
-        if (string.IsNullOrEmpty(categoryPath)) return $"{ns}:{id}";
-
-        var path = categoryPath.Trim('/');
-        return $"{ns}:{path}/{id}";
     }
 
     public static implicit operator Guid(AssetId id) => id.Guid;
@@ -159,21 +67,77 @@ public readonly struct AssetId : IEquatable<AssetId>
     }
 }
 
-[DebuggerDisplay("{AssetFullName}#{AssetClass}")]
+[DebuggerDisplay("{FullName}#{AssetClass}")]
 public sealed record AssetMetadata
 {
-    public required AssetId Id { get; init; }
-    public string AssetClass { get; init; } = string.Empty;
-    public string? PhysicalPath { get; init; }
-    public string AssetName => Id.Name.ToString();
-    public string AssetFullName => Id.FullName;
-    public string PackageName => Id.Ns.ToString();
-    public string ObjectPath => Id.Category.IsEmpty 
-        ? Id.Name.ToString() 
-        : $"{Id.Category}/{Id.Name}";
+    public AssetId Id { get; }
+    public string FullName { get; }
+    public string PackageName { get; }
+    public string ObjectPath { get; }
+    public string AssetName { get; }
+    public string AssetClass { get; }
+    public string? ContentPath { get; }
 
-    public IReadOnlyDictionary<string, string> Tags { get; init; }
-        = new Dictionary<string, string>();
+    public IReadOnlyDictionary<string, string> Tags { get; }
+
+    public AssetMetadata(
+        AssetId id,
+        string? contentPath = null,
+        string assetClass = "",
+        IReadOnlyDictionary<string, string>? tags = null)
+    {
+        if (id.FullName is null)
+        {
+            throw new ArgumentException("Asset metadata requires a named asset ID.", nameof(id));
+        }
+
+        ValidateFullName(id.FullName);
+        if (id.Guid != AssetId.CreateGuid(id.FullName))
+        {
+            throw new ArgumentException(
+                $"Asset ID does not match asset name '{id.FullName}'.",
+                nameof(id));
+        }
+
+        var separator = id.FullName.IndexOf(':');
+
+        Id = id;
+        FullName = id.FullName;
+        PackageName = FullName[..separator];
+        ObjectPath = FullName[(separator + 1)..];
+        AssetName = Path.GetFileName(ObjectPath);
+        AssetClass = assetClass;
+        ContentPath = contentPath;
+        Tags = tags ?? new Dictionary<string, string>();
+    }
+
+    public static AssetMetadata Create(
+        string fullName,
+        string? contentPath = null,
+        string assetClass = "",
+        IReadOnlyDictionary<string, string>? tags = null)
+    {
+        ValidateFullName(fullName);
+        return new AssetMetadata(new AssetId(fullName), contentPath, assetClass, tags);
+    }
+
+    public static void ValidateFullName(string fullName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(fullName);
+
+        if (fullName.Length > ushort.MaxValue)
+            Throw("Asset name is too long.");
+
+        int separator = fullName.IndexOf(':');
+        if (separator <= 0 || separator == fullName.Length - 1 || separator != fullName.LastIndexOf(':'))
+            Throw("Asset name must contain one ':' separating a non-empty namespace and path.");
+
+        if (fullName.Split('/').Any(segment => segment is "" or "." or ".."))
+            Throw("Asset name contains an invalid path segment.");
+
+        void Throw(string message) => throw new ArgumentException($"Invalid asset name '{fullName}'. {message}", nameof(fullName));
+    }
+
 }
 
 public interface IAssetCache
@@ -262,6 +226,7 @@ public class AssetRegistry(ILogger<AssetRegistry> logger)
     public void RegisterAsset(AssetMetadata metadata)
     {
         ArgumentNullException.ThrowIfNull(metadata);
+        ValidateMetadata(metadata);
         
         using (_lock.Write())
         {
@@ -269,12 +234,47 @@ public class AssetRegistry(ILogger<AssetRegistry> logger)
 
             if (exists)
             {
-                _logger.LogWarning("Overwrite asset: {AssetId}", metadata.Id.FullName);
+                throw new InvalidOperationException($"Asset '{metadata.FullName}' is already registered.");
             }
 
-            // insert via ref
             slot = metadata;
         }
+    }
+
+    /// <summary>
+    /// Atomically imports a package catalog. Asset IDs are globally unique; source layering selects the
+    /// file bytes, while duplicate semantic asset registrations are always rejected.
+    /// </summary>
+    public void RegisterCatalog(string sourceId, IEnumerable<AssetMetadata> assets)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
+        ArgumentNullException.ThrowIfNull(assets);
+
+        var incomingAssets = assets.ToArray();
+        foreach (var asset in incomingAssets)
+        {
+            ArgumentNullException.ThrowIfNull(asset);
+            ValidateMetadata(asset);
+        }
+
+        using (_lock.Write())
+        {
+            foreach (var asset in incomingAssets)
+            {
+                if (_database.ContainsKey(asset.Id.Guid))
+                {
+                    throw new InvalidDataException(
+                        $"Catalog '{sourceId}' duplicates already registered asset '{asset.FullName}'.");
+                }
+            }
+
+            foreach (var asset in incomingAssets)
+            {
+                _database.Add(asset.Id.Guid, asset);
+            }
+        }
+
+        _logger.LogInformation("Imported {Count} assets from catalog {SourceId}.", incomingAssets.Length, sourceId);
     }
 
     public AssetId GetIdentifier(Guid id)
@@ -373,6 +373,7 @@ public class AssetRegistry(ILogger<AssetRegistry> logger)
             return AssetId.Empty;
         }
 
+        AssetMetadata.ValidateFullName(nameOrPath);
         var guid = AssetId.CreateGuid(nameOrPath);
         if (_database.TryGetValue(guid, out var hotAsset))
         {
@@ -387,6 +388,11 @@ public class AssetRegistry(ILogger<AssetRegistry> logger)
     {
         using var _ = _lock.Read();
         return [.. _database.Values];
+    }
+
+    private static void ValidateMetadata(AssetMetadata metadata)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
     }
 }
 
@@ -519,7 +525,7 @@ public class AssetManager
         if (!cache.TryRetain(assetId, out var loadedAsset))
         {
             var descriptor = _masterRegistry.GetMetadata(assetId) 
-                ?? throw new KeyNotFoundException($"Asset {assetId} is not registered!");
+                ?? throw new KeyNotFoundException($"Asset {assetId.Guid} is not registered!");
             loadedAsset = LoadAsset<T>(in descriptor);
             cache.Add(assetId, loadedAsset);
         }
@@ -555,13 +561,12 @@ public static class AssetHelper
 {
     public static string GetAssetPath(this AssetMetadata descriptor)
     {
-        if (string.IsNullOrEmpty(descriptor.PhysicalPath))
+        if (!string.IsNullOrEmpty(descriptor.ContentPath))
         {
-            var path = UPath.Combine(descriptor.PackageName, descriptor.ObjectPath);
-            return path.FullName;
+            return descriptor.ContentPath;
         }
 
-        return UPath.Combine(descriptor.PackageName, descriptor.PhysicalPath).FullName;
+        return descriptor.FullName.Replace(':', '/');
     }
 
     public static AssetBank<T> CreateBank<T>(this AssetManager assetmanager) where T : class
@@ -612,8 +617,15 @@ public static class LockExtensions
 public static class PurrplingAssetsServiceExtensions
 {
     // Tuto metodu zavolá vývojář hry/enginu při startu
-    public static IServiceCollection AddPurrplingAssetSystem(this IServiceCollection services)
+    public static IServiceCollection AddAssetSystem(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
+        // AssetManager works with MonoGame's regular physical Content directory as well as with VFS.
+        // These are defaults only; games may register their own provider before this call.
+        services.AddOptions<ContentManagerOptions>();
+        services.TryAddSingleton<IContentManagerProvider, DefaultContentManagerProvider>();
+
         // Globální systémy (žijí celou hru)
         services.TryAddSingleton<AssetRegistry>();
         services.TryAddSingleton<AssetManager>();

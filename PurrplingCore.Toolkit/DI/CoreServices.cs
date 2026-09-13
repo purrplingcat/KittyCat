@@ -10,7 +10,7 @@ namespace PurrplingCore.Toolkit.DI;
 public static class CoreServices
 {
     /// <summary>
-    /// Services to by added in the game instance
+    /// Default services added to the game service collection. Game configurations run afterwards and may replace them.
     /// </summary>
     public sealed class GameCoreServices : IServicesConfiguration
     {

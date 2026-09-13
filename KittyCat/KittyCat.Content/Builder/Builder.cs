@@ -21,7 +21,13 @@ var contentCollectionArgs = new ContentBuilderOptions
 var builder = new PakContentBuilder();
 
 builder.Collection.Include<WildcardRule>("Fonts/*.spritefont");
-builder.Run(ContentBuilderOptions.Parse(args, contentCollectionArgs));
+var options = ContentBuilderOptions.Parse(args, contentCollectionArgs);
+var compiledDirectory = builder.Build(options);
+if (compiledDirectory != null)
+{
+    AssetCatalogBuilder.Generate(options.RootedSourceDirectory, compiledDirectory);
+    builder.Publish(options, compiledDirectory);
+}
 
 /*if (args != null && args.Length > 0)
 {

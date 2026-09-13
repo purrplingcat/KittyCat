@@ -12,8 +12,5 @@ public interface IVirtualFileSystemManager
     IFileSystem Physical { get; }
     IFileSystem Base { get; }
 
-    T? FindFileSystem<T>() where T : IFileSystem;
-    IFileSystem? FindFileSystem(string name);
     IFileSystem GetFileSystem();
-    void SetFileSystem(IFileSystem fileSystem);
 }

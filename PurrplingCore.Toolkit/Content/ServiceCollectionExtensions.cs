@@ -18,29 +18,19 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddVfs(this IServiceCollection services)
     {
-        services.AddVfsCore((vfs, _) =>
-        {
-            vfs.Chain(fs => new AggregateFileSystem(fs));
-            vfs.Chain(fs => new MountFileSystem(fs));
-        });
-
-        return services;
+        return services.AddVfsCore();
     }
 
     public static IServiceCollection AddVfsCore(
-        this IServiceCollection services,
-        Action<IVirtualFileSystemManager, IServiceProvider>? configureChain = null)
+        this IServiceCollection services)
     {
-        services.TryAddSingleton<IVirtualFileSystemManager>(sp =>
+        services.TryAddSingleton<VirtualFileSystemManager>(sp =>
         {
             var env = sp.GetRequiredService<IHostEnvironment>();
-            var logger = sp.GetRequiredService<ILogger<VirtualFileSystemManager>>();
-            var vfs = new VirtualFileSystemManager(env);
-
-            configureChain?.Invoke(vfs, sp);
-
-            return vfs;
+            return new VirtualFileSystemManager(env);
         });
+        services.TryAddSingleton<IVirtualFileSystemManager>(sp => sp.GetRequiredService<VirtualFileSystemManager>());
+        services.TryAddSingleton<IVfsMountManager, VfsMountManager>();
         services.TryAddTransient(sp => 
             sp.GetRequiredService<IVirtualFileSystemManager>()
               .GetFileSystem()

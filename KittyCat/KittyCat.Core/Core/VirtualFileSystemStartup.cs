@@ -1,4 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using PurrplingCore.Toolkit.Content;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Hosting;
 using PurrplingCore.Toolkit.Vfs;
@@ -17,20 +19,24 @@ public class VirtualFileSystemStartup : IStartupService
 {
     private readonly IHostEnvironment _env;
     private readonly IVirtualFileSystemManager _vfs;
+    private readonly IVfsMountManager _mounts;
+    private readonly ContentManagerOptions _contentOptions;
     private readonly ILogger _logger;
 
     public int Order => -100;
 
-    protected IFileSystem Top => _vfs.GetFileSystem();
-
     public VirtualFileSystemStartup(
         IVirtualFileSystemManager vfs,
+        IVfsMountManager mounts,
         IHostEnvironment env,
+        IOptions<ContentManagerOptions> contentOptions,
         ILoggerFactory loggerFactory
     )
     {
         _vfs = vfs;
+        _mounts = mounts;
         _env = env;
+        _contentOptions = contentOptions.Value;
         _logger = loggerFactory.CreateLogger("VFS");
     }
 
@@ -47,44 +53,56 @@ public class VirtualFileSystemStartup : IStartupService
             _logger.LogInformation("File system changed: {ChangeType} {Path}", e.ChangeType, e.FullPath);
         };
 
-        var mountFs = _vfs.FindFileSystem<MountFileSystem>();
-        if (mountFs != null)
-        {
-            mountFs.Mount("/memory", new MemoryFileSystem());
-            mountFs.Mount("/data", _vfs.Physical.CreateSubFileSystem(appData));
-            mountFs.Mount("/tmp", _vfs.Physical.CreateSubFileSystem(temp));
-        }
+        _mounts.Mount("/memory", new MemoryFileSystem());
+        _mounts.Mount("/data", _vfs.Physical.CreateSubFileSystem(appData));
+        _mounts.Mount("/tmp", _vfs.Physical.CreateSubFileSystem(temp));
 
-        var aggregateFs = _vfs.FindFileSystem<AggregateFileSystem>();
-        if (aggregateFs != null && Top.DirectoryExists("/Content/Paks"))
+        var contentRoot = new UPath(_contentOptions.ContentRoot).ToAbsolute();
+        var physicalContent = new SubFileSystem(_vfs.Base, contentRoot);
+        _mounts.AddLayer(contentRoot, physicalContent, int.MinValue);
+
+        var paksDirectory = Path.Combine(_env.BaseDirectory, _contentOptions.ContentRoot, "Paks");
+        if (Directory.Exists(paksDirectory))
         {
             AddContentPaks(
-                aggregateFs, 
-                Top.GetPhysicalPaths("/Content/Paks", SearchOption.TopDirectoryOnly, SearchTarget.File)
+                contentRoot,
+                Directory.EnumerateFiles(paksDirectory, "*", SearchOption.TopDirectoryOnly)
             );
         }
 
         _logger.LogVfsStructure(_vfs.GetFileSystem());
     } 
 
-    private void AddContentPaks(AggregateFileSystem aggregateFs, IEnumerable<string> enumerable)
+    private void AddContentPaks(UPath contentRoot, IEnumerable<string> enumerable)
     {
+        int order = 0;
         foreach(var path in enumerable.Order(new PakPathComparer()))
         {
+            IFileSystem? contentLayer = null;
             switch (Path.GetExtension(path).ToLower())
             {
                 case ".pak":
                     var pakFs = new PakFileSystem(path);
-                    aggregateFs.AddFileSystem(pakFs);
+                    contentLayer = CreateContentLayer(pakFs, contentRoot);
                     break;
                 case ".zip":
-                    aggregateFs.AddFileSystem(new ZipArchiveFileSystem(path));
+                    var zipFs = new ZipArchiveFileSystem(path);
+                    contentLayer = CreateContentLayer(zipFs, contentRoot);
                     break;
                 default:
                     continue;
             }
+
+            _mounts.AddLayer(contentRoot, contentLayer, order++);
             _logger.LogDebug("Mount: {Path}", Path.GetRelativePath(_env.BaseDirectory, path));
         }
+    }
+
+    private static IFileSystem CreateContentLayer(IFileSystem archive, UPath contentRoot)
+    {
+        return archive.DirectoryExists(contentRoot)
+            ? new SubFileSystem(archive, contentRoot)
+            : archive;
     }
 }
 

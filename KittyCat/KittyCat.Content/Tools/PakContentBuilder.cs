@@ -106,6 +106,15 @@ public class PakContentBuilder
 
     public void Run(ContentBuilderOptions parameters)
     {
+        var compiledDirectory = Build(parameters);
+        if (compiledDirectory != null)
+        {
+            Publish(parameters, compiledDirectory);
+        }
+    }
+
+    public string? Build(ContentBuilderOptions parameters)
+    {
         var innerParams = new MGContentBuilderParams()
         {
             WorkingDirectory = parameters.WorkingDirectory,
@@ -122,16 +131,22 @@ public class PakContentBuilder
         _inner.Logger.Log($"Intermediate directory: {parameters.IntermediateDirectory}");
         _inner.Run(innerParams);
 
-        if (_inner.SucceededToBuild > 0)
+        return _inner.SucceededToBuild > 0
+            ? innerParams.RootedOutputDirectory
+            : null;
+    }
+
+    public void Publish(ContentBuilderOptions parameters, string compiledDirectory)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(compiledDirectory);
+
+        if (parameters.CreatePak)
         {
-            if (parameters.CreatePak)
-            {
-                CreatePak(parameters, innerParams);
-            }
-            else
-            {
-                CopyFilesRecursively(innerParams.RootedOutputDirectory, parameters.RootedOutputDirectory);
-            }
+            CreatePak(parameters, compiledDirectory);
+        }
+        else
+        {
+            CopyFilesRecursively(compiledDirectory, parameters.RootedOutputDirectory);
         }
     }
 
@@ -150,10 +165,10 @@ public class PakContentBuilder
         }
     }
 
-    private void CreatePak(ContentBuilderOptions parameters, MGContentBuilderParams innerParams)
+    private void CreatePak(ContentBuilderOptions parameters, string compiledDirectory)
     {
         var paker = new PakArchivePacker();
-        var dirs = Directory.GetDirectories(innerParams.RootedOutputDirectory, "*", SearchOption.TopDirectoryOnly);
+        var dirs = Directory.GetDirectories(compiledDirectory, "*", SearchOption.TopDirectoryOnly);
 
         foreach (string dirPath in dirs)
         {

@@ -9,6 +9,7 @@ using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.DI;
 using PurrplingCore.Ecs.Systems;
 using PurrplingCore.Toolkit;
+using PurrplingCore.Toolkit.Content;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Graphics;
 using PurrplingCore.Toolkit.Hosting;
@@ -55,6 +56,7 @@ public static class ServiceCollectionExtensions
 
     public static IGameHostBuilder UsePurrplingCore(this IGameHostBuilder builder)
     {
+        builder.Services.AddVfs();
         builder.Services.AddWorld();
         builder.Services.AddStartup(GetServiceOrCreateInstance<VirtualFileSystemStartup>);
         builder.Services.Expose<ContentManager, IContentManagerProvider>(provider => provider.ContentManager)
