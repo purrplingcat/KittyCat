@@ -15,6 +15,25 @@ projekt a jeho závislosti; změny drž malé, modulární a ověřitelné.
 - Kořenový `KittyCat.sln` zahrnuje všechny projekty. Jednotlivé projekty cílí
   na `net8.0`; automatické testovací projekty v repozitáři aktuálně nejsou.
 
+### Architektonická pyramida
+
+Závislosti a odpovědnosti směřují shora dolů:
+
+```text
+Toolkit
+  ↓
+Engine
+  ↓
+Hra
+```
+
+- `PurrplingCore.Toolkit` je univerzální základ a framework pro stavbu enginu;
+  nesmí znát konkrétní engine ani herní doménu.
+- `PurrplingCore.Ecs` tvoří engine: poskytuje ECS world, factory, moduly,
+  systémy a jejich DI integraci. Engine může využívat Toolkit.
+- `KittyCat` je hra nad enginem. Může používat engine i univerzální nástroje
+  z Toolkitu, ale herní logika nesmí být přesunuta do těchto nižších vrstev.
+
 ## Architektonická pravidla
 
 ### ECS first
@@ -64,6 +83,9 @@ projekt a jeho závislosti; změny drž malé, modulární a ověřitelné.
   moduly před úpravou centrálního bootstrapu.
 - Změna pořadí ECS systémů musí být explicitní pomocí groupy nebo `SystemOrder`;
   nespoléhej na pořadí souborů či náhodné pořadí registrace.
+- Každý systém musí být volitelný: registruj jej pouze přes explicitní modul,
+  builder nebo konfiguraci a umožni jeho vypnutí bez úprav jádra enginu. Výchozí
+  složení worldu nesmí aktivovat herní funkci skrytě nebo přes globální stav.
 - Při změně veřejného API nebo DI registrace aktualizuj související dokumentaci
   a všechny platformní bootstrapy.
 
