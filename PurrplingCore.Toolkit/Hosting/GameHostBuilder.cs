@@ -138,6 +138,7 @@ public class GameHostBuilder : IGameHostBuilder
         var logger = loggerFactory.CreateLogger("GameHost");
         var host = new GameHost(provider, gameServices, env, logger);
 
+        // Ensure that the startup service executor is resolved after the host is created
         host.Initialize();
 
         return host;

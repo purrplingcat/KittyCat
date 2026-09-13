@@ -69,12 +69,14 @@ public sealed class GameHost : IDisposable
         Debug.Assert(_gameServiceProvider != null, "Initialize must be called first.");
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        // Resolve the startup service executor and the game instance before running the game.
         _startupServiceExecutor = _gameServiceProvider.GetRequiredService<StartupServiceExecutor>();
-        _game = ResolveGame();
+        _game ??= ResolveGame();
 
         _logger.LogDebug("Executing startup services");
         _startupServiceExecutor.Startup();
 
+        // Run the game after initializing the startup services.
         _logger.LogDebug("Executing {gameType}::Run()", _game.GetType());
         _game.Run();
     }
@@ -140,6 +142,7 @@ public sealed class GameHost : IDisposable
             _game.Disposed -= OnGameDisposed;
         }
 
+        _game = null;
         _logger.LogDebug("Game disposed.");
     }
 }

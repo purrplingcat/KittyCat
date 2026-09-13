@@ -18,12 +18,6 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddVfs(this IServiceCollection services)
     {
-        return services.AddVfsCore();
-    }
-
-    public static IServiceCollection AddVfsCore(
-        this IServiceCollection services)
-    {
         services.TryAddSingleton<VirtualFileSystemManager>(sp =>
         {
             var env = sp.GetRequiredService<IHostEnvironment>();

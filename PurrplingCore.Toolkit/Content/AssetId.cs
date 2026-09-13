@@ -616,24 +616,15 @@ public static class LockExtensions
 
 public static class PurrplingAssetsServiceExtensions
 {
-    // Tuto metodu zavolá vývojář hry/enginu při startu
     public static IServiceCollection AddAssetSystem(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // AssetManager works with MonoGame's regular physical Content directory as well as with VFS.
-        // These are defaults only; games may register their own provider before this call.
-        services.AddOptions<ContentManagerOptions>();
-        services.TryAddSingleton<IContentManagerProvider, DefaultContentManagerProvider>();
-
-        // Globální systémy (žijí celou hru)
+        services.AddVfs();
         services.TryAddSingleton<AssetRegistry>();
         services.TryAddSingleton<AssetManager>();
-
-        // Registrace otevřeného generika pro Scoped banky.
-        // Kdykoliv si jakýkoliv systém v novém Scope řekne o AssetBank<T>, 
-        // DI mu automaticky vytvoří novou instanci a předá jí Singleton AssetManager.
         services.TryAddScoped(typeof(AssetBank<>));
+        services.AddStartup<AssetCatalogStartup>();
 
         return services;
     }

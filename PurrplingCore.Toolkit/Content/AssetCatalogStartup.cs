@@ -6,22 +6,6 @@ using Zio;
 
 namespace PurrplingCore.Toolkit.Content;
 
-public static class AssetCatalogServiceExtensions
-{
-    /// <summary>
-    /// Imports asset catalogs from VFS content layers.
-    /// Adds the VFS and asset-system services required by catalog import.
-    /// </summary>
-    public static IServiceCollection AddVfsAssetCatalogs(this IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        services.AddVfs();
-        services.AddAssetSystem();
-        services.AddStartup<AssetCatalogStartup>();
-        return services;
-    }
-}
-
 /// <summary>
 /// Imports catalogs from content overlay layers after the VFS startup has mounted them.
 /// Registered explicitly by <see cref="AssetCatalogServiceExtensions.AddVfsAssetCatalogs"/>.
