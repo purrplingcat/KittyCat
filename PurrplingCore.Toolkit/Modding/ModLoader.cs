@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using PurrplingCore.Toolkit.Content;
 using PurrplingCore.Toolkit.DI;
+using PurrplingCore.Toolkit.Hosting;
 using PurrplingCore.Toolkit.Vfs.FileSystems;
 using System.Diagnostics;
 using System.IO;
@@ -94,7 +95,7 @@ internal sealed class ModLoader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void ProcessMod(IServiceCollection appServices, IMod mod)
     {
-        if (mod is IServicesConfiguration serviceConfiguration)
+        if (mod is IServiceModule serviceConfiguration)
         {
             mod.Logger.LogTrace("Registering mod services ...");
             serviceConfiguration.ConfigureServices(appServices);

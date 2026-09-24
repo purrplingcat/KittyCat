@@ -1,32 +1,69 @@
-﻿using Microsoft.Extensions.Logging;
-using PurrplingCore.Toolkit.DI;
-using PurrplingCore.Toolkit.Hosting;
+﻿using PurrplingCore.Toolkit.Hosting;
 using Zio;
 using Zio.FileSystems;
 
 namespace PurrplingCore.Toolkit.Vfs;
 
-public class VirtualFileSystemManager : IVirtualFileSystemManager, IDisposable
+internal class VirtualFileSystemManager : IVirtualFileSystemManager, IDisposable
 {
+    internal static PhysicalFileSystem Physical { get; } = new PhysicalFileSystem();
+
     private readonly IFileSystem _baseFs;
+    private readonly AggregateFileSystem _rootContainers = new();
     private readonly MountFileSystem _root;
+    private readonly object _syncRoot = new();
     private bool _disposed;
 
-    public static PhysicalFileSystem Physical { get; } = new PhysicalFileSystem();
-
-    IFileSystem IVirtualFileSystemManager.Physical => Physical;
-    public IFileSystem Base => _baseFs;
-    internal MountFileSystem Root => _root;
+    public event EventHandler<VfsMountEventArgs>? Mounted;
+    public event EventHandler<VfsRootContainerEventArgs>? RootContainerAdded;
 
     public VirtualFileSystemManager(IHostEnvironment env)
     {
         _baseFs = CreatePlatformFileSystem(env);
-        _root = new MountFileSystem(_baseFs);
+        _rootContainers = new AggregateFileSystem(_baseFs);
+        _root = new MountFileSystem(_rootContainers);
     }
 
     public IFileSystem GetFileSystem()
     {
         return _root;
+    }
+
+    public void Mount(UPath target, IFileSystem fileSystem)
+    {
+        ArgumentNullException.ThrowIfNull(fileSystem);
+        var absoluteTarget = NormalizeTarget(target);
+
+        lock (_syncRoot)
+        {
+            _root.Mount(absoluteTarget, fileSystem);
+        }
+
+        Mounted?.Invoke(this, new VfsMountEventArgs(absoluteTarget, fileSystem));
+    }
+
+    public void AddRootContainer(IFileSystem fileSystem)
+    {
+        ArgumentNullException.ThrowIfNull(fileSystem);
+
+        lock (_syncRoot)
+        {
+            _rootContainers.AddFileSystem(fileSystem);
+        }
+
+        RootContainerAdded?.Invoke(this, new VfsRootContainerEventArgs(fileSystem));
+    }
+
+    public IEnumerable<IFileSystem> GetRootContainers()
+    {
+        // AggregateFileSystem exposes its fallback separately from added layers.
+        // The base game filesystem is that fallback and also contains a catalog.
+        yield return _baseFs;
+
+        foreach (var container in _rootContainers.GetFileSystems())
+        {
+            yield return container;
+        }
     }
 
     internal static IFileSystem CreatePlatformFileSystem(IHostEnvironment env)
@@ -38,6 +75,16 @@ public class VirtualFileSystemManager : IVirtualFileSystemManager, IDisposable
         };
     }
 
+    private static UPath NormalizeTarget(UPath target)
+    {
+        if (target.IsNull || target == UPath.Root)
+        {
+            throw new ArgumentException("A mount target must be a non-root path.", nameof(target));
+        }
+
+        return target.ToAbsolute();
+    }
+
     #region Disposing
     protected virtual void Dispose(bool disposing)
     {
@@ -46,6 +93,8 @@ public class VirtualFileSystemManager : IVirtualFileSystemManager, IDisposable
             if (disposing)
             {
                 _root.Dispose();
+                _rootContainers.Dispose();
+                _baseFs.Dispose();
             }
 
             _disposed = true;
@@ -59,12 +108,4 @@ public class VirtualFileSystemManager : IVirtualFileSystemManager, IDisposable
     }
     #endregion
 
-}
-
-public static class VirtualFileSystemManagerExtensions
-{
-    public static IFileSystem GetBaseFileSystem(this IVirtualFileSystemManager vfs)
-    {
-        return vfs.Base;
-    }
 }

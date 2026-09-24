@@ -1,6 +1,6 @@
 ﻿using System.Reflection;
 
-namespace PurrplingCore.Toolkit.DI.Configuration;
+namespace PurrplingCore.Toolkit.DI;
 
 public static class TypeReflectionExtensions
 {
@@ -9,7 +9,7 @@ public static class TypeReflectionExtensions
         return [.. type.GetInterfaces().Where(x => !x.IsGenericType && !x.IsGenericTypeDefinition)];
     }
 
-    public static Type[] GetServiceTypeAliases(this Type implementationType, bool withInterfaces)
+    public static Type[] GetServiceTypeAliases(this Type implementationType, bool withInterfaces = false)
     {
         var attrs = implementationType.GetCustomAttributes<AliasAttribute>();
         var aliases = new HashSet<Type>(attrs.SelectMany(attr => attr.Aliases));

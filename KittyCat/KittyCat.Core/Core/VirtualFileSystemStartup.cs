@@ -19,7 +19,6 @@ public class VirtualFileSystemStartup : IStartupService
 {
     private readonly IHostEnvironment _env;
     private readonly IVirtualFileSystemManager _vfs;
-    private readonly IVfsMountManager _mounts;
     private readonly ContentManagerOptions _contentOptions;
     private readonly ILogger _logger;
 
@@ -27,14 +26,12 @@ public class VirtualFileSystemStartup : IStartupService
 
     public VirtualFileSystemStartup(
         IVirtualFileSystemManager vfs,
-        IVfsMountManager mounts,
         IHostEnvironment env,
         IOptions<ContentManagerOptions> contentOptions,
         ILoggerFactory loggerFactory
     )
     {
         _vfs = vfs;
-        _mounts = mounts;
         _env = env;
         _contentOptions = contentOptions.Value;
         _logger = loggerFactory.CreateLogger("VFS");
@@ -43,66 +40,48 @@ public class VirtualFileSystemStartup : IStartupService
     public void OnStartup()
     {
         string appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), _env.ApplicationName);
+        string cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), _env.ApplicationName, "Cache");
         string temp = Path.Combine(Path.GetTempPath(), _env.ApplicationName);
+        var physical = new PhysicalFileSystem();
 
-        var watcher = _vfs.GetFileSystem().Watch(UPath.Root);
-
-        watcher.EnableRaisingEvents = true;
-        watcher.Changed += (s, e) =>
-        {
-            _logger.LogInformation("File system changed: {ChangeType} {Path}", e.ChangeType, e.FullPath);
-        };
-
-        _mounts.Mount("/memory", new MemoryFileSystem());
-        _mounts.Mount("/data", _vfs.Physical.CreateSubFileSystem(appData));
-        _mounts.Mount("/tmp", _vfs.Physical.CreateSubFileSystem(temp));
-
-        var contentRoot = new UPath(_contentOptions.ContentRoot).ToAbsolute();
-        var physicalContent = new SubFileSystem(_vfs.Base, contentRoot);
-        _mounts.AddLayer(contentRoot, physicalContent, int.MinValue);
+        // Ephemeral files held only for the lifetime of the process.
+        _vfs.Mount("/memory", new MemoryFileSystem());
+        // Persistent per-user game data, such as saves and user settings.
+        _vfs.Mount("/user", physical.CreateSubFileSystem(appData));
+        // Rebuildable per-user cached data.
+        _vfs.Mount("/cache", physical.CreateSubFileSystem(cache));
+        // Temporary files that may be discarded by the operating system.
+        _vfs.Mount("/temp", physical.CreateSubFileSystem(temp));
 
         var paksDirectory = Path.Combine(_env.BaseDirectory, _contentOptions.ContentRoot, "Paks");
         if (Directory.Exists(paksDirectory))
         {
-            AddContentPaks(
-                contentRoot,
-                Directory.EnumerateFiles(paksDirectory, "*", SearchOption.TopDirectoryOnly)
-            );
+            AddContentPaks(Directory.EnumerateFiles(paksDirectory, "*", SearchOption.TopDirectoryOnly));
         }
 
         _logger.LogVfsStructure(_vfs.GetFileSystem());
     } 
 
-    private void AddContentPaks(UPath contentRoot, IEnumerable<string> enumerable)
+    private void AddContentPaks(IEnumerable<string> enumerable)
     {
-        int order = 0;
         foreach(var path in enumerable.Order(new PakPathComparer()))
         {
             IFileSystem? contentLayer = null;
             switch (Path.GetExtension(path).ToLower())
             {
                 case ".pak":
-                    var pakFs = new PakFileSystem(path);
-                    contentLayer = CreateContentLayer(pakFs, contentRoot);
+                    contentLayer = new PakFileSystem(path);
                     break;
                 case ".zip":
-                    var zipFs = new ZipArchiveFileSystem(path);
-                    contentLayer = CreateContentLayer(zipFs, contentRoot);
+                    contentLayer = new ZipArchiveFileSystem(path);
                     break;
                 default:
                     continue;
             }
 
-            _mounts.AddLayer(contentRoot, contentLayer, order++);
+            _vfs.AddRootContainer(contentLayer);
             _logger.LogDebug("Mount: {Path}", Path.GetRelativePath(_env.BaseDirectory, path));
         }
-    }
-
-    private static IFileSystem CreateContentLayer(IFileSystem archive, UPath contentRoot)
-    {
-        return archive.DirectoryExists(contentRoot)
-            ? new SubFileSystem(archive, contentRoot)
-            : archive;
     }
 }
 

@@ -2,8 +2,10 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Extensions;
+using PurrplingCore.Toolkit.Hosting;
 using PurrplingCore.Toolkit.Messages;
 using PurrplingCore.Toolkit.Messaging;
 
@@ -17,6 +19,9 @@ public enum PlatformType
     Mobile,
     Tv,
 }
+
+[GameServices<CoreGameServices>]
+[Alias(typeof(Game), typeof(Microsoft.Xna.Framework.Game))]
 public abstract class Game: Microsoft.Xna.Framework.Game, IGame
 {
     private readonly IServiceProvider _provider;
@@ -26,6 +31,18 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
     private GameVersion? _version;
     private bool _isInitialized;
     private bool _isRunning;
+
+    private sealed class CoreGameServices : IServiceModule
+    {
+        public void ConfigureServices(IServiceCollection services)
+        {
+            services.ExposeMonoGameService<IGraphicsDeviceService>()
+                    .ExposeMonoGameService<IGraphicsDeviceManager>()
+                    .ExposeMonoGameService<GraphicsDeviceManager>()
+                    .Expose((Game game) => game.Services);
+        }
+
+    }
 
     public event EventHandler<EventArgs>? Exited;
 

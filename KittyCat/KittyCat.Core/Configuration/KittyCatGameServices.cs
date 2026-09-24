@@ -14,6 +14,7 @@ using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Graphics;
 using PurrplingCore.Toolkit.Hosting;
 using System;
+using System.Linq;
 using System.Reflection;
 using static Microsoft.Extensions.DependencyInjection.ActivatorUtilities;
 
@@ -23,7 +24,7 @@ public class TestGroup : BaseSystemGroup { }
 public class SecondGroup : BaseSystemGroup { }
 public class ThirdGroup : BaseSystemGroup { }
 
-public class KittyCatGameServices : IServicesConfiguration
+public class KittyCatGameServices : IServiceModule
 {
     public Assembly Assembly => GetType().Assembly;
 
@@ -49,16 +50,21 @@ public class KittyCatGameServices : IServicesConfiguration
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddInitScene<TScene>(this IServiceCollection services) where TScene : Scene
+    private class PurrplingCore : IServiceModule
     {
-        return services.Configure<SceneManagerOptions>(options => options.InitialSceneType = typeof(TScene));
+        public void ConfigureServices(IServiceCollection services)
+        {
+            services.AddAssetRegistry();
+            services.AddWorld();
+            services.AddStartup(GetServiceOrCreateInstance<VirtualFileSystemStartup>);
+        }
     }
 
     public static IGameHostBuilder UsePurrplingCore(this IGameHostBuilder builder)
     {
+        builder.Properties["PurrplingCore"] = true;
+        builder.AddServiceModule<PurrplingCore>();
         builder.Services.AddVfs();
-        builder.Services.AddWorld();
-        builder.Services.AddStartup(GetServiceOrCreateInstance<VirtualFileSystemStartup>);
         builder.Services.Expose<ContentManager, IContentManagerProvider>(provider => provider.ContentManager)
                         .Expose<Resolution, GraphicsManager>(source => source.Resolution);
 

@@ -39,17 +39,7 @@ public static class AssetCatalogSerializer
         WriteIndented = true
     };
 
-    public static AssetCatalog Load(IFileSystem fileSystem, UPath path)
-    {
-        ArgumentNullException.ThrowIfNull(fileSystem);
-
-        using var stream = fileSystem.OpenRead(path);
-        var catalog = Load(stream, path);
-        Validate(catalog, fileSystem, path);
-        return catalog;
-    }
-
-    public static AssetCatalog Load(Stream stream, UPath catalogPath = default)
+    public static AssetCatalog Load(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
@@ -58,7 +48,7 @@ public static class AssetCatalogSerializer
             using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
             if (reader.ReadUInt32() != BinaryMagic)
             {
-                throw new InvalidDataException($"Asset catalog '{catalogPath}' is not a supported binary catalog.");
+                throw new InvalidDataException($"Asset catalog is not a supported binary catalog.");
             }
 
             var catalog = new AssetCatalog
@@ -68,33 +58,23 @@ public static class AssetCatalogSerializer
                 Assets = ReadAssets(reader)
             };
 
-            Validate(catalog, catalogPath: catalogPath);
+            Validate(catalog);
             return catalog;
         }
         catch (EndOfStreamException exception)
         {
-            throw new InvalidDataException($"Asset catalog '{catalogPath}' is truncated.", exception);
+            throw new InvalidDataException($"Asset catalog is truncated.", exception);
         }
     }
 
-    public static AssetCatalog LoadJson(IFileSystem fileSystem, UPath path)
-    {
-        ArgumentNullException.ThrowIfNull(fileSystem);
-
-        using var stream = fileSystem.OpenRead(path);
-        var catalog = LoadJson(stream, path);
-        Validate(catalog, fileSystem, path);
-        return catalog;
-    }
-
-    public static AssetCatalog LoadJson(Stream stream, UPath catalogPath = default)
+    public static AssetCatalog LoadJson(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
         var catalog = JsonSerializer.Deserialize<AssetCatalog>(stream, s_options)
-            ?? throw new InvalidDataException($"Asset catalog '{catalogPath}' is empty.");
+            ?? throw new InvalidDataException($"Asset catalog is empty.");
 
-        Validate(catalog, catalogPath: catalogPath);
+        Validate(catalog);
         return catalog;
     }
 
@@ -134,7 +114,7 @@ public static class AssetCatalogSerializer
         JsonSerializer.Serialize(stream, catalog, s_options);
     }
 
-    public static void Validate(AssetCatalog catalog, IFileSystem? fileSystem = null, UPath catalogPath = default)
+    public static void Validate(AssetCatalog catalog)
     {
         ArgumentNullException.ThrowIfNull(catalog);
 
@@ -168,16 +148,6 @@ public static class AssetCatalogSerializer
             {
                 ArgumentNullException.ThrowIfNull(tag.Key);
                 ArgumentNullException.ThrowIfNull(tag.Value);
-            }
-
-            if (fileSystem != null)
-            {
-                var resourcePath = new UPath(contentPath + ".xnb").ToAbsolute();
-                if (!fileSystem.FileExists(resourcePath))
-                {
-                    throw new InvalidDataException(
-                        $"Asset '{entry.Id}' in catalog '{catalogPath}' points to missing resource '{resourcePath}'.");
-                }
             }
         }
     }

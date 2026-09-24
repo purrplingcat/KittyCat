@@ -2,28 +2,33 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using PurrplingCore.Toolkit.DI;
-using PurrplingCore.Toolkit.DI.Configuration;
+using PurrplingCore.Toolkit.Hosting.Services;
 
 namespace PurrplingCore.Toolkit.Hosting;
 
 public static class GameHostBuilderExtensions
 {
-    public static IGameHostBuilder AddServiceConfiguration(this IGameHostBuilder builder, IServicesConfiguration configuration)
+    public static IGameHostBuilder AddServiceModule(this IGameHostBuilder builder, IServiceModule module)
     {
-        builder.Services.AddSingleton(configuration);
+        builder.Services.AddSingleton(module);
         return builder;
     }
 
-    public static IGameHostBuilder AddServiceConfiguration<T>(this IGameHostBuilder builder) where T : class, IServicesConfiguration
+    public static IGameHostBuilder AddServiceModule<T>(this IGameHostBuilder builder) where T : class, IServiceModule
     {
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Transient<IServicesConfiguration, T>());
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Transient<IServiceModule, T>());
         return builder;
     }
 
-    public static IGameHostBuilder AddServiceConfiguration(this IGameHostBuilder builder, Action<IServiceCollection, IServiceProvider> configure)
+    public static IGameHostBuilder AddServiceModule(this IGameHostBuilder builder, Action<IServiceCollection, IServiceProvider> configure)
     {
-        builder.Services.AddTransient<IServicesConfiguration>(sp => new LambdaServices(sp, configure));
+        builder.Services.AddTransient<IServiceModule>(sp => new LambdaServices(sp, configure));
+        return builder;
+    }
+
+    public static IGameHostBuilder AddServiceModule<T>(this IGameHostBuilder builder, Func<IServiceProvider, T> factory) where T : class, IServiceModule
+    {
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Transient<IServiceModule, T>(factory));
         return builder;
     }
 
@@ -61,5 +66,32 @@ public static class GameHostBuilderExtensions
         }
 
         return builder;
+    }
+}
+
+public static partial class ServicesExtensions
+{
+    public static IServiceCollection AddServiceModule<T>(this IServiceCollection services, T instance) where T : class, IServiceModule
+    {
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IServiceModule>(instance));
+        return services;
+    }
+
+    public static IServiceCollection AddServiceModule<T>(this IServiceCollection services) where T : class, IServiceModule
+    {
+        services.TryAddEnumerable(ServiceDescriptor.Transient<IServiceModule, T>());
+        return services;
+    }
+
+    public static IServiceCollection AddServiceModule<T>(this IServiceCollection services, Func<IServiceProvider, T> factory) where T : class, IServiceModule
+    {
+        services.TryAddEnumerable(ServiceDescriptor.Transient<IServiceModule, T>(factory));
+        return services;
+    }
+
+    public static IServiceCollection AddServiceModule(this IServiceCollection services, Func<IServiceProvider, IServiceModule> factory)
+    {
+        services.AddTransient(factory);
+        return services;
     }
 }

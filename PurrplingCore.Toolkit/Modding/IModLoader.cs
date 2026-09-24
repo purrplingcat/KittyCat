@@ -32,7 +32,7 @@ public sealed class ModEntryAttribute : Attribute
 {
 }
 
-public abstract class Mod : IMod, IModInitializer, IModStartup, IServicesConfiguration
+public abstract class Mod : IMod, IModInitializer, IModStartup, IServiceModule
 {
     private Assembly? _assembly;
 

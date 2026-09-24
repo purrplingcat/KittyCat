@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PurrplingCore.Toolkit.DI;
-using PurrplingCore.Toolkit.Extensions;
+using PurrplingCore.Toolkit.Hosting.Services;
 using System.Diagnostics;
 
 namespace PurrplingCore.Toolkit.Hosting;
@@ -10,16 +10,22 @@ public sealed class GameHost : IDisposable
 {
     private readonly IServiceProvider _hostServiceProvider;
     private readonly IServiceCollection _gameServiceCollection;
+    private readonly IDictionary<object, object> _properties;
     private readonly ILogger _logger;
     private readonly IHostEnvironment _environment;
     private StartupServiceExecutor? _startupServiceExecutor;
     private IGame? _game;
-    
+
     private IServiceProvider? _gameServiceProvider;
     private bool _disposed;
 
     internal GameHost(
-        IServiceProvider hostProvider, IServiceCollection gameServices, IHostEnvironment environment, ILogger logger)
+        IServiceProvider hostProvider, 
+        IServiceCollection gameServices, 
+        IDictionary<object, object> properties,
+        IHostEnvironment environment, 
+        ILogger logger
+    )
     {
         _hostServiceProvider = hostProvider;
         _gameServiceCollection = gameServices;
@@ -30,6 +36,8 @@ public sealed class GameHost : IDisposable
     }
 
     public ILogger Logger => _logger;
+
+    public bool IsRunning => _game?.IsRunning ?? false;
 
     public IServiceProvider Services
     {
@@ -55,9 +63,9 @@ public sealed class GameHost : IDisposable
         _logger.LogGameInformation(_environment);
         _logger.LogDebug("Environment: {EnvironmentName}", _environment.EnvironmentName);
 
-        foreach (var serviceConfiguration in _hostServiceProvider.GetServices<IServicesConfiguration>())
+        foreach (var module in _hostServiceProvider.GetServices<IServiceModule>())
         {
-            serviceConfiguration.ConfigureServices(_gameServiceCollection);
+            module.ConfigureServices(_gameServiceCollection);
         }
 
         IServiceFactoryAdapter factory = _hostServiceProvider.GetRequiredService<IServiceFactoryAdapter>();
@@ -128,7 +136,7 @@ public sealed class GameHost : IDisposable
     }
 
     private void OnGameExited(object? sender, EventArgs e)
-    {        
+    {
         _logger.LogInformation("Shutdown");
         _logger.LogDebug("Executing cleanup services ...");
         _startupServiceExecutor?.CleanUp();

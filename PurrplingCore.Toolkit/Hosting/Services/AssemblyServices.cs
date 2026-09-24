@@ -1,13 +1,11 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Collections.Generic;
+using PurrplingCore.Toolkit.DI;
 using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
 
-namespace PurrplingCore.Toolkit.DI.Configuration;
+namespace PurrplingCore.Toolkit.Hosting.Services;
 
-public class AssemblyServices(params Assembly[] assemblies) : IServicesConfiguration
+public class AssemblyServices(params Assembly[] assemblies) : IServiceModule
 {
     private object _lock = new();
     private readonly Assembly[] _assemblies = assemblies;
@@ -65,11 +63,11 @@ public class AssemblyServices(params Assembly[] assemblies) : IServicesConfigura
 
         private static bool IsConfigurationType(Type type)
         {
-            return Attribute.IsDefined(type, typeof(ServiceConfiguration)) 
-                && typeof(IServicesConfiguration).IsAssignableFrom(type);
+            return Attribute.IsDefined(type, typeof(GameModuleAttribute)) 
+                && typeof(IServiceModule).IsAssignableFrom(type);
         }
 
-        public IEnumerable<IServicesConfiguration> GetConfigurations()
+        public IEnumerable<IServiceModule> GetConfigurations()
         {
             foreach (var type in types)
             {
@@ -78,7 +76,7 @@ public class AssemblyServices(params Assembly[] assemblies) : IServicesConfigura
                     throw new InvalidOperationException($"The service configuration '{type.FullName}' must have a parameterless constructor.");
                 }
 
-                if (Activator.CreateInstance(type) is IServicesConfiguration config)
+                if (Activator.CreateInstance(type) is IServiceModule config)
                 {
                     yield return config;
                 }

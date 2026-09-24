@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using PurrplingCore.Toolkit.DI;
-using PurrplingCore.Toolkit.DI.Configuration;
+using PurrplingCore.Toolkit.Hosting.Services;
 using PurrplingCore.Toolkit.Messaging;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -14,6 +14,8 @@ namespace PurrplingCore.Toolkit.Hosting;
 
 public class GameHostBuilder : IGameHostBuilder
 {
+    public const string GameTypePropertyKey = "GameType";
+
     private readonly string[] _args;
     
     private bool _hasGame;
@@ -32,7 +34,7 @@ public class GameHostBuilder : IGameHostBuilder
 
     public IHostEnvironment Environment => _env;
 
-    public Dictionary<object, object> Properties { get; } = [];
+    public IDictionary<object, object> Properties { get; }
 
     public GameHostBuilder(string[]? args = null)
     {
@@ -40,6 +42,7 @@ public class GameHostBuilder : IGameHostBuilder
         _env = new HostEnvironment();
         _config = new ConfigurationManager();
         _args = args ?? [];
+        Properties = new Dictionary<object, object>();
 
         UseServiceProviderFactory(new DefaultServiceProviderFactory());
         Initialize();
@@ -70,7 +73,7 @@ public class GameHostBuilder : IGameHostBuilder
     }
 
     /// <inheritdoc />
-    public IGameHostBuilder AddGame<TGame>() where TGame : Game
+    public IGameHostBuilder AddGame<TGame>() where TGame : class, IGame
     {
         if (_hasGame)
         {
@@ -79,8 +82,9 @@ public class GameHostBuilder : IGameHostBuilder
 
         _hasGame = true;
         _env.GameVersion = GameVersion.Of<TGame>();
-        _services.AddSingleton<IServicesConfiguration>(new AssemblyServices(typeof(TGame).Assembly));
-        _services.AddTransient<IServicesConfiguration, GameServices<TGame>>();
+        _services.AddServiceModule(new AssemblyServices(typeof(TGame).Assembly));
+        _services.AddServiceModule<GameServices<TGame>>();
+        Properties[GameTypePropertyKey] = typeof(TGame);
 
         return this;
     }
@@ -128,15 +132,19 @@ public class GameHostBuilder : IGameHostBuilder
             var gameServices = _services.Clone();
             var provider = _serviceProviderFactory.CreateServiceProvider(_services);
 
-            return ResolveHost(provider, gameServices);
+            return ResolveHost(provider, gameServices, Properties);
     }
 
-    private static GameHost ResolveHost(IServiceProvider provider, IServiceCollection gameServices)
+    private static GameHost ResolveHost(
+        IServiceProvider provider, 
+        IServiceCollection gameServices, 
+        IDictionary<object, object> properties
+    )
     {
         var env = provider.GetRequiredService<IHostEnvironment>();
         var loggerFactory = provider.GetRequiredService<ILoggerFactory>();
         var logger = loggerFactory.CreateLogger("GameHost");
-        var host = new GameHost(provider, gameServices, env, logger);
+        var host = new GameHost(provider, gameServices, properties, env, logger);
 
         // Ensure that the startup service executor is resolved after the host is created
         host.Initialize();

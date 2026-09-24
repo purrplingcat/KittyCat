@@ -1,4 +1,6 @@
-﻿namespace PurrplingCore.Toolkit.DI;
+﻿using PurrplingCore.Toolkit.Hosting;
+
+namespace PurrplingCore.Toolkit.DI;
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
 public class GameServicesAttribute : Attribute
@@ -7,9 +9,9 @@ public class GameServicesAttribute : Attribute
     {
         ArgumentNullException.ThrowIfNull(configurationType);
 
-        if (!typeof(IServicesConfiguration).IsAssignableFrom(configurationType))
+        if (!typeof(IServiceModule).IsAssignableFrom(configurationType))
         {
-            throw new ArgumentException($"Type '{configurationType}' must implement '{typeof(IServicesConfiguration)}'.", nameof(configurationType));
+            throw new ArgumentException($"Type '{configurationType}' must implement '{typeof(IServiceModule)}'.", nameof(configurationType));
         }
 
         if (configurationType.GetConstructor(Type.EmptyTypes) == null)
@@ -21,15 +23,10 @@ public class GameServicesAttribute : Attribute
     }
 
     public Type ConfigurationType { get; }
-
-    public IServicesConfiguration CreateConfiguration()
-    {
-        return (IServicesConfiguration)Activator.CreateInstance(ConfigurationType)!;
-    }
 }
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
 public sealed class GameServicesAttribute<TConfiguration>() : GameServicesAttribute(typeof(TConfiguration)) 
-    where TConfiguration : IServicesConfiguration, new()
+    where TConfiguration : IServiceModule
 {
 }

@@ -616,7 +616,14 @@ public static class LockExtensions
 
 public static class PurrplingAssetsServiceExtensions
 {
-    public static IServiceCollection AddAssetSystem(this IServiceCollection services)
+    /// <summary>
+    /// Registers the asset registry and related services with the dependency injection container.
+    /// </summary>
+    /// <remarks>
+    /// This method ensures that the asset registry and related services are properly registered.
+    /// It also sets up the <b>Virtual File System (VFS)</b> which is required for asset management.
+    /// </remarks>
+    public static IServiceCollection AddAssetRegistry(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 

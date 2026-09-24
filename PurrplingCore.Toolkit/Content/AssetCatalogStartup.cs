@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.Xna.Framework;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Vfs;
 using Zio;
@@ -7,78 +8,50 @@ using Zio;
 namespace PurrplingCore.Toolkit.Content;
 
 /// <summary>
-/// Imports catalogs from content overlay layers after the VFS startup has mounted them.
-/// Registered explicitly by <see cref="AssetCatalogServiceExtensions.AddVfsAssetCatalogs"/>.
+/// Imports catalogs from VFS root containers when VFS is registered.
 /// </summary>
 internal sealed class AssetCatalogStartup(
-    IVfsMountManager mounts,
     AssetRegistry registry,
+    IVirtualFileSystemManager vfs,
     IOptions<ContentManagerOptions> contentOptions) : IStartupService
 {
-    private readonly IVfsMountManager _mounts = mounts;
+    private readonly IVirtualFileSystemManager _vfs = vfs;
     private readonly AssetRegistry _registry = registry;
     private readonly UPath _contentRoot = new UPath(contentOptions.Value.ContentRoot).ToAbsolute();
-    private readonly HashSet<IFileSystem> _importedLayers = new(ReferenceEqualityComparer.Instance);
-    private readonly object _syncRoot = new();
 
     public int Order => -90;
 
     public void OnStartup()
     {
-        _mounts.Changed += OnVfsChanged;
-        ImportNewLayers();
-    }
+        _vfs.RootContainerAdded += OnRootContainerAdded;
 
-    private void OnVfsChanged(object? sender, VfsChangedEventArgs eventArgs)
-    {
-        if (eventArgs.Kind == VfsChangeKind.LayerAdded && eventArgs.Target == _contentRoot)
+        foreach (var container in _vfs.GetRootContainers())
         {
-            ImportNewLayers();
+            ImportCatalog(container);
         }
     }
 
-    private void ImportNewLayers()
+    private void OnRootContainerAdded(object? sender, VfsRootContainerEventArgs eventArgs)
     {
-        foreach (var layer in _mounts.GetLayers(_contentRoot))
-        {
-            lock (_syncRoot)
-            {
-                if (!_importedLayers.Add(layer))
-                {
-                    continue;
-                }
-            }
-
-            try
-            {
-                ImportCatalog(layer);
-            }
-            catch
-            {
-                lock (_syncRoot)
-                {
-                    _importedLayers.Remove(layer);
-                }
-
-                throw;
-            }
-        }
+        ImportCatalog(eventArgs.FileSystem);
     }
 
-    private void ImportCatalog(IFileSystem layer)
+    private void ImportCatalog(IFileSystem container)
     {
-        var binaryPath = new UPath(AssetCatalog.BinaryFileName).ToAbsolute();
-        if (layer.FileExists(binaryPath))
+        var binaryPath = UPath.Combine(_contentRoot, AssetCatalog.BinaryFileName);
+        if (container.FileExists(binaryPath))
         {
-            var catalog = AssetCatalogSerializer.Load(layer, binaryPath);
+            using var stream = container.OpenRead(binaryPath);
+            var catalog = AssetCatalogSerializer.Load(stream);
             catalog.Import(_registry, catalog.PackageId);
             return;
         }
 
-        var jsonPath = new UPath(AssetCatalog.JsonFileName).ToAbsolute();
-        if (layer.FileExists(jsonPath))
+        var jsonPath = UPath.Combine(_contentRoot, AssetCatalog.JsonFileName);
+        if (container.FileExists(jsonPath))
         {
-            var catalog = AssetCatalogSerializer.LoadJson(layer, jsonPath);
+            using var stream = container.OpenRead(jsonPath);
+            var catalog = AssetCatalogSerializer.LoadJson(stream);
             catalog.Import(_registry, catalog.PackageId);
         }
     }

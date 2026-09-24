@@ -13,18 +13,13 @@ namespace PurrplingCore.Toolkit.Content;
 
 public delegate void VfsMountAction(IVirtualFileSystemManager vfs, IServiceProvider provider);
 
-public static class ServiceCollectionExtensions
+public static class VfsServiceCollectionExtensions
 {
 
     public static IServiceCollection AddVfs(this IServiceCollection services)
     {
-        services.TryAddSingleton<VirtualFileSystemManager>(sp =>
-        {
-            var env = sp.GetRequiredService<IHostEnvironment>();
-            return new VirtualFileSystemManager(env);
-        });
+        services.TryAddSingleton<VirtualFileSystemManager>();
         services.TryAddSingleton<IVirtualFileSystemManager>(sp => sp.GetRequiredService<VirtualFileSystemManager>());
-        services.TryAddSingleton<IVfsMountManager, VfsMountManager>();
         services.TryAddTransient(sp => 
             sp.GetRequiredService<IVirtualFileSystemManager>()
               .GetFileSystem()

@@ -17,7 +17,7 @@ public static class ModdingExtensions
         builder.Services.TryAddAlias<IModRegistry, ModRegistry>();
 
         // Apply mod loader & app services
-        builder.AddServiceConfiguration((appServices, hostProvider) =>
+        builder.AddServiceModule((appServices, hostProvider) =>
         {   
             // Add necessary mod-related app services
             appServices.AddStartup<ModStartupService>();

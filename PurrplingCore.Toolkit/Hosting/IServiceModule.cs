@@ -1,18 +1,19 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using PurrplingCore.Toolkit.Hosting;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace PurrplingCore.Toolkit.DI;
+namespace PurrplingCore.Toolkit.Hosting;
 
-public interface IServicesConfiguration
+public interface IServiceModule
 {
     public void ConfigureServices(IServiceCollection services);
 }
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
-public sealed class ServiceConfiguration : Attribute
+public sealed class GameModuleAttribute : Attribute
 {
 }

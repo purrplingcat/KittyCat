@@ -22,12 +22,14 @@ public interface IGameHostBuilder
     /// </summary>
     ILoggingBuilder Logging { get; }
 
+    IDictionary<object, object> Properties { get; }
+
     /// <summary>
     /// Registers the game instance and its metadata.
     /// This defines the identity of the host and must be called before building.
     /// </summary>
     /// <typeparam name="TGame">The type of the game class.</typeparam>
-    IGameHostBuilder AddGame<TGame>() where TGame : Game;
+    IGameHostBuilder AddGame<TGame>() where TGame : class, IGame;
 
     /// <summary>
     /// Sets the factory to be used for creating the <see cref="IServiceProvider"/>.
