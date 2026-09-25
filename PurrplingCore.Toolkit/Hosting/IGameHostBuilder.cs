@@ -17,6 +17,8 @@ public interface IGameHostBuilder
 
     IHostEnvironment Environment { get; }
 
+    IGameFeatureCollection GameFeatures { get; }
+
     /// <summary>
     /// Logging builder
     /// </summary>

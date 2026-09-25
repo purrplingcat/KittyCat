@@ -22,15 +22,16 @@ public sealed class GameHost : IDisposable
     internal GameHost(
         IServiceProvider hostProvider, 
         IServiceCollection gameServices, 
-        IDictionary<object, object> properties,
         IHostEnvironment environment, 
-        ILogger logger
+        ILogger logger,
+        IDictionary<object, object>? properties = null
     )
     {
         _hostServiceProvider = hostProvider;
         _gameServiceCollection = gameServices;
         _logger = logger;
         _environment = environment;
+        _properties = properties ?? new Dictionary<object, object>();
 
         _gameServiceCollection.AddSingleton<StartupServiceExecutor>();
     }
@@ -38,6 +39,8 @@ public sealed class GameHost : IDisposable
     public ILogger Logger => _logger;
 
     public bool IsRunning => _game?.IsRunning ?? false;
+
+    public IDictionary<object, object> Properties => _properties;
 
     public IServiceProvider Services
     {
@@ -56,6 +59,25 @@ public sealed class GameHost : IDisposable
         builder.AddCoreServices();
 
         return builder;
+    }
+
+    public static GameHost Create(
+        IServiceProvider provider, 
+        IServiceCollection gameServices,
+        IDictionary<object, object>? properties = null,
+        Action<GameHost>? onHostCreated = null
+    )
+    {
+        var env = provider.GetRequiredService<IHostEnvironment>();
+        var loggerFactory = provider.GetRequiredService<ILoggerFactory>();
+        var logger = loggerFactory.CreateLogger("GameHost");
+        var host = new GameHost(provider, gameServices, env, logger, properties);
+
+        // Ensure that the startup service executor is resolved after the host is created
+        host.Initialize();
+        onHostCreated?.Invoke(host);
+        
+        return host;
     }
 
     internal void Initialize()
@@ -92,10 +114,16 @@ public sealed class GameHost : IDisposable
     private IGame ResolveGame()
     {
         var game = Services.GetRequiredService<IGame>();
+        game.Launched += OnGameLaunched;
         game.Exited += OnGameExited;
         game.Disposed += OnGameDisposed;
 
         return game;
+    }
+
+    private void OnGameLaunched(object? sender, EventArgs e)
+    {
+        throw new NotImplementedException();
     }
 
     public void Exit()
@@ -146,6 +174,7 @@ public sealed class GameHost : IDisposable
     {
         if (_game != null)
         {
+            _game.Launched -= OnGameLaunched;
             _game.Exited -= OnGameExited;
             _game.Disposed -= OnGameDisposed;
         }

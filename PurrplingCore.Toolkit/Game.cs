@@ -45,6 +45,7 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
     }
 
     public event EventHandler<EventArgs>? Exited;
+    public event EventHandler<EventArgs>? Launched;
 
     public GraphicsDeviceManager GraphicsDeviceManager => _graphicsManager;
 
@@ -144,6 +145,7 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
         base.BeginRun();
         _isRunning = true;
         _bus?.Publish(new GameMessage(this, GameMessages.Lanuched));
+        Launched?.Invoke(this, EventArgs.Empty);
         _logger.LogInformation("Game started!");
     }
 

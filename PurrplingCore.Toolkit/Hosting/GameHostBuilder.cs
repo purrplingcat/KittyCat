@@ -25,6 +25,7 @@ public class GameHostBuilder : IGameHostBuilder
     private readonly ILoggingBuilder _logging;
     private readonly HostEnvironment _env;
     private readonly ConfigurationManager _config;
+    private readonly GameFeatureCollection _gameFeatures;
     private IServiceFactoryAdapter _serviceProviderFactory;
 
     public IServiceCollection Services => _services;
@@ -34,6 +35,8 @@ public class GameHostBuilder : IGameHostBuilder
 
     public IHostEnvironment Environment => _env;
 
+    public IGameFeatureCollection GameFeatures => _gameFeatures;
+
     public IDictionary<object, object> Properties { get; }
 
     public GameHostBuilder(string[]? args = null)
@@ -41,6 +44,7 @@ public class GameHostBuilder : IGameHostBuilder
         _logging = new LoggingBuilder(_services);
         _env = new HostEnvironment();
         _config = new ConfigurationManager();
+        _gameFeatures = new GameFeatureCollection();
         _args = args ?? [];
         Properties = new Dictionary<object, object>();
 
@@ -106,6 +110,7 @@ public class GameHostBuilder : IGameHostBuilder
         services.AddSingleton(_serviceProviderFactory);
         services.AddSingleton<IConfiguration>(_config);
         services.AddSingleton<IHostEnvironment>(_env);
+        services.AddSingleton<IGameFeatureCollection>(_gameFeatures);
         services.TryAddSingleton<IMessageBus, NullMessageBus>();
         services.TryAddTransient(typeof(Lazy<>), typeof(LazyService<>));
     }
@@ -132,24 +137,13 @@ public class GameHostBuilder : IGameHostBuilder
             var gameServices = _services.Clone();
             var provider = _serviceProviderFactory.CreateServiceProvider(_services);
 
-            return ResolveHost(provider, gameServices, Properties);
+            return GameHost.Create(provider, gameServices, Properties, OnHostCreated);
     }
 
-    private static GameHost ResolveHost(
-        IServiceProvider provider, 
-        IServiceCollection gameServices, 
-        IDictionary<object, object> properties
-    )
+    private void OnHostCreated(GameHost host)
     {
-        var env = provider.GetRequiredService<IHostEnvironment>();
-        var loggerFactory = provider.GetRequiredService<ILoggerFactory>();
-        var logger = loggerFactory.CreateLogger("GameHost");
-        var host = new GameHost(provider, gameServices, properties, env, logger);
-
-        // Ensure that the startup service executor is resolved after the host is created
-        host.Initialize();
-
-        return host;
+        Properties[typeof(GameHost)] = host;
+        _gameFeatures.Freeze();
     }
 
     private sealed class LoggingBuilder(IServiceCollection services) : ILoggingBuilder

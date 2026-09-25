@@ -15,8 +15,8 @@ Console.OutputEncoding = Encoding.UTF8;
 
 var builder = GameHost.CreateBuilder(args);
 
-builder.AddGame<KittyCatGame>();
 builder.UsePurrplingCore();
+builder.AddGame<KittyCatGame>();
 builder.AddMods(Path.Combine(AppContext.BaseDirectory, "Mods"));
 builder.Logging.AddDefaultLogging();
 
