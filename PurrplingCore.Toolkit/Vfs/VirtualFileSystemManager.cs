@@ -4,6 +4,9 @@ using Zio.FileSystems;
 
 namespace PurrplingCore.Toolkit.Vfs;
 
+/// <summary>
+/// Maintains a stable mount root over an aggregate of the platform base filesystem and packages.
+/// </summary>
 internal class VirtualFileSystemManager : IVirtualFileSystemManager, IDisposable
 {
     internal static PhysicalFileSystem Physical { get; } = new PhysicalFileSystem();
@@ -14,11 +17,9 @@ internal class VirtualFileSystemManager : IVirtualFileSystemManager, IDisposable
     private readonly object _syncRoot = new();
     private bool _disposed;
 
-    public event EventHandler<VfsMountEventArgs>? Mounted;
-    public event EventHandler<VfsRootContainerEventArgs>? RootContainerAdded;
-
     public VirtualFileSystemManager(IHostEnvironment env)
     {
+        // Consumers keep this stable root while aggregate layers are added underneath it.
         _baseFs = CreatePlatformFileSystem(env);
         _rootContainers = new AggregateFileSystem(_baseFs);
         _root = new MountFileSystem(_rootContainers);
@@ -38,8 +39,6 @@ internal class VirtualFileSystemManager : IVirtualFileSystemManager, IDisposable
         {
             _root.Mount(absoluteTarget, fileSystem);
         }
-
-        Mounted?.Invoke(this, new VfsMountEventArgs(absoluteTarget, fileSystem));
     }
 
     public void AddRootContainer(IFileSystem fileSystem)
@@ -50,14 +49,10 @@ internal class VirtualFileSystemManager : IVirtualFileSystemManager, IDisposable
         {
             _rootContainers.AddFileSystem(fileSystem);
         }
-
-        RootContainerAdded?.Invoke(this, new VfsRootContainerEventArgs(fileSystem));
     }
 
     public IEnumerable<IFileSystem> GetRootContainers()
     {
-        // AggregateFileSystem exposes its fallback separately from added layers.
-        // The base game filesystem is that fallback and also contains a catalog.
         yield return _baseFs;
 
         foreach (var container in _rootContainers.GetFileSystems())
@@ -71,6 +66,8 @@ internal class VirtualFileSystemManager : IVirtualFileSystemManager, IDisposable
         return env.PlatformType switch
         {
             PlatformType.Desktop => Physical.CreateSubFileSystem(env.BaseDirectory),
+            // Bundled mobile content is added later as TitleContainer-backed package streams.
+            PlatformType.Mobile => new MemoryFileSystem(),
             _ => throw new NotSupportedException($"Platform {env.PlatformType} is not supported"),
         };
     }

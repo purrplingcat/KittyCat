@@ -2,6 +2,7 @@ using Android.App;
 using Android.Content.PM;
 using Android.OS;
 using Android.Views;
+using KittyCat.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Toolkit.DI;
@@ -42,6 +43,7 @@ public class MainActivity : AndroidGameActivity
         base.OnCreate(bundle);
 
         var builder = GameHost.CreateBuilder()
+            .UsePurrplingCore(new AndroidAssetFileProvider(Assets))
             .AddGame<KittyCatGame>();
                               
         _gameHost = builder.Build();

@@ -13,7 +13,7 @@ public class GraphicsManager : IStartupService
     private readonly PurrplingCore.Toolkit.Game _game;
     private readonly Resolution _resolution;
     private SpriteBatch? _spriteBatch;
-    int IStartupService.Order => 0;
+    int IOrderedService.Order => 0;
 
     public GraphicsDevice GraphicsDevice => _game.GraphicsDevice 
         ?? throw new InvalidOperationException("Graphics device is not ready yet!");
@@ -50,7 +50,7 @@ public class GraphicsManager : IStartupService
         return new RenderTarget2D(_game.GraphicsDevice, width, height);
     }
 
-    public void OnStartup()
+    public void Startup()
     {
         // Configure screen orientations.
         GraphicsDeviceManager.SupportedOrientations = DisplayOrientation.LandscapeLeft | DisplayOrientation.LandscapeRight;

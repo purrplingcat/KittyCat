@@ -10,7 +10,23 @@ public static class AssetCatalogBuilder
 {
     private static readonly JsonSerializerOptions s_jsonOptions = new(JsonSerializerDefaults.Web);
 
-    public static int Generate(string sourceDirectory, string compiledDirectory, string? packageId = null)
+    /// <summary>
+    /// Creates a binary asset catalog from source metadata whose compiled XNB files exist.
+    /// </summary>
+    /// <param name="sourceDirectory">Root containing source <c>*.meta.json</c> files.</param>
+    /// <param name="compiledDirectory">Root containing compiled XNB files.</param>
+    /// <param name="packageId">Logical package name stored in the catalog.</param>
+    /// <param name="outputPath">Optional catalog destination; defaults to the compiled root.</param>
+    /// <param name="contentPathPrefix">
+    /// Optional top-level content path used to select entries for one package.
+    /// </param>
+    /// <returns>The number of asset entries written, or zero when no matching XNB exists.</returns>
+    public static int Generate(
+        string sourceDirectory,
+        string compiledDirectory,
+        string? packageId = null,
+        string? outputPath = null,
+        string? contentPathPrefix = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(sourceDirectory);
         ArgumentException.ThrowIfNullOrEmpty(compiledDirectory);
@@ -23,6 +39,13 @@ public static class AssetCatalogBuilder
                 ?? throw new InvalidDataException($"Asset metadata '{metadataPath}' is empty.");
 
             var contentPath = AssetCatalogSerializer.NormalizeContentPath(entry.ContentPath);
+            // Per-package catalogs contain only assets physically packed into that package.
+            if (contentPathPrefix is not null &&
+                !contentPath.StartsWith(contentPathPrefix + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             var compiledPath = Path.Combine(compiledDirectory, contentPath + ".xnb");
             if (!File.Exists(compiledPath))
             {
@@ -43,7 +66,8 @@ public static class AssetCatalogBuilder
             Assets = [.. assets]
         };
 
-        var catalogPath = Path.Combine(compiledDirectory, AssetCatalog.DefaultFileName);
+        var catalogPath = outputPath ?? Path.Combine(compiledDirectory, AssetCatalog.DefaultFileName);
+        Directory.CreateDirectory(Path.GetDirectoryName(catalogPath)!);
         using var catalogStream = File.Create(catalogPath);
         AssetCatalogSerializer.Save(catalogStream, catalog);
         return assets.Count;

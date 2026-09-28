@@ -13,10 +13,9 @@ public sealed class GameHost : IDisposable
     private readonly IDictionary<object, object> _properties;
     private readonly ILogger _logger;
     private readonly IHostEnvironment _environment;
-    private StartupServiceExecutor? _startupServiceExecutor;
-    private IGame? _game;
-
     private IServiceProvider? _gameServiceProvider;
+    private GameApplicationRunner? _gameRunner;
+    private StartupServiceExecutor? _startupServices;
     private bool _disposed;
 
     internal GameHost(
@@ -33,12 +32,17 @@ public sealed class GameHost : IDisposable
         _environment = environment;
         _properties = properties ?? new Dictionary<object, object>();
 
-        _gameServiceCollection.AddSingleton<StartupServiceExecutor>();
+        // Register core game services
+        _gameServiceCollection
+            .AddSingleton<GameApplicationLifetime>()
+            .AddSingleton<StartupServiceExecutor>()
+            .AddSingleton<GameApplicationRunner>()
+            .AddAlias<IGameApplicationLifetime, GameApplicationLifetime>();
     }
 
     public ILogger Logger => _logger;
 
-    public bool IsRunning => _game?.IsRunning ?? false;
+    public bool IsRunning => _gameRunner?.IsRunning ?? false;
 
     public IDictionary<object, object> Properties => _properties;
 
@@ -99,40 +103,20 @@ public sealed class GameHost : IDisposable
         Debug.Assert(_gameServiceProvider != null, "Initialize must be called first.");
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        // Resolve the startup service executor and the game instance before running the game.
-        _startupServiceExecutor = _gameServiceProvider.GetRequiredService<StartupServiceExecutor>();
-        _game ??= ResolveGame();
+        _startupServices ??= Services.GetRequiredService<StartupServiceExecutor>();
+        _gameRunner ??= Services.GetRequiredService<GameApplicationRunner>();
 
+        // Execute startup services before running the game application
         _logger.LogDebug("Executing startup services");
-        _startupServiceExecutor.Startup();
+        _startupServices.Startup();
 
-        // Run the game after initializing the startup services.
-        _logger.LogDebug("Executing {gameType}::Run()", _game.GetType());
-        _game.Run();
-    }
-
-    private IGame ResolveGame()
-    {
-        var game = Services.GetRequiredService<IGame>();
-        game.Launched += OnGameLaunched;
-        game.Exited += OnGameExited;
-        game.Disposed += OnGameDisposed;
-
-        return game;
-    }
-
-    private void OnGameLaunched(object? sender, EventArgs e)
-    {
-        throw new NotImplementedException();
+        // Run the game application
+        _gameRunner.Run(Services.GetRequiredService<IGame>());
     }
 
     public void Exit()
     {
-        if (_game != null && _game.IsRunning)
-        {
-            _game.Exit();
-            _logger.LogTrace("Requested game application exit");
-        }
+        _gameRunner?.Exit();
     }
 
     public void Dispose()
@@ -140,16 +124,21 @@ public sealed class GameHost : IDisposable
         if (_disposed) return;
 
         _disposed = true;
-        DisposeGameServices();
-        DisposeProvider(_gameServiceProvider);
-        DisposeProvider(_hostServiceProvider);
-    }
-
-    private static void DisposeProvider(IServiceProvider? provider)
-    {
-        if (provider is IDisposable disposable)
+        try
         {
-            disposable.Dispose();
+            if (_startupServices != null)
+            {
+                // Clean up startup services before disposing the game host
+                _logger.LogDebug("Executing cleanup services ...");
+                _startupServices.CleanUp();
+            }
+        }
+        finally
+        {
+            _gameRunner?.Dispose();
+            DisposeGameServices();
+            DisposeProvider(_gameServiceProvider);
+            DisposeProvider(_hostServiceProvider);
         }
     }
 
@@ -163,25 +152,14 @@ public sealed class GameHost : IDisposable
         }
     }
 
-    private void OnGameExited(object? sender, EventArgs e)
+    private static void DisposeProvider(IServiceProvider? provider)
     {
-        _logger.LogInformation("Shutdown");
-        _logger.LogDebug("Executing cleanup services ...");
-        _startupServiceExecutor?.CleanUp();
-    }
-
-    private void OnGameDisposed(object? sender, EventArgs e)
-    {
-        if (_game != null)
+        if (provider is IDisposable disposable)
         {
-            _game.Launched -= OnGameLaunched;
-            _game.Exited -= OnGameExited;
-            _game.Disposed -= OnGameDisposed;
+            disposable.Dispose();
         }
-
-        _game = null;
-        _logger.LogDebug("Game disposed.");
     }
+
 }
 
 internal static class LoggerExtensions

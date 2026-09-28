@@ -13,7 +13,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Zio;
 
 namespace PurrplingCore.Toolkit.Content;
 
@@ -493,6 +492,7 @@ public class AssetManager
 {
     private readonly ContentManager _content;
     private readonly AssetRegistry _masterRegistry;
+    private readonly AssetCatalogIndexer _catalogIndexer;
     private readonly IServiceProvider _services;
     private readonly ConcurrentDictionary<Type, IAssetCache> _cacheMap = [];
 
@@ -501,10 +501,14 @@ public class AssetManager
     public event AssetsUnloadedHandler? AssetsUnloaded;
     public event Action? CacheCleared;
 
-    public AssetManager(IContentManagerProvider contentProvider, AssetRegistry masterRegistry)
+    public AssetManager(
+        IContentManagerProvider contentProvider,
+        AssetRegistry masterRegistry,
+        AssetCatalogIndexer catalogIndexer)
     {
         _content = contentProvider.CreateContentManager();
         _masterRegistry = masterRegistry;
+        _catalogIndexer = catalogIndexer;
         _services = _content.ServiceProvider;
     }
 
@@ -524,8 +528,13 @@ public class AssetManager
 
         if (!cache.TryRetain(assetId, out var loadedAsset))
         {
-            var descriptor = _masterRegistry.GetMetadata(assetId) 
-                ?? throw new KeyNotFoundException($"Asset {assetId.Guid} is not registered!");
+            var descriptor = _masterRegistry.GetMetadata(assetId);
+            if (descriptor is null)
+            {
+                _catalogIndexer.Refresh();
+                descriptor = _masterRegistry.GetMetadata(assetId)
+                    ?? throw new KeyNotFoundException($"Asset {assetId.Guid} is not registered!");
+            }
             loadedAsset = LoadAsset<T>(in descriptor);
             cache.Add(assetId, loadedAsset);
         }
@@ -617,21 +626,35 @@ public static class LockExtensions
 public static class PurrplingAssetsServiceExtensions
 {
     /// <summary>
-    /// Registers the asset registry and related services with the dependency injection container.
+    /// Registers asset storage, loading, catalog indexing, and provider-backed catalog startup.
     /// </summary>
     /// <remarks>
-    /// This method ensures that the asset registry and related services are properly registered.
-    /// It also sets up the <b>Virtual File System (VFS)</b> which is required for asset management.
+    /// The optional <see cref="Microsoft.Extensions.FileProviders.IFileProvider"/> is resolved by
+    /// <see cref="AssetCatalogIndexer"/>. Register <see cref="AddTitleAssetCatalog"/> instead when
+    /// the application intentionally has no provider-backed content namespace.
     /// </remarks>
     public static IServiceCollection AddAssetRegistry(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddVfs();
         services.TryAddSingleton<AssetRegistry>();
         services.TryAddSingleton<AssetManager>();
         services.TryAddScoped(typeof(AssetBank<>));
-        services.AddStartup<AssetCatalogStartup>();
+        services.TryAddSingleton<AssetCatalogIndexer>();
+        services.AddStartup<FileProviderAssetCatalogStartup>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers title-container catalog indexing for applications that do not provide another content source.
+    /// </summary>
+    public static IServiceCollection AddTitleAssetCatalog(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddAssetRegistry();
+        services.AddStartup<TitleAssetCatalogStartup>();
 
         return services;
     }

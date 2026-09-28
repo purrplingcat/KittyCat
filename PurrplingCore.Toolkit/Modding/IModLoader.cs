@@ -238,13 +238,13 @@ internal sealed class ModStartupService(IEnumerable<IModStartup> startups, IServ
 {
     public int Order => 1000;
 
-    public void OnCleanup()
+    public void Cleanup()
     {
         foreach(var disposable in startups.OfType<IDisposable>())
             disposable.Dispose();
     }
 
-    public void OnStartup()
+    public void Startup()
     {
         foreach(var mod in startups)
             mod.Startup(services);

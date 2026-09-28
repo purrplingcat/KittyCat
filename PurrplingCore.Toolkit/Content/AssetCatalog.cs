@@ -1,7 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using PurrplingCore.Toolkit.Vfs;
-using Zio;
 
 namespace PurrplingCore.Toolkit.Content;
 
@@ -10,6 +8,7 @@ namespace PurrplingCore.Toolkit.Content;
 /// </summary>
 public sealed record AssetCatalog
 {
+    public const string DirectoryName = "AssetCatalogs";
     public const string BinaryFileName = "asset-catalog.bin";
     public const string JsonFileName = "asset-catalog.json";
     public const string DefaultFileName = BinaryFileName;
@@ -20,6 +19,9 @@ public sealed record AssetCatalog
     public AssetCatalogEntry[] Assets { get; init; } = [];
 }
 
+/// <summary>
+/// Describes one logical asset and the content-relative path used to load its compiled data.
+/// </summary>
 public sealed record AssetCatalogEntry
 {
     public required string Id { get; init; }
@@ -28,6 +30,9 @@ public sealed record AssetCatalogEntry
     public Dictionary<string, string> Tags { get; init; } = [];
 }
 
+/// <summary>
+/// Reads, writes, and validates the persistent binary and JSON asset catalog formats.
+/// </summary>
 public static class AssetCatalogSerializer
 {
     private const uint BinaryMagic = 0x54414341; // ACAT
@@ -214,6 +219,13 @@ public static class AssetCatalogSerializer
 
 public static class AssetCatalogExtensions
 {
+    /// <summary>
+    /// Validates a catalog and atomically registers all of its entries in an asset registry.
+    /// </summary>
+    /// <remarks>
+    /// Asset IDs are globally unique. The registry rejects a catalog when any entry duplicates an
+    /// asset that was already registered, rather than silently changing source precedence.
+    /// </remarks>
     public static void Import(
         this AssetCatalog catalog,
         AssetRegistry registry,

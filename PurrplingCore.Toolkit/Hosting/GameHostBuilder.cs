@@ -58,7 +58,7 @@ public class GameHostBuilder : IGameHostBuilder
         _config.AddCommandLine(_args);
         _env.EnvironmentName = _config[HostDefaults.EnvironmentKey] ?? _env.EnvironmentName;
 
-        if (_env.IsProduction() && !GameCrashLogger.IsRegistered)
+        if (!GameCrashLogger.IsRegistered)
         {
             // Fallback when the entry point did not register the process-wide crash logger.
             GameCrashLogger.Register(_env);
@@ -88,6 +88,7 @@ public class GameHostBuilder : IGameHostBuilder
         _env.GameVersion = GameVersion.Of<TGame>();
         _services.AddServiceModule(new AssemblyServices(typeof(TGame).Assembly));
         _services.AddServiceModule<GameServices<TGame>>();
+        _services.AddSingleton(() => _env.GameVersion);
         Properties[GameTypePropertyKey] = typeof(TGame);
 
         return this;

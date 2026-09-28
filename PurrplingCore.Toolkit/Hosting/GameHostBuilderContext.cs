@@ -16,8 +16,9 @@ public interface IHostEnvironment
 
 internal sealed class HostEnvironment : IHostEnvironment
 {
-    private readonly Assembly _hostAssembly = Assembly.GetEntryAssembly() 
+    private static readonly Assembly _hostAssembly = Assembly.GetEntryAssembly() 
         ?? Assembly.GetExecutingAssembly();
+    private GameVersion? _gameVersion;
 
     public HostEnvironment()
     {
@@ -26,7 +27,15 @@ internal sealed class HostEnvironment : IHostEnvironment
             : Environments.Production;
     }
 
-    public GameVersion GameVersion { get; set; } = GameVersion.Empty;
+    public GameVersion GameVersion
+    {
+        get => _gameVersion
+            ?? throw new InvalidOperationException(
+                "GameVersion has not been set. Ensure game is added to the host."
+            );
+
+        set => _gameVersion = value;
+    }
 
     public string ApplicationName => GameVersion.Name;
 
@@ -41,6 +50,9 @@ internal sealed class HostEnvironment : IHostEnvironment
     public PlatformType PlatformType => Game.PlatformType;
 
     public string HostDirectory => Path.GetDirectoryName(_hostAssembly.Location) ?? string.Empty;
+
+    public static bool IsDebugBuild => _hostAssembly.IsDebugBuild();
+    public static bool IsReleaseBuild => !_hostAssembly.IsDebugBuild();
 }
 
 public static class HostEnvironmentExtensions

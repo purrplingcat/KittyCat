@@ -4,6 +4,7 @@ using KittyCat.Scenes;
 using KittyCat.Services;
 using KittyCat.Services.Options;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Xna.Framework.Content;
 using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.DI;
@@ -13,6 +14,7 @@ using PurrplingCore.Toolkit.Content;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Graphics;
 using PurrplingCore.Toolkit.Hosting;
+using PurrplingCore.Toolkit.Vfs;
 using System;
 using System.Linq;
 using System.Reflection;
@@ -56,14 +58,27 @@ public static class ServiceCollectionExtensions
         {
             services.AddAssetRegistry();
             services.AddWorld();
+            services.AddSingleton<ContentPackageManager>();
             services.AddStartup(GetServiceOrCreateInstance<VirtualFileSystemStartup>);
+            services.AddStartup(provider => provider.GetRequiredService<ContentPackageManager>());
         }
     }
 
-    public static IGameHostBuilder UsePurrplingCore(this IGameHostBuilder builder)
+    /// <summary>
+    /// Registers KittyCat runtime services with a provider that can enumerate bundled packages.
+    /// </summary>
+    /// <param name="packageFiles">
+    /// Optional platform provider. Desktop defaults to the application base directory; packaged
+    /// platforms should supply their own provider over application assets.
+    /// </param>
+    public static IGameHostBuilder UsePurrplingCore(
+        this IGameHostBuilder builder,
+        IFileProvider? packageFiles = null)
     {
         builder.Properties["PurrplingCore"] = true;
         builder.AddServiceModule<PurrplingCore>();
+        packageFiles ??= new PhysicalFileProvider(AppContext.BaseDirectory);
+        builder.Services.AddKeyedSingleton(ContentPackageManager.FileProviderKey, packageFiles);
         builder.Services.AddVfs();
         builder.Services.Expose<ContentManager, IContentManagerProvider>(provider => provider.ContentManager)
                         .Expose<Resolution, GraphicsManager>(source => source.Resolution);

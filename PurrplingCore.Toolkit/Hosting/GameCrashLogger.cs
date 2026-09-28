@@ -10,6 +10,7 @@ public sealed class GameHostCrashLoggerOptions
     /// Relative names are written to the application's base directory.
     /// </summary>
     public string LogFileName { get; init; } = GameCrashLogger.DefaultLogFileName;
+    public bool WriteCrashLog { get; init; } = HostEnvironment.IsDebugBuild;
 }
 
 /// <summary>
@@ -22,6 +23,7 @@ public static class GameCrashLogger
     private static readonly object RegistrationLock = new();
     private static string? _logFilePath;
     private static string? _logFileName;
+    private static bool _writeCrashLogFile = HostEnvironment.IsDebugBuild;
 
     /// <summary>
     /// Gets whether the process-wide crash logger has already been registered.
@@ -36,6 +38,7 @@ public static class GameCrashLogger
     /// </summary>
     public static void Register(GameHostCrashLoggerOptions? options = null)
     {
+        _writeCrashLogFile = options?.WriteCrashLog ?? HostEnvironment.IsDebugBuild;
         Register(AppContext.BaseDirectory, options?.LogFileName ?? DefaultLogFileName);
     }
 
@@ -45,16 +48,12 @@ public static class GameCrashLogger
     public static void Register(IHostEnvironment environment, GameHostCrashLoggerOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(environment);
+        _writeCrashLogFile = options?.WriteCrashLog ?? environment.IsDevelopment();
         Register(environment.BaseDirectory, options?.LogFileName ?? DefaultLogFileName);
     }
 
     private static void Register(string baseDirectory, string logFileName)
     {
-        if (IsRegistered)
-        {
-            return;
-        }
-
         ArgumentException.ThrowIfNullOrWhiteSpace(logFileName);
         var logFilePath = GetLogFilePath(baseDirectory, logFileName);
 
@@ -62,7 +61,7 @@ public static class GameCrashLogger
         {
             if (_logFilePath != null)
             {
-                return;
+                throw new Exception("The crash logger has already been registered.");
             }
 
             _logFileName = logFileName;
@@ -74,7 +73,7 @@ public static class GameCrashLogger
 
     private static void OnUnhandledException(object? sender, UnhandledExceptionEventArgs args)
     {
-        if (args.ExceptionObject is Exception exception)
+        if (_writeCrashLogFile && args.ExceptionObject is Exception exception)
         {
             Write(exception);
         }
@@ -82,13 +81,14 @@ public static class GameCrashLogger
 
     private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs args)
     {
-        Write(args.Exception);
+        if (_writeCrashLogFile)
+        {
+            Write(args.Exception);
+        }
     }
 
     private static void Write(Exception exception)
     {
-        WriteToConsole(exception);
-
         var logFileName = Volatile.Read(ref _logFileName) ?? DefaultLogFileName;
         var fallbackLogFile = GetLogFilePath(AppContext.BaseDirectory, logFileName);
         var logFile = _logFilePath ?? fallbackLogFile;
@@ -110,19 +110,6 @@ public static class GameCrashLogger
         catch
         {
             // Crash logging must never conceal the original failure.
-        }
-    }
-
-    private static void WriteToConsole(Exception exception)
-    {
-        try
-        {
-            Console.Error.WriteLine("Unhandled exception:");
-            Console.Error.WriteLine(exception);
-        }
-        catch
-        {
-            // A windowed application may not have a usable console.
         }
     }
 

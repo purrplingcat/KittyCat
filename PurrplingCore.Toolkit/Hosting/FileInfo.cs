@@ -7,9 +7,20 @@ using Zio;
 
 namespace PurrplingCore.Toolkit.Hosting;
 
-public class VirtualFileProvider(IHostEnvironment env) : IFileProvider
+public class VirtualFileProvider : IFileProvider
 {
-    private readonly IFileSystem _fileSystem = VirtualFileSystemManager.CreatePlatformFileSystem(env);
+    private readonly IFileSystem _fileSystem;
+
+    public VirtualFileProvider(IHostEnvironment env)
+        : this(VirtualFileSystemManager.CreatePlatformFileSystem(env))
+    {
+    }
+
+    public VirtualFileProvider(IFileSystem fileSystem)
+    {
+        ArgumentNullException.ThrowIfNull(fileSystem);
+        _fileSystem = fileSystem;
+    }
 
     public IFileInfo GetFileInfo(string subpath)
     {

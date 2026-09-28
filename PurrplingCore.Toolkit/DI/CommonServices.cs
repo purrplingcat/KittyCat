@@ -1,27 +1,26 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using PurrplingCore.Toolkit.Hosting;
 
 namespace PurrplingCore.Toolkit.DI;
 
-public interface IStartupService
+public interface IOrderedService
 {
     int Order { get; }
-    void OnStartup();
 }
 
-public interface ICleanupService
+public interface IStartupService : IOrderedService
 {
-    int Order { get; }
-    void OnCleanup();
+    void Startup();
 }
 
-public interface IGameService
+public interface ICleanupService : IOrderedService
 {
-    void Initialize();
-    void LoadContent();
-    void UnloadContent();
+    void Cleanup();
 }
 
 internal sealed class AutoActivatorOptions
@@ -46,7 +45,8 @@ internal sealed class AutoActivator : IStartupService
     }
 
     public int Order => int.MaxValue; // Run after all other startup/cleanup services
-    public void OnStartup()
+
+    public void Startup()
     {
         foreach (var activator in _options.AutoActivators)
         {
@@ -56,31 +56,92 @@ internal sealed class AutoActivator : IStartupService
     }
 }
 
-internal sealed class StartupServiceExecutor(
+internal sealed partial class StartupServiceExecutor(
     IEnumerable<IStartupService> startups,
     IEnumerable<ICleanupService> cleanups,
-    ILogger<StartupServiceExecutor> logger
+    ILoggerFactory loggerFactory,
+    IHostEnvironment environment
 )
 {
-    public void Startup()
+    private static readonly TimeSpan SlowServiceThreshold = TimeSpan.FromSeconds(1);
+    private static readonly Action<IStartupService> ExecuteStartup = static service => service.Startup();
+    private static readonly Action<ICleanupService> ExecuteCleanup = static service => service.Cleanup();
+
+    private readonly ILogger _logger = loggerFactory.CreateLogger("StartupServiceExecutor");
+    private readonly IStartupService[] _startups = [.. startups.OrderBy(x => x.Order)];
+    private readonly ICleanupService[] _cleanups = [.. cleanups.OrderBy(x => x.Order)];
+    private readonly bool _measureDuration = environment.IsDevelopment();
+
+    public void Startup() => ExecuteServices(_startups, ServicePhase.Startup, ExecuteStartup);
+
+    public void CleanUp() => ExecuteServices(_cleanups, ServicePhase.Cleanup, ExecuteCleanup);
+
+    private void ExecuteServices<TService>(TService[] services, ServicePhase phase, Action<TService> executeService)
+        where TService : IOrderedService
     {
-        foreach (var startup in startups.OrderBy(x => x.Order))
+        var measureDuration = _measureDuration;
+        var phaseStartedAt = measureDuration ? Stopwatch.GetTimestamp() : 0;
+
+        foreach (var service in services)
         {
-            logger.LogTrace("Startup: {serviceType}, Order: {Order}",
-                startup.GetType(), startup.Order
-            );
-            startup.OnStartup();
+            var serviceType = service.GetType();
+            LogServiceStart(_logger, phase, serviceType, service.Order);
+
+            var startedAt = measureDuration ? Stopwatch.GetTimestamp() : 0;
+            executeService(service);
+
+            if (measureDuration)
+            {
+                LogSlowServiceIfNeeded(phase, serviceType, service.Order, startedAt);
+            }
+        }
+
+        if (measureDuration)
+        {
+            LogPhaseDuration(phase, services.Length, phaseStartedAt);
         }
     }
 
-    public void CleanUp()
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void LogSlowServiceIfNeeded(ServicePhase phase, Type serviceType, int order, long startedAt)
     {
-        foreach (var cleanup in cleanups.OrderBy(x => x.Order))
+        var elapsed = Stopwatch.GetElapsedTime(startedAt);
+
+        if (elapsed >= SlowServiceThreshold)
         {
-            logger.LogTrace("Cleanup: {serviceType}, Order: {Order}",
-                cleanup.GetType(), cleanup.Order
-            );
-            cleanup.OnCleanup();
+            LogSlowService(_logger, phase, serviceType, order, elapsed.TotalMilliseconds);
         }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void LogPhaseDuration(ServicePhase phase, int serviceCount, long startedAt)
+    {
+        var elapsed = Stopwatch.GetElapsedTime(startedAt);
+        var duration = elapsed.TotalMilliseconds;
+
+        LogPhaseCompleted(_logger, phase, serviceCount, duration);
+
+        if (elapsed >= SlowServiceThreshold)
+        {
+            LogSlowPhase(_logger, phase, serviceCount, duration);
+        }
+    }
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Trace, Message = "{Phase}: {ServiceType}, Order: {Order}")]
+    private static partial void LogServiceStart(ILogger logger, ServicePhase phase, Type serviceType, int order);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "{Phase} service {ServiceType} with order {Order} took {Duration} ms")]
+    private static partial void LogSlowService(ILogger logger, ServicePhase phase, Type serviceType, int order, double duration);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "{Phase} phase across {ServiceCount} services took {Duration} ms")]
+    private static partial void LogSlowPhase(ILogger logger, ServicePhase phase, int serviceCount, double duration);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Debug, Message = "{Phase} completed {ServiceCount} services in {Duration} ms")]
+    private static partial void LogPhaseCompleted(ILogger logger, ServicePhase phase, int serviceCount, double duration);
+
+    private enum ServicePhase : byte
+    {
+        Startup,
+        Cleanup,
     }
 }

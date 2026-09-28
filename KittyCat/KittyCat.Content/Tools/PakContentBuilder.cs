@@ -1,5 +1,6 @@
 ﻿using Microsoft.Xna.Framework.Content.Pipeline;
 using MonoGame.Framework.Content.Pipeline.Builder;
+using PurrplingCore.Toolkit.Content;
 using PurrplingCore.Toolkit.Pak;
 using System.CommandLine;
 using MGContentBuilder = MonoGame.Framework.Content.Pipeline.Builder.ContentBuilder;
@@ -7,6 +8,9 @@ using MGContentBuilderParams = MonoGame.Framework.Content.Pipeline.Builder.Conte
 
 namespace KittyCat.Content.Tools;
 
+/// <summary>
+/// Configures source, intermediate, output, platform, and packaging behavior for a content build.
+/// </summary>
 public record ContentBuilderOptions
 {
 
@@ -21,6 +25,9 @@ public record ContentBuilderOptions
     public bool GenerateMetadata { get; set; }
     public bool CreatePak { get; set; }
 
+    /// <summary>
+    /// Applies supported command-line arguments to the supplied defaults.
+    /// </summary>
     public static ContentBuilderOptions Parse(string[] args, ContentBuilderOptions? defaults = null)
     {
         var ret = defaults ?? new ContentBuilderOptions();
@@ -78,6 +85,13 @@ public record ContentBuilderOptions
     }
 }
 
+/// <summary>
+/// Compiles MonoGame content and publishes it either as loose files or directory-grouped PAKs.
+/// </summary>
+/// <remarks>
+/// PAK mode also creates one semantic asset catalog per package. Runtime catalog discovery can
+/// therefore identify assets without understanding the PAK container format.
+/// </remarks>
 public class PakContentBuilder
 {
     private readonly InnerBuilder _inner;
@@ -104,6 +118,9 @@ public class PakContentBuilder
         _collection.IncludeCopy<WildcardRule>("*.meta.json");
     }
 
+    /// <summary>
+    /// Executes the complete compile-and-publish pipeline.
+    /// </summary>
     public void Run(ContentBuilderOptions parameters)
     {
         var compiledDirectory = Build(parameters);
@@ -113,6 +130,10 @@ public class PakContentBuilder
         }
     }
 
+    /// <summary>
+    /// Compiles configured source assets into platform-specific XNB files.
+    /// </summary>
+    /// <returns>The compiled output directory, or <see langword="null"/> when nothing succeeded.</returns>
     public string? Build(ContentBuilderOptions parameters)
     {
         var innerParams = new MGContentBuilderParams()
@@ -136,6 +157,9 @@ public class PakContentBuilder
             : null;
     }
 
+    /// <summary>
+    /// Publishes compiled XNB files as loose content or PAK archives according to the options.
+    /// </summary>
     public void Publish(ContentBuilderOptions parameters, string compiledDirectory)
     {
         ArgumentException.ThrowIfNullOrEmpty(compiledDirectory);
@@ -152,13 +176,13 @@ public class PakContentBuilder
 
     private static void CopyFilesRecursively(string sourcePath, string targetPath)
     {
-        //Now Create all of the directories
+        // Preserve the compiled directory tree before copying its files.
         foreach (string dirPath in Directory.GetDirectories(sourcePath, "*", SearchOption.AllDirectories))
         {
             Directory.CreateDirectory(dirPath.Replace(sourcePath, targetPath));
         }
 
-        //Copy all the files & Replaces any files with the same name
+        // Replace stale loose outputs with the newly compiled versions.
         foreach (string newPath in Directory.GetFiles(sourcePath, "*.*", SearchOption.AllDirectories))
         {
             File.Copy(newPath, newPath.Replace(sourcePath, targetPath), true);
@@ -170,14 +194,30 @@ public class PakContentBuilder
         var paker = new PakArchivePacker();
         var dirs = Directory.GetDirectories(compiledDirectory, "*", SearchOption.TopDirectoryOnly);
 
+        // Each top-level content directory is an independently mountable package.
         foreach (string dirPath in dirs)
         {
             var dirName = Path.GetFileName(dirPath);
             var outputPak = Path.Combine(parameters.RootedOutputDirectory, "Content/Paks", Path.ChangeExtension(dirName, ".pak"));
+            var catalogPath = Path.Combine(
+                parameters.RootedIntermediateDirectory,
+                AssetCatalog.DirectoryName,
+                Path.ChangeExtension(dirName, ".bin"));
 
             try
             {
-                paker.AddDirectory(dirPath, dirName);
+                paker.AddDirectory(dirPath, $"Content/{dirName}");
+                // The unique sidecar path lets an aggregate provider expose every package catalog.
+                if (AssetCatalogBuilder.Generate(
+                    parameters.RootedSourceDirectory,
+                    compiledDirectory,
+                    packageId: dirName,
+                    outputPath: catalogPath,
+                    contentPathPrefix: dirName) > 0)
+                {
+                    paker.AddFile(catalogPath, $"Content/{AssetCatalog.DirectoryName}/{dirName}.bin");
+                }
+
                 paker.Pack(outputPak);
                 _inner.Logger.Log($"PAK: {dirName} packed to file: {outputPak}");
             }

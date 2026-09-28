@@ -4,10 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using PurrplingCore.Toolkit.DI;
-using PurrplingCore.Toolkit.Extensions;
 using PurrplingCore.Toolkit.Hosting;
-using PurrplingCore.Toolkit.Messages;
-using PurrplingCore.Toolkit.Messaging;
 
 namespace PurrplingCore.Toolkit;
 
@@ -25,7 +22,6 @@ public enum PlatformType
 public abstract class Game: Microsoft.Xna.Framework.Game, IGame
 {
     private readonly IServiceProvider _provider;
-    private readonly IMessageBus? _bus;
     private readonly GraphicsDeviceManager _graphicsManager;
     private readonly ILogger _logger;
     private GameVersion? _version;
@@ -46,6 +42,8 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
 
     public event EventHandler<EventArgs>? Exited;
     public event EventHandler<EventArgs>? Launched;
+    public event EventHandler<EventArgs>? Initializing;
+    public event EventHandler<EventArgs>? Initialized;
 
     public GraphicsDeviceManager GraphicsDeviceManager => _graphicsManager;
 
@@ -90,7 +88,6 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
     {
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
         _graphicsManager = new GraphicsDeviceManager(this);
-        _bus = provider.GetService<IMessageBus>();
         IsMouseVisible = true; // Default to showing the mouse cursor
         Content.RootDirectory = "Content";
 
@@ -114,37 +111,25 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
     /// </summary>
     protected override void Initialize()
     {
-        var services = _provider.GetServices<IGameService>();
-        services.ForEach(service => service.Initialize());
+        Initializing?.Invoke(this, EventArgs.Empty);
 
         foreach (var gameComponent in _provider.GetServices<IGameComponent>())
         {
             Components.Add(gameComponent);
         }
 
-        _isInitialized = true;
         Window.Title = Title;
         
         base.Initialize();
-        _bus?.Publish(new GameMessage(this, GameMessages.Initialized));
+        _isInitialized = true;
+        Initialized?.Invoke(this, EventArgs.Empty);
         _logger.LogTrace("Game initialized!");
-    }
-
-    /// <summary>
-    /// Loads game content, such as textures and particle systems.
-    /// </summary>
-    protected override void LoadContent()
-    {
-        var services = _provider.GetServices<IGameService>();
-        services.ForEach(service => service.LoadContent());
-        base.LoadContent();
     }
 
     protected override void BeginRun()
     {
         base.BeginRun();
         _isRunning = true;
-        _bus?.Publish(new GameMessage(this, GameMessages.Lanuched));
         Launched?.Invoke(this, EventArgs.Empty);
         _logger.LogInformation("Game started!");
     }
@@ -153,7 +138,6 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
     {
         base.EndRun();
         _isRunning = false;
-        _bus?.Publish(new GameMessage(this, GameMessages.Exit));
         Exited?.Invoke(this, EventArgs.Empty);
     }
 

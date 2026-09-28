@@ -2,6 +2,14 @@
 
 namespace PurrplingCore.Toolkit.Vfs.Comparers;
 
+/// <summary>
+/// Defines deterministic Unreal-style package discovery order from PAK filenames.
+/// </summary>
+/// <remarks>
+/// Patch packages ending in <c>_P</c> sort before base packages; packages within the same group
+/// sort by filename without regard to casing. Adding or removing a PAK therefore changes the
+/// mounted set without maintaining a separate manifest.
+/// </remarks>
 public class PakPathComparer : IComparer<string>
 {
     public static PakPathComparer Default { get; } = new PakPathComparer();

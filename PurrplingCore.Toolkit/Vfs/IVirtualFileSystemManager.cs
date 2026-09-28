@@ -7,22 +7,15 @@ namespace PurrplingCore.Toolkit.Vfs;
 /// </summary>
 public interface IVirtualFileSystemManager
 {
+    /// <summary>Gets the stable root filesystem seen by application consumers.</summary>
     IFileSystem GetFileSystem();
+
+    /// <summary>Mounts a filesystem at one non-root virtual path.</summary>
     void Mount(UPath target, IFileSystem fileSystem);
+
+    /// <summary>Adds a package or other read-only layer to the aggregate root namespace.</summary>
     void AddRootContainer(IFileSystem fileSystem);
+
+    /// <summary>Enumerates the physical fallback followed by added root layers.</summary>
     IEnumerable<IFileSystem> GetRootContainers();
-
-    event EventHandler<VfsMountEventArgs>? Mounted;
-    event EventHandler<VfsRootContainerEventArgs>? RootContainerAdded;
-}
-
-public sealed class VfsMountEventArgs(UPath target, IFileSystem fileSystem) : EventArgs
-{
-    public UPath Target { get; } = target;
-    public IFileSystem FileSystem { get; } = fileSystem;
-}
-
-public sealed class VfsRootContainerEventArgs(IFileSystem fileSystem) : EventArgs
-{
-    public IFileSystem FileSystem { get; } = fileSystem;
 }
