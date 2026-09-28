@@ -28,7 +28,9 @@ public interface IGameHostBuilder
 
     /// <summary>
     /// Registers the game instance and its metadata.
-    /// This defines the identity of the host and must be called before building.
+    /// This defines the identity of the host, applies any
+    /// <see cref="GameHostServicesAttribute"/> modules directly to <see cref="Services"/>,
+    /// and must be called before building.
     /// </summary>
     /// <typeparam name="TGame">The type of the game class.</typeparam>
     IGameHostBuilder AddGame<TGame>() where TGame : class, IGame;

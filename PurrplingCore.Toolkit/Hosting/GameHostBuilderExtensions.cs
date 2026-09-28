@@ -8,6 +8,80 @@ namespace PurrplingCore.Toolkit.Hosting;
 
 public static class GameHostBuilderExtensions
 {
+    private const string ConfiguredHostServiceModulesKey = "ConfiguredHostServiceModules";
+
+    public static IGameHostBuilder SetProperty<TValue>(
+        this IGameHostBuilder builder,
+        object key,
+        TValue value)
+        where TValue : notnull
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(key);
+
+        builder.Properties[key] = value;
+        return builder;
+    }
+
+    public static TValue? GetProperty<TValue>(this IGameHostBuilder builder, object key)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(key);
+
+        if (!builder.Properties.TryGetValue(key, out var value))
+        {
+            return default;
+        }
+
+        if (value is TValue property)
+        {
+            return property;
+        }
+
+        throw new InvalidOperationException(
+            $"Property '{key}' contains '{value.GetType()}', not '{typeof(TValue)}'.");
+    }
+
+    /// <summary>
+    /// Applies a module immediately to the bootstrap service collection.
+    /// Each module type is applied at most once.
+    /// </summary>
+    public static IGameHostBuilder ConfigureHostServices<TModule>(this IGameHostBuilder builder)
+        where TModule : class, IServiceModule, new()
+        => builder.ConfigureHostServices(typeof(TModule));
+
+    internal static IGameHostBuilder ConfigureHostServices(
+        this IGameHostBuilder builder,
+        Type moduleType)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(moduleType);
+
+        var configuredModules = builder.GetProperty<HashSet<Type>>(ConfiguredHostServiceModulesKey);
+        if (configuredModules is null)
+        {
+            configuredModules = [];
+            builder.SetProperty(ConfiguredHostServiceModulesKey, configuredModules);
+        }
+
+        if (!configuredModules.Add(moduleType))
+        {
+            return builder;
+        }
+
+        try
+        {
+            var module = (IServiceModule)Activator.CreateInstance(moduleType)!;
+            module.ConfigureServices(builder.Services);
+            return builder;
+        }
+        catch
+        {
+            configuredModules.Remove(moduleType);
+            throw;
+        }
+    }
+
     public static IGameHostBuilder AddServiceModule(this IGameHostBuilder builder, IServiceModule module)
     {
         builder.Services.AddSingleton(module);

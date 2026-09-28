@@ -88,10 +88,19 @@ public class GameHostBuilder : IGameHostBuilder
         _env.GameVersion = GameVersion.Of<TGame>();
         _services.AddServiceModule(new AssemblyServices(typeof(TGame).Assembly));
         _services.AddServiceModule<GameServices<TGame>>();
-        _services.AddSingleton(() => _env.GameVersion);
-        Properties[GameTypePropertyKey] = typeof(TGame);
+
+        ConfigureGameHostServices<TGame>();
+        this.SetProperty(GameTypePropertyKey, typeof(TGame));
 
         return this;
+    }
+
+    private void ConfigureGameHostServices<TGame>() where TGame : class, IGame
+    {
+        foreach (var attribute in typeof(TGame).GetCustomAttributes<GameHostServicesAttribute>())
+        {
+            this.ConfigureHostServices(attribute.ConfigurationType);
+        }
     }
 
     /// <inheritdoc 
