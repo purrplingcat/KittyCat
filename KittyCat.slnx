@@ -1,0 +1,23 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/PurrplingCore/">
+    <Project Path="PurrplingCore/PurrplingCore.csproj" />
+    <Project Path="PurrplingCore.Ecs/PurrplingCore.Ecs.csproj" />
+    <Project Path="PurrplingCore.Toolkit/PurrplingCore.Toolkit.csproj" />
+  </Folder>
+  <Folder Name="/KittyCat/">
+    <Project Path="KittyCat/KittyCat.Content/KittyCat.Content.csproj" />
+    <Project Path="KittyCat/KittyCat.Game/KittyCat.Game.csproj" />
+  </Folder>
+  <Folder Name="/KittyCat/Platforms/">
+    <Project Path="KittyCat/KittyCat.DesktopGL/KittyCat.DesktopGL.csproj" />
+    <Project Path="KittyCat/KittyCat.WindowsDX/KittyCat.WindowsDX.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+  </Folder>
+</Solution>

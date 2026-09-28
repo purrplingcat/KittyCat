@@ -7,11 +7,11 @@
     <TieredCompilation>false</TieredCompilation>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>../KittyCat.Core/Content/Icon.ico</ApplicationIcon>
+    <ApplicationIcon>../KittyCat.Game/Content/Icon.ico</ApplicationIcon>
     <AssemblyName>KittyCat</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <MonoGameContentReference Include="..\KittyCat.Core\Content\KittyCat.mgcb">
+    <MonoGameContentReference Include="..\KittyCat.Game\Content\KittyCat.mgcb">
       <Link>Content\KittyCat.mgcb</Link>
     </MonoGameContentReference>
   </ItemGroup>
@@ -20,7 +20,7 @@
     <PackageReference Include="MonoGame.Framework.WindowsDX" Version="3.8.*" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\KittyCat.Core\KittyCat.Core.csproj">
+    <ProjectReference Include="..\KittyCat.Game\KittyCat.Game.csproj">
       <ReferenceSourceTarget></ReferenceSourceTarget>
     </ProjectReference>
   </ItemGroup>

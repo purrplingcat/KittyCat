@@ -11,7 +11,7 @@
     <AndroidStoreUncompressedFileExtensions>$(AndroidStoreUncompressedFileExtensions);pak</AndroidStoreUncompressedFileExtensions>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\KittyCat.Core\KittyCat.Core.csproj" />
+    <ProjectReference Include="..\KittyCat.Game\KittyCat.Game.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.*" />

@@ -1,6 +1,6 @@
 ﻿using KittyCat;
-using KittyCat.Configuration;
 using KittyCat.DesktopGL;
+using PurrplingCore.Hosting;
 using PurrplingCore.Toolkit.Hosting;
 using PurrplingCore.Toolkit.Modding;
 using System;

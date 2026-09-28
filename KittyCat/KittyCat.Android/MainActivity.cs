@@ -2,7 +2,7 @@ using Android.App;
 using Android.Content.PM;
 using Android.OS;
 using Android.Views;
-using KittyCat.Configuration;
+using PurrplingCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Toolkit.DI;

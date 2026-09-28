@@ -1,4 +1,5 @@
 ﻿using KittyCat;
+using PurrplingCore.Hosting;
 using PurrplingCore.Toolkit.Hosting;
 using System.Windows.Forms;
 
@@ -17,6 +18,7 @@ internal class Program
 
         // Create an instance of the game host and start the game loop.
         using var game = GameHost.CreateBuilder()
+            .UsePurrplingCore()
             .AddGame<KittyCatGame>()
             .Build();
 

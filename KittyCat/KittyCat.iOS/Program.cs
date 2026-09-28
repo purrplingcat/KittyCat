@@ -1,7 +1,6 @@
 ﻿using Foundation;
-using KittyCat.Core;
-using KittyCat.Core.DI;
-using KittyCat.Core.Services.Configuration;
+using PurrplingCore.Hosting;
+using PurrplingCore.Toolkit.Hosting;
 using UIKit;
 
 namespace KittyCat.iOS;
@@ -9,7 +8,7 @@ namespace KittyCat.iOS;
 [Register("AppDelegate")]
 internal class Program : UIApplicationDelegate
 {
-    private static GameHost _game;
+    private static GameHost? _game;
 
     /// <summary>
     /// Initializes and starts the game by creating an instance of the 
@@ -17,12 +16,12 @@ internal class Program : UIApplicationDelegate
     /// </summary>
     internal static void RunGame()
     {
-        _game = GameHost.Create<KittyCatGame>(services =>
-        {
-            services.AddConfiguration(new KittyCatGameServices());
-        });
-        
-        _game.Start();
+        _game = GameHost.CreateBuilder()
+            .UsePurrplingCore()
+            .AddGame<KittyCatGame>()
+            .Build();
+
+        _game.Run();
     }
 
     /// <summary>
