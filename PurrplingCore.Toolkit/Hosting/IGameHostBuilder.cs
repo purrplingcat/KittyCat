@@ -1,30 +1,11 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.DependencyInjection;
 using PurrplingCore.Toolkit.DI;
 
 namespace PurrplingCore.Toolkit.Hosting;
 
-public interface IGameHostBuilder
+public interface IGameHostBuilder : IApplicationHostBuilder
 {
-    /// <summary>
-    /// Gets the service collection for immediate registration 
-    /// of infrastructure and bootstrap services.
-    /// </summary>
-    IServiceCollection Services { get; }
-
-    IConfigurationManager Configuration {  get; }
-
-    IHostEnvironment Environment { get; }
-
     IGameFeatureCollection GameFeatures { get; }
-
-    /// <summary>
-    /// Logging builder
-    /// </summary>
-    ILoggingBuilder Logging { get; }
-
-    IDictionary<object, object> Properties { get; }
 
     /// <summary>
     /// Registers the game instance and its metadata.
@@ -39,7 +20,7 @@ public interface IGameHostBuilder
     /// Sets the factory to be used for creating the <see cref="IServiceProvider"/>.
     /// </summary>
     /// <param name="factory">The service provider factory to use.</param>
-    IGameHostBuilder UseServiceProviderFactory<TContainer>(IServiceProviderFactory<TContainer> factory) 
+    new IGameHostBuilder UseServiceProviderFactory<TContainer>(IServiceProviderFactory<TContainer> factory)
         where TContainer : notnull;
 
     /// <summary>
@@ -47,5 +28,5 @@ public interface IGameHostBuilder
     /// </summary>
     /// <returns>A fully configured and initialized <see cref="GameHost"/> instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the host is built more than once.</exception>
-    GameHost Build();
+    new GameHost Build();
 }

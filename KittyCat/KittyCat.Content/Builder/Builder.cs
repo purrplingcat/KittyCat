@@ -8,8 +8,10 @@
 /// </remarks>
 
 using KittyCat.Content.Tools;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework.Content.Pipeline;
 using MonoGame.Framework.Content.Pipeline.Builder;
+using PurrplingCore.Toolkit.Hosting;
 
 var contentCollectionArgs = new ContentBuilderOptions
 {
@@ -18,24 +20,27 @@ var contentCollectionArgs = new ContentBuilderOptions
     Platform = TargetPlatform.DesktopGL,
     CreatePak = true,
 };
-var builder = new PakContentBuilder();
-
-builder.Collection.Include<WildcardRule>("Fonts/*.spritefont");
 var options = ContentBuilderOptions.Parse(args, contentCollectionArgs);
-var compiledDirectory = builder.Build(options);
-if (compiledDirectory != null)
-{
-    AssetCatalogBuilder.Generate(options.RootedSourceDirectory, compiledDirectory);
-    builder.Publish(options, compiledDirectory);
-}
+var builder = ApplicationHost.CreateBuilder();
+builder.Services.AddSingleton(options);
+builder.Services.AddSingleton<PakContentBuilder>();
+builder.Services.AddSingleton<IHostedApplication, AssetBuildJob>();
 
-/*if (args != null && args.Length > 0)
-{
-    builder.Run(MonoGame.Framework.Content.Pipeline.Builder.ContentBuilderParams.Parse(args));
-}
-else
-{
-    builder.Run(contentCollectionArgs);
-}*/
+using var host = builder.Build();
+return host.Run();
 
-return builder.FailedToBuild > 0 ? -1 : 0;
+internal sealed class AssetBuildJob(PakContentBuilder contentBuilder, ContentBuilderOptions options) : IHostedApplication
+{
+    public int Run()
+    {
+        contentBuilder.Collection.Include<WildcardRule>("Fonts/*.spritefont");
+        var compiledDirectory = contentBuilder.Build(options);
+        if (compiledDirectory != null)
+        {
+            AssetCatalogBuilder.Generate(options.RootedSourceDirectory, compiledDirectory);
+            contentBuilder.Publish(options, compiledDirectory);
+        }
+
+        return contentBuilder.FailedToBuild > 0 ? -1 : 0;
+    }
+}

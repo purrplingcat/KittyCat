@@ -108,20 +108,29 @@ public static class GameHostBuilderExtensions
 
     public static IGameHostBuilder UseDefaultConfiguration(this IGameHostBuilder builder)
     {
+        ConfigureDefault(builder.Configuration, builder.Logging, builder.Environment);
+        return builder;
+    }
+
+    internal static void ConfigureApplicationDefaults(ApplicationHostBuilder builder)
+    {
+        ConfigureDefault(builder.Configuration, builder.Logging, builder.Environment);
+    }
+
+    private static void ConfigureDefault(IConfigurationManager configuration, ILoggingBuilder logging, IHostEnvironment environment)
+    {
         // Configuration
-        builder.Configuration
-               .SetFileProvider(new VirtualFileProvider(builder.Environment))
+        configuration
+               .SetFileProvider(new VirtualFileProvider(environment))
                .AddJsonFile("appsettings.json", optional: true)
-               .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true);
+               .AddJsonFile($"appsettings.{environment.EnvironmentName}.json", optional: true);
                
 
         // Default logging config
-        builder.Logging
+        logging
                .SetMinimumLevel(LogLevel.Information)
-               .AddDefaultConfiguration(builder.Environment)
-               .AddConfiguration(builder.Configuration.GetSection("Logging"));
-
-        return builder;
+               .AddDefaultConfiguration(environment)
+               .AddConfiguration(configuration.GetSection("Logging"));
     }
 
     private static ILoggingBuilder AddDefaultConfiguration(this ILoggingBuilder builder, IHostEnvironment env)

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace PurrplingCore.Toolkit.Hosting;
@@ -5,47 +6,50 @@ namespace PurrplingCore.Toolkit.Hosting;
 /// <summary>
 /// Adapts MonoGame application events to the hosted game lifecycle and coordinates shutdown.
 /// </summary>
-internal sealed class GameApplicationRunner : IDisposable
+internal sealed class GameApplicationRunner : IHostedApplication, IStoppableApplication, IDisposable
 {
+    private readonly IServiceProvider _services;
     private readonly GameApplicationLifetime _gameLifecycle;
     private readonly ILogger _logger;
     private IGame? _game;
     private CancellationTokenRegistration _stoppingRegistration;
     private bool _disposed;
 
-    public GameApplicationRunner(GameApplicationLifetime gameLifecycle, ILoggerFactory loggerFactory)
+    public GameApplicationRunner(IServiceProvider services, GameApplicationLifetime gameLifecycle, ILoggerFactory loggerFactory)
     {
+        _services = services;
         _gameLifecycle = gameLifecycle;
         _logger = loggerFactory.CreateLogger("Game");
     }
 
     public bool IsRunning => _game?.IsRunning ?? false;
 
-    public void Run(IGame game)
+    public int Run()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        ArgumentNullException.ThrowIfNull(game);
 
         if (_game != null)
         {
             throw new InvalidOperationException("The game application has already been started.");
         }
 
-        _game = game;
-        Subscribe(game);
+        _game = _services.GetRequiredService<IGame>();
+        Subscribe(_game);
 
-        _logger.LogDebug("Executing {GameType}::Run()", game.GetType());
+        _logger.LogDebug("Executing {GameType}::Run()", _game.GetType());
         try
         {
-            game.Run();
+            _game.Run();
         }
         finally
         {
             StopApplication();
             _gameLifecycle.NotifyStopped();
-            Unsubscribe(game);
+            Unsubscribe(_game);
             _game = null;
         }
+
+        return _gameLifecycle.Error is null ? 0 : 1;
     }
 
     public void Exit()

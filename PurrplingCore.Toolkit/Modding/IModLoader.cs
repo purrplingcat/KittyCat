@@ -91,9 +91,9 @@ internal class ModRegistry : IModRegistry
 
     public IReadOnlyCollection<IMod> Mods => _mods.Values;
 
-    public ModRegistry(IHostEnvironment env)
+    public ModRegistry(IHostEnvironment env, GameVersion version)
     {
-        var manifest = env.GameVersion.ToManifest();
+        var manifest = version.ToManifest();
         Add(new ContentPack(manifest, env.HostDirectory));
     }
 

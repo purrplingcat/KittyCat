@@ -1,78 +1,28 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.DependencyInjection;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Hosting.Services;
-using PurrplingCore.Toolkit.Messaging;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 
 namespace PurrplingCore.Toolkit.Hosting;
 
-public class GameHostBuilder : IGameHostBuilder
+public class GameHostBuilder : ApplicationHostBuilder, IGameHostBuilder
 {
     public const string GameTypePropertyKey = "GameType";
 
-    private readonly string[] _args;
-    
     private bool _hasGame;
-    private bool _hostBuilt;
-
-    private readonly ServiceCollection _services = [];
-    private readonly ILoggingBuilder _logging;
-    private readonly HostEnvironment _env;
-    private readonly ConfigurationManager _config;
     private readonly GameFeatureCollection _gameFeatures;
-    private IServiceFactoryAdapter _serviceProviderFactory;
-
-    public IServiceCollection Services => _services;
-    public ILoggingBuilder Logging => _logging;
-
-    public IConfigurationManager Configuration => _config;
-
-    public IHostEnvironment Environment => _env;
+    private GameVersion _gameVersion = GameVersion.Empty;
 
     public IGameFeatureCollection GameFeatures => _gameFeatures;
 
-    public IDictionary<object, object> Properties { get; }
-
-    public GameHostBuilder(string[]? args = null)
+    public GameHostBuilder(string[]? args = null) : base(args)
     {
-        _logging = new LoggingBuilder(_services);
-        _env = new HostEnvironment();
-        _config = new ConfigurationManager();
         _gameFeatures = new GameFeatureCollection();
-        _args = args ?? [];
-        Properties = new Dictionary<object, object>();
-
-        UseServiceProviderFactory(new DefaultServiceProviderFactory());
-        Initialize();
-    }
-
-    private void Initialize()
-    {
-        _config.AddEnvironmentVariables(prefix: "DOTNET_");
-        _config.AddCommandLine(_args);
-        _env.EnvironmentName = _config[HostDefaults.EnvironmentKey] ?? _env.EnvironmentName;
-
         if (!GameCrashLogger.IsRegistered)
         {
-            // Fallback when the entry point did not register the process-wide crash logger.
-            GameCrashLogger.Register(_env);
-        }
-
-        if (_env.IsDevelopment())
-        {
-            var opts = new ServiceProviderOptions()
-            {
-                ValidateOnBuild = true,
-                ValidateScopes = true,
-            };
-
-            UseServiceProviderFactory(new DefaultServiceProviderFactory(opts));
+            GameCrashLogger.Register(Environment);
         }
     }
 
@@ -85,9 +35,10 @@ public class GameHostBuilder : IGameHostBuilder
         }
 
         _hasGame = true;
-        _env.GameVersion = GameVersion.Of<TGame>();
-        _services.AddServiceModule(new AssemblyServices(typeof(TGame).Assembly));
-        _services.AddServiceModule<GameServices<TGame>>();
+        _gameVersion = GameVersion.Of<TGame>();
+        Environment.ApplicationName = _gameVersion.Name;
+        Services.AddServiceModule(new AssemblyServices(typeof(TGame).Assembly));
+        Services.AddServiceModule<GameServices<TGame>>();
 
         ConfigureGameHostServices<TGame>();
         this.SetProperty(GameTypePropertyKey, typeof(TGame));
@@ -103,26 +54,20 @@ public class GameHostBuilder : IGameHostBuilder
         }
     }
 
-    /// <inheritdoc 
-    [MemberNotNull(nameof(_serviceProviderFactory))]
-    public IGameHostBuilder UseServiceProviderFactory<TContainerBuilder>(IServiceProviderFactory<TContainerBuilder> factory)
+    /// <inheritdoc />
+    public new IGameHostBuilder UseServiceProviderFactory<TContainerBuilder>(IServiceProviderFactory<TContainerBuilder> factory)
         where TContainerBuilder : notnull
     {
-        ArgumentNullException.ThrowIfNull(factory, nameof(factory));
-
-        _serviceProviderFactory = new ServiceProviderFactoryAdapter<TContainerBuilder>(factory);
+        base.UseServiceProviderFactory(factory);
         return this;
     }
 
-    protected virtual void AddComonServices(IServiceCollection services)
+    protected override void AddCommonServices(IServiceCollection services)
     {
-        services.AddLogging();
-        services.AddSingleton(_serviceProviderFactory);
-        services.AddSingleton<IConfiguration>(_config);
-        services.AddSingleton<IHostEnvironment>(_env);
+        services.AddSingleton(_gameVersion);
         services.AddSingleton<IGameFeatureCollection>(_gameFeatures);
-        services.TryAddSingleton<IMessageBus, NullMessageBus>();
-        services.TryAddTransient(typeof(Lazy<>), typeof(LazyService<>));
+
+        base.AddCommonServices(services);
     }
 
     /// <summary>
@@ -130,35 +75,24 @@ public class GameHostBuilder : IGameHostBuilder
     /// This method can only be called once.
     /// </summary>
     /// <returns>The <see cref="GameHost"/> instance</returns>
-    public GameHost Build()
+    public override GameHost Build()
     {
-            if (_hostBuilt)
-        {
-                throw new InvalidOperationException("GameHostBuilder can only build once");
-            }
-            _hostBuilt = true;
+        if (!_hasGame)
+            GameHostBuildException.ThrowNoGameAddedException();
 
-            if (!_hasGame)
-                GameHostBuildException.ThrowNoGameAddedException();
-
-            AddComonServices(_services);
-            _services.MakeReadOnly();
-
-            var gameServices = _services.Clone();
-            var provider = _serviceProviderFactory.CreateServiceProvider(_services);
-
-            return GameHost.Create(provider, gameServices, Properties, OnHostCreated);
+        return (GameHost)base.Build();
     }
 
-    private void OnHostCreated(GameHost host)
+    protected override ApplicationHost CreateHost(IServiceProvider provider, IServiceCollection applicationServices)
     {
+        return new GameHost(provider, applicationServices, Environment, _gameVersion, Properties);
+    }
+
+    protected override void OnHostCreated(ApplicationHost host)
+    {
+        base.OnHostCreated(host);
         Properties[typeof(GameHost)] = host;
         _gameFeatures.Freeze();
-    }
-
-    private sealed class LoggingBuilder(IServiceCollection services) : ILoggingBuilder
-    {
-        public IServiceCollection Services => services;
     }
 }
 

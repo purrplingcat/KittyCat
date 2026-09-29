@@ -4,8 +4,7 @@ namespace PurrplingCore.Toolkit.Hosting;
 
 public interface IHostEnvironment
 {
-    GameVersion GameVersion { get; }
-    string ApplicationName { get; }
+    string ApplicationName { get; set; }
     string EnvironmentName { get; }
     string HostAssemblyPath { get; }
     string HostDirectory { get; }
@@ -18,26 +17,16 @@ internal sealed class HostEnvironment : IHostEnvironment
 {
     private static readonly Assembly _hostAssembly = Assembly.GetEntryAssembly() 
         ?? Assembly.GetExecutingAssembly();
-    private GameVersion? _gameVersion;
 
     public HostEnvironment()
     {
+        ApplicationName = _hostAssembly.GetName().Name ?? "Application";
         EnvironmentName = _hostAssembly.IsDebugBuild()
             ? Environments.Development
             : Environments.Production;
     }
 
-    public GameVersion GameVersion
-    {
-        get => _gameVersion
-            ?? throw new InvalidOperationException(
-                "GameVersion has not been set. Ensure game is added to the host."
-            );
-
-        set => _gameVersion = value;
-    }
-
-    public string ApplicationName => GameVersion.Name;
+    public string ApplicationName { get; set; }
 
     public string EnvironmentName { get; set; }
 
@@ -47,7 +36,18 @@ internal sealed class HostEnvironment : IHostEnvironment
 
     public OperatingSystem OperatingSystem => Environment.OSVersion;
 
-    public PlatformType PlatformType => Game.PlatformType;
+    public PlatformType PlatformType
+    {
+        get
+        {
+            if (OperatingSystem.IsTvOS()) return PlatformType.Tv;
+            if (OperatingSystem.IsBrowser()) return PlatformType.Browser;
+            if (OperatingSystem.IsAndroid() || OperatingSystem.IsIOS()) return PlatformType.Mobile;
+            if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux() || OperatingSystem.IsWindows()) return PlatformType.Desktop;
+
+            return PlatformType.Unknown;
+        }
+    }
 
     public string HostDirectory => Path.GetDirectoryName(_hostAssembly.Location) ?? string.Empty;
 
