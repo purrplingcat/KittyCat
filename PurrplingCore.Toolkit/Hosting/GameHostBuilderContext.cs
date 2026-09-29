@@ -17,6 +17,11 @@ public interface IHostEnvironment
     /// Gets the environment name (e.g., Development, Production).
     /// </summary>
     string EnvironmentName { get; }
+
+    /// <summary>
+    /// Gets the ID of the current managed thread.
+    /// </summary>
+    public int ThreadId { get; }
     
     /// <summary>
     /// Gets the full path to the host assembly.
@@ -68,6 +73,8 @@ internal sealed class HostEnvironment : IHostEnvironment
     }
 
     public string ApplicationName { get; set; }
+
+    public int ThreadId => Environment.CurrentManagedThreadId;
 
     public string EnvironmentName { get; set; }
 

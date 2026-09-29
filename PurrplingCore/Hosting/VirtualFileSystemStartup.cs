@@ -1,4 +1,5 @@
-﻿using PurrplingCore.Toolkit.DI;
+﻿using PurrplingCore.Toolkit;
+using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Hosting;
 using PurrplingCore.Toolkit.Vfs;
 using System;
@@ -14,32 +15,25 @@ namespace PurrplingCore.Hosting;
 /// These mounts are application policy, not VFS defaults: memory is ephemeral, user data is
 /// persistent, cache is rebuildable, and temp data may be removed by the operating system.
 /// </remarks>
-public class VirtualFileSystemStartup : IStartupService
+public class VirtualFileSystemStartup(
+    IVirtualFileSystemManager vfs,
+    IGame game,
+    IHostEnvironment env
+) : IStartupService
 {
-    private readonly IHostEnvironment _env;
-    private readonly IGameApplicationLifetime _lifetime;
-    private readonly IVirtualFileSystemManager _vfs;
+    private readonly IHostEnvironment _env = env;
+    private readonly IGame _game = game;
+    private readonly IVirtualFileSystemManager _vfs = vfs;
 
     public int Order => -100;
 
-    public VirtualFileSystemStartup(
-        IVirtualFileSystemManager vfs,
-        IGameApplicationLifetime lifetime,
-        IHostEnvironment env
-    )
-    {
-        _vfs = vfs;
-        _lifetime = lifetime;
-        _env = env;
-    }
-
     public void Startup()
     {
-        // Mounts must not be created during host construction; the game lifecycle owns activation.
-        _lifetime.GameInitializing.Register(OnGameInitializing);
+        // Mounts must be created during the game initialization phase, not during host construction.
+        _game.Initializing += OnGameInitializing;
     }
 
-    private void OnGameInitializing()
+    private void OnGameInitializing(object? sender, EventArgs e)
     {
         string appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), _env.ApplicationName);
         string cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), _env.ApplicationName, "Cache");

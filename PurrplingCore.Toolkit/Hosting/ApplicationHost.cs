@@ -21,7 +21,16 @@ public class ApplicationHost : IDisposable
     private IServiceProvider? _applicationServiceProvider;
     private IHostedApplication? _application;
     private StartupServiceExecutor? _startupServices;
+    private readonly CancellationTokenSource _cts = new();
     private bool _disposed;
+
+    /// <summary>
+    /// Occurs after the application host has been initialized and the application service provider is available.
+    /// </summary>
+    /// <remarks>
+    /// Subscribers to this event can perform additional initialization that depends on the application service provider.
+    /// </remarks>
+    protected event Action? Initialized;
 
     protected internal ApplicationHost(
         IServiceProvider hostProvider,
@@ -79,7 +88,7 @@ public class ApplicationHost : IDisposable
     /// service registrations. It verifies that an IHostedApplication is available when
     /// the service provider supports <see cref="IServiceProviderIsService"/>.
     /// </remarks>
-    internal virtual void Initialize()
+    internal void Initialize()
     {
         // Apply all registered service modules to the application service collection
         var modules = _hostServiceProvider.GetServices<IServiceModule>();
@@ -92,6 +101,7 @@ public class ApplicationHost : IDisposable
         var factory = _hostServiceProvider.GetRequiredService<IServiceFactoryAdapter>();
         _applicationServiceProvider = factory.CreateServiceProvider(_applicationServices);
         _application = ResolveHostedApplication(_applicationServiceProvider);
+        Initialized?.Invoke();
     }
 
     private static IHostedApplication ResolveHostedApplication(IServiceProvider provider)
@@ -123,7 +133,7 @@ public class ApplicationHost : IDisposable
         _startupServices.Startup();
 
         // Run the hosted application and return its exit code
-        return _application.Run();
+        return _application.Run(_cts.Token);
     }
 
     /// <summary>
@@ -131,10 +141,7 @@ public class ApplicationHost : IDisposable
     /// </summary>
     public virtual void Exit()
     {
-        if (_application is IStoppableApplication stoppableApplication)
-        {
-            stoppableApplication.Exit();
-        }
+        _cts.Cancel();
     }
 
     /// <summary>
@@ -181,5 +188,14 @@ public class ApplicationHost : IDisposable
         {
             disposable.Dispose();
         }
+    }
+}
+
+public static class ApplicationHostExtensions
+{
+    public static async Task<int> RunAsync(this ApplicationHost host, CancellationToken cancellationToken = default) 
+    {
+        using var registration = cancellationToken.Register(() => host.Exit());
+        return await Task.Run(host.Run, cancellationToken).ConfigureAwait(false);
     }
 }

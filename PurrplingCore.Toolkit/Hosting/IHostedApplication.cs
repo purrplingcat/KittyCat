@@ -9,20 +9,17 @@ public interface IHostedApplication
     /// Runs the hosted application.
     /// </summary>
     /// <returns>The application exit code (0 for success, non-zero for errors).</returns>
-    int Run();
+    int Run(CancellationToken token);
 }
 
-/// <summary>
-/// Represents a stoppable application that can gracefully exit.
-/// </summary>
-/// <remarks>
-/// Implement this interface in addition to IHostedApplication if your application
-/// requires graceful shutdown handling (e.g., a game loop that needs to clean up resources).
-/// </remarks>
-public interface IStoppableApplication
+public abstract class AsyncHostedApplication : IHostedApplication
 {
     /// <summary>
-    /// Requests the application to stop gracefully.
+    /// Runs the hosted application asynchronously.
     /// </summary>
-    void Exit();
+    /// <returns>A task representing the asynchronous operation, with the application exit code as the result.</returns>
+    public abstract Task<int> RunAsync(CancellationToken cancellationToken);
+
+    /// <inheritdoc />
+    public int Run(CancellationToken token) => RunAsync(token).GetAwaiter().GetResult();
 }

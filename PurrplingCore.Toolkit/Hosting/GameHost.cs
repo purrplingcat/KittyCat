@@ -25,19 +25,38 @@ public sealed class GameHost : ApplicationHost
     ) : base(hostProvider, gameServices, properties, "GameHost")
     {
         Logger.LogGameInformation(environment, version);
-        Logger.LogDebug("Environment: {EnvironmentName}", environment.EnvironmentName);
+        Logger.LogDebug(
+            "Environment: {EnvironmentName} | ThreadId: {ThreadId}", 
+            environment.EnvironmentName, 
+            environment.ThreadId
+        );
 
         gameServices
             .AddSingleton<GameApplicationLifetime>()
             .AddSingleton<GameApplicationRunner>()
             .AddAlias<IGameApplicationLifetime, GameApplicationLifetime>()
             .AddAlias<IHostedApplication, GameApplicationRunner>();
+
+        Initialized += OnInitialized;
     }
 
     /// <summary>
     /// Gets a value indicating whether the game is currently running.
     /// </summary>
     public bool IsRunning => _gameRunner?.IsRunning ?? false;
+
+    /// <summary>
+    /// Handles the initialization event for the game host.
+    /// </summary>
+    /// <remarks>
+    /// This method is invoked when the Initialized event is raised by the base ApplicationHost.
+    /// It ensures that the GameApplicationRunner is properly resolved and ready for use.
+    /// </remarks>
+    private void OnInitialized()
+    {
+        // Ensure the game runner is resolved from the application services.
+        _gameRunner = Services.GetRequiredService<GameApplicationRunner>();
+    }
 
     /// <summary>
     /// Creates a new GameHostBuilder with default game configuration.
@@ -53,20 +72,6 @@ public sealed class GameHost : ApplicationHost
 
         return builder;
     }
-
-    /// <summary>
-    /// Runs the game application loop and returns the exit code.
-    /// </summary>
-    /// <remarks>
-    /// This method initializes the GameApplicationRunner on first call and then delegates
-    /// to the base ApplicationHost.Run() method.
-    /// </remarks>
-    public override int Run()
-    {
-        _gameRunner ??= Services.GetRequiredService<GameApplicationRunner>();
-        return base.Run();
-    }
-
 }
 
 /// <summary>

@@ -11,5 +11,6 @@ public interface IGame : IDisposable
     public event EventHandler<EventArgs>? Initialized;
     public event EventHandler<EventArgs>? Launched;
     public event EventHandler<EventArgs>? Exited;
+    public event EventHandler<EventArgs>? Exiting;
     public event EventHandler<EventArgs>? Disposed;
 }

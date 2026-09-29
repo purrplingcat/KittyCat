@@ -50,7 +50,7 @@ internal sealed class AssetBuildJob(PakContentBuilder contentBuilder, ContentBui
     /// 4. Publishes the compiled content to a PAK file
     /// </remarks>
     /// <returns>0 on successful build, -1 if any assets failed to build.</returns>
-    public int Run()
+    public int Run(CancellationToken token)
     {
         // Include all spritefont files in the build
         contentBuilder.Collection.Include<WildcardRule>("Fonts/*.spritefont");

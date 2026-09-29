@@ -105,6 +105,31 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
         _logger.LogTrace("Game created: {Game}", this);
     }
 
+    private event EventHandler<EventArgs>? _exiting;
+
+    event EventHandler<EventArgs>? IGame.Exiting
+    {
+        add
+        {
+            _exiting += value;
+        }
+
+        remove
+        {
+            _exiting -= value;
+        }
+    }
+
+    protected override void OnExiting(object sender, ExitingEventArgs args)
+    {
+        base.OnExiting(sender, args);
+
+        if (!args.Cancel) 
+        {
+            _exiting?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
     /// <summary>
     /// Initializes the game, including setting up localization and adding the 
     /// initial screens to the ScreenManager.

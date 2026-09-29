@@ -21,4 +21,4 @@ builder.AddMods(Path.Combine(AppContext.BaseDirectory, "Mods"));
 builder.Logging.AddDefaultLogging();
 
 using var host = builder.Build();
-host.Run();
+return host.Run();

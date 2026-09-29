@@ -6,25 +6,32 @@ namespace PurrplingCore.Toolkit.Hosting;
 /// <summary>
 /// Adapts MonoGame application events to the hosted game lifecycle and coordinates shutdown.
 /// </summary>
-internal sealed class GameApplicationRunner : IHostedApplication, IStoppableApplication, IDisposable
+internal sealed class GameApplicationRunner : IHostedApplication, IDisposable
 {
     private readonly IServiceProvider _services;
     private readonly GameApplicationLifetime _gameLifecycle;
+    private readonly IHostEnvironment _env;
     private readonly ILogger _logger;
     private IGame? _game;
     private CancellationTokenRegistration _stoppingRegistration;
     private bool _disposed;
 
-    public GameApplicationRunner(IServiceProvider services, GameApplicationLifetime gameLifecycle, ILoggerFactory loggerFactory)
+    public GameApplicationRunner(
+        IServiceProvider services, 
+        GameApplicationLifetime gameLifecycle, 
+        IHostEnvironment environment, 
+        ILoggerFactory loggerFactory
+    )
     {
         _services = services;
         _gameLifecycle = gameLifecycle;
+        _env = environment;
         _logger = loggerFactory.CreateLogger("Game");
     }
 
     public bool IsRunning => _game?.IsRunning ?? false;
 
-    public int Run()
+    public int Run(CancellationToken token)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -33,32 +40,24 @@ internal sealed class GameApplicationRunner : IHostedApplication, IStoppableAppl
             throw new InvalidOperationException("The game application has already been started.");
         }
 
+        using var registration = token.Register(RequestGameExit);
         _game = _services.GetRequiredService<IGame>();
-        Subscribe(_game);
 
-        _logger.LogDebug("Executing {GameType}::Run()", _game.GetType());
         try
         {
+            Subscribe(_game);
+            _logger.LogDebug("Executing {GameType}::Run() ThreadId: {ThreadId}", _game.GetType(), _env.ThreadId);
             _game.Run();
         }
         finally
         {
-            StopApplication();
-            _gameLifecycle.NotifyStopped();
             Unsubscribe(_game);
+            _gameLifecycle.NotifyStopped();
             _game = null;
+            _logger.LogInformation("Game application has exited.");
         }
 
         return _gameLifecycle.Error is null ? 0 : 1;
-    }
-
-    public void Exit()
-    {
-        if (_game != null)
-        {
-            StopApplication();
-            _logger.LogTrace("Requested game application exit");
-        }
     }
 
     public void Dispose()
@@ -69,8 +68,6 @@ internal sealed class GameApplicationRunner : IHostedApplication, IStoppableAppl
         }
 
         _disposed = true;
-        StopApplication();
-        _gameLifecycle.NotifyStopped();
 
         if (_game != null)
         {
@@ -81,52 +78,37 @@ internal sealed class GameApplicationRunner : IHostedApplication, IStoppableAppl
 
     private void Subscribe(IGame game)
     {
-        _stoppingRegistration = _gameLifecycle.GameStopping.Register(OnGameStopping);
         game.Initializing += OnGameInitializing;
         game.Initialized += OnGameInitialized;
         game.Launched += OnGameLaunched;
-        game.Exited += OnGameExited;
+        game.Exiting += OnGameExiting;
         game.Disposed += OnGameDisposed;
     }
 
     private void Unsubscribe(IGame game)
     {
-        if (game is null)
-        {
-            return;
-        }
-
-        _stoppingRegistration.Dispose();
         game.Initializing -= OnGameInitializing;
         game.Initialized -= OnGameInitialized;
         game.Launched -= OnGameLaunched;
-        game.Exited -= OnGameExited;
+        game.Exiting -= OnGameExiting;
         game.Disposed -= OnGameDisposed;
     }
 
-    private void OnGameInitializing(object? sender, EventArgs e)
+    private void OnGameExiting(object? sender, EventArgs e)
     {
-        // Cancellation invokes every subsystem registered for the single initialization phase.
-        if (!_gameLifecycle.NotifyInitializing())
+        if (!_gameLifecycle.GameStopping.IsCancellationRequested)
         {
-            throw new ApplicationException(
-                "The game application was aborted.", 
-                _gameLifecycle.Error
-            );
+            _gameLifecycle.StopApplication();
         }
     }
+
+    private void OnGameInitializing(object? sender, EventArgs e) => _gameLifecycle.NotifyInitializing();
 
     private void OnGameInitialized(object? sender, EventArgs e) => _gameLifecycle.NotifyInitialized();
 
     private void OnGameLaunched(object? sender, EventArgs e) => _gameLifecycle.NotifyStarted();
 
-    private void OnGameExited(object? sender, EventArgs e)
-    {
-        _logger.LogInformation("Shutdown");
-        StopApplication();
-    }
-
-    private void OnGameStopping() => _game?.Exit();
+    private void RequestGameExit() => _game?.Exit();
 
     private void OnGameDisposed(object? sender, EventArgs e)
     {
@@ -135,13 +117,4 @@ internal sealed class GameApplicationRunner : IHostedApplication, IStoppableAppl
             Unsubscribe(game);
         }
     }
-
-    private void StopApplication()
-    {
-        if (!_gameLifecycle.IsStopping)
-        {
-            _gameLifecycle.StopApplication();
-        }
-    }
-
 }
