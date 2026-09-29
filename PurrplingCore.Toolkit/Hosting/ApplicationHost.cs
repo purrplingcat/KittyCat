@@ -5,6 +5,15 @@ using System.Diagnostics;
 
 namespace PurrplingCore.Toolkit.Hosting;
 
+/// <summary>
+/// Manages the lifecycle of a hosted application, orchestrating service initialization,
+/// startup procedures, application execution, and cleanup.
+/// </summary>
+/// <remarks>
+/// ApplicationHost is the core hosting container that manages dependency injection,
+/// startup services, and the application lifecycle. It bridges the bootstrap host services
+/// with the scoped application services.
+/// </remarks>
 public class ApplicationHost : IDisposable
 {
     private readonly IServiceProvider _hostServiceProvider;
@@ -23,7 +32,9 @@ public class ApplicationHost : IDisposable
         _hostServiceProvider = hostProvider;
         _applicationServices = applicationServices;
         Properties = properties ?? new Dictionary<object, object>();
-        Logger = hostProvider.GetRequiredService<ILoggerFactory>().CreateLogger(loggerCategory);
+        
+        var loggerFactory = hostProvider.GetRequiredService<ILoggerFactory>();
+        Logger = loggerFactory.CreateLogger(loggerCategory);
 
         _applicationServices.AddSingleton<StartupServiceExecutor>();
     }
@@ -32,15 +43,27 @@ public class ApplicationHost : IDisposable
 
     public IDictionary<object, object> Properties { get; }
 
+    /// <summary>
+    /// Gets the application service provider for dependency resolution.
+    /// </summary>
+    /// <remarks>
+    /// This property should only be accessed after Initialize() is called during Build().
+    /// </remarks>
     public IServiceProvider Services
     {
         get
         {
-            Debug.Assert(_applicationServiceProvider != null, "Initialize must be called before accessing services.");
+            const string assertMsg = "Initialize must be called before accessing services.";
+            Debug.Assert(_applicationServiceProvider != null, assertMsg);
             return _applicationServiceProvider;
         }
     }
 
+    /// <summary>
+    /// Creates a new ApplicationHostBuilder with default configuration.
+    /// </summary>
+    /// <param name="args">Optional command-line arguments.</param>
+    /// <returns>A configured IApplicationHostBuilder instance.</returns>
     public static IApplicationHostBuilder CreateBuilder(string[]? args = null)
     {
         var builder = new ApplicationHostBuilder(args);
@@ -48,35 +71,64 @@ public class ApplicationHost : IDisposable
         return builder;
     }
 
+    /// <summary>
+    /// Initializes the application by configuring services and creating the service provider.
+    /// </summary>
+    /// <remarks>
+    /// This method is called internally during Build() to apply service modules and finalize
+    /// service registrations. It verifies that an IHostedApplication is available when
+    /// the service provider supports <see cref="IServiceProviderIsService"/>.
+    /// </remarks>
     internal virtual void Initialize()
     {
-        foreach (var module in _hostServiceProvider.GetServices<IServiceModule>())
+        // Apply all registered service modules to the application service collection
+        var modules = _hostServiceProvider.GetServices<IServiceModule>();
+        foreach (var module in modules)
         {
             module.ConfigureServices(_applicationServices);
         }
 
-        var registrations = _applicationServices.Count(service => service.ServiceType == typeof(IHostedApplication));
-        if (registrations != 1)
+        // Create the application-scoped service provider
+        var factory = _hostServiceProvider.GetRequiredService<IServiceFactoryAdapter>();
+        _applicationServiceProvider = factory.CreateServiceProvider(_applicationServices);
+        _application = ResolveHostedApplication(_applicationServiceProvider);
+    }
+
+    private static IHostedApplication ResolveHostedApplication(IServiceProvider provider)
+    {
+        var applications = provider.GetServices<IHostedApplication>()
+                                   .ToArray();
+
+        if (applications.Length != 1)
         {
             throw new InvalidOperationException("Exactly one IHostedApplication must be registered.");
         }
 
-        var factory = _hostServiceProvider.GetRequiredService<IServiceFactoryAdapter>();
-        _applicationServiceProvider = factory.CreateServiceProvider(_applicationServices);
+        return applications[0];
     }
 
+    /// <summary>
+    /// Executes startup procedures and runs the hosted application.
+    /// </summary>
+    /// <returns>The exit code from the hosted application.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown if the host has been disposed.</exception>
     public virtual int Run()
     {
+        Debug.Assert(_application != null, "Initialize must be called before running the application.");
         ObjectDisposedException.ThrowIf(_disposed, this);
-
+        
+        // Execute startup services on first run
         _startupServices ??= Services.GetRequiredService<StartupServiceExecutor>();
         Logger.LogDebug("Executing startup services");
         _startupServices.Startup();
 
-        _application ??= Services.GetRequiredService<IHostedApplication>();
+        // Run the hosted application and return its exit code
         return _application.Run();
     }
 
+    /// <summary>
+    /// Requests graceful shutdown of the hosted application.
+    /// </summary>
     public virtual void Exit()
     {
         if (_application is IStoppableApplication stoppableApplication)
@@ -85,6 +137,9 @@ public class ApplicationHost : IDisposable
         }
     }
 
+    /// <summary>
+    /// Disposes the application host, cleaning up services and providers.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed) return;
@@ -92,6 +147,7 @@ public class ApplicationHost : IDisposable
         _disposed = true;
         try
         {
+            // Run cleanup services in reverse order of startup
             if (_startupServices != null)
             {
                 Logger.LogDebug("Executing cleanup services ...");
@@ -100,6 +156,7 @@ public class ApplicationHost : IDisposable
         }
         finally
         {
+            // Dispose all registered services and providers
             DisposeRegisteredServices();
             DisposeProvider(_applicationServiceProvider);
             DisposeProvider(_hostServiceProvider);
@@ -108,11 +165,13 @@ public class ApplicationHost : IDisposable
 
     private void DisposeRegisteredServices()
     {
-        if (_applicationServiceProvider == null) return;
+        if (_applicationServiceProvider == null)
+            return;
 
-        foreach (var disposableService in _applicationServiceProvider.GetServices<IDisposable>())
+        var disposables = _applicationServiceProvider.GetServices<IDisposable>();
+        foreach (var service in disposables)
         {
-            disposableService.Dispose();
+            service.Dispose();
         }
     }
 

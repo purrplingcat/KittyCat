@@ -20,6 +20,7 @@ var contentCollectionArgs = new ContentBuilderOptions
     Platform = TargetPlatform.DesktopGL,
     CreatePak = true,
 };
+// Parse command-line arguments to override defaults
 var options = ContentBuilderOptions.Parse(args, contentCollectionArgs);
 var builder = ApplicationHost.CreateBuilder();
 builder.Services.AddSingleton(options);
@@ -29,18 +30,43 @@ builder.Services.AddSingleton<IHostedApplication, AssetBuildJob>();
 using var host = builder.Build();
 return host.Run();
 
+/// <summary>
+/// Handles the actual asset building and packaging operation.
+/// </summary>
+/// <remarks>
+/// This internal hosted application is responsible for including asset rules,
+/// building the content, generating the asset catalog, and publishing the final PAK.
+/// </remarks>
 internal sealed class AssetBuildJob(PakContentBuilder contentBuilder, ContentBuilderOptions options) : IHostedApplication
 {
+    /// <summary>
+    /// Runs the asset build process including content collection, compilation, and packaging.
+    /// </summary>
+    /// <remarks>
+    /// Process:
+    /// 1. Adds wildcard rules for spritefonts
+    /// 2. Builds all content
+    /// 3. Generates an asset catalog
+    /// 4. Publishes the compiled content to a PAK file
+    /// </remarks>
+    /// <returns>0 on successful build, -1 if any assets failed to build.</returns>
     public int Run()
     {
+        // Include all spritefont files in the build
         contentBuilder.Collection.Include<WildcardRule>("Fonts/*.spritefont");
+        
+        // Build all content and get the output directory
         var compiledDirectory = contentBuilder.Build(options);
         if (compiledDirectory != null)
         {
+            // Generate a catalog of all assets for runtime lookup
             AssetCatalogBuilder.Generate(options.RootedSourceDirectory, compiledDirectory);
+            
+            // Publish the compiled content as a PAK file
             contentBuilder.Publish(options, compiledDirectory);
         }
 
+        // Return exit code based on build success
         return contentBuilder.FailedToBuild > 0 ? -1 : 0;
     }
 }

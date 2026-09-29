@@ -9,6 +9,13 @@ public sealed class GameHost : ApplicationHost
 {
     private GameApplicationRunner? _gameRunner;
 
+    /// <summary>
+    /// Initializes a new GameHost instance with game-specific services and configuration.
+    /// </summary>
+    /// <remarks>
+    /// This constructor is called internally by GameHostBuilder.Build() and should not be used directly.
+    /// The GameHost automatically registers GameApplicationRunner and GameApplicationLifetime services.
+    /// </remarks>
     internal GameHost(
         IServiceProvider hostProvider, 
         IServiceCollection gameServices, 
@@ -27,8 +34,16 @@ public sealed class GameHost : ApplicationHost
             .AddAlias<IHostedApplication, GameApplicationRunner>();
     }
 
+    /// <summary>
+    /// Gets a value indicating whether the game is currently running.
+    /// </summary>
     public bool IsRunning => _gameRunner?.IsRunning ?? false;
 
+    /// <summary>
+    /// Creates a new GameHostBuilder with default game configuration.
+    /// </summary>
+    /// <param name="args">Optional command-line arguments.</param>
+    /// <returns>A configured IGameHostBuilder instance ready for game setup.</returns>
     public static new IGameHostBuilder CreateBuilder(string[]? args = null)
     {
         IGameHostBuilder builder = new GameHostBuilder(args);
@@ -39,6 +54,13 @@ public sealed class GameHost : ApplicationHost
         return builder;
     }
 
+    /// <summary>
+    /// Runs the game application loop and returns the exit code.
+    /// </summary>
+    /// <remarks>
+    /// This method initializes the GameApplicationRunner on first call and then delegates
+    /// to the base ApplicationHost.Run() method.
+    /// </remarks>
     public override int Run()
     {
         _gameRunner ??= Services.GetRequiredService<GameApplicationRunner>();
@@ -47,8 +69,14 @@ public sealed class GameHost : ApplicationHost
 
 }
 
+/// <summary>
+/// Provides logging extension methods for game host information.
+/// </summary>
 internal static class LoggerExtensions
 {
+    /// <summary>
+    /// Logs game version and platform information.
+    /// </summary>
     public static void LogGameInformation(this ILogger logger, IHostEnvironment env, GameVersion version)
     {
         logger.LogInformation(
