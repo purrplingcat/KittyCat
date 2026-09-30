@@ -1,68 +1,131 @@
-# Repository Guide
+# KittyCat Repository Guide
+
+## Project
+
+KittyCat is a reusable game framework, engine, and game built with C# and MonoGame.
+The code is modular and performance-sensitive, but should remain simple, readable, and
+portable. Avoid enterprise-style abstractions unless they solve a real game or framework
+problem.
 
 ## Stack
 
-- C# with nullable reference types enabled.
-- Runtime projects target .NET 8.
-- `KittyCat.Content` is a .NET 9 command-line content builder.
-- MonoGame 3.8.x provides graphics, platform backends, and the content pipeline.
-- Microsoft.Extensions provides dependency injection, configuration, and logging.
-- Friflo.Engine.ECS backs the ECS integration in `PurrplingCore.Ecs`.
-- Zio provides virtual file-system primitives; package streams use LZ4 compression.
-- DotTiled is used by `PurrplingCore` for tiled map content.
+- C# with nullable reference types and implicit usings enabled.
+- Runtime projects target `.NET 8`; `KittyCat.Content` targets `.NET 9`.
+- MonoGame `3.8.5` provides the game loop, graphics, platform backends, and content pipeline.
+- `Microsoft.Extensions` provides dependency injection, configuration, and logging.
+- `Friflo.Engine.ECS` provides the ECS implementation in `PurrplingCore.Ecs`.
+- `Zio` provides virtual file-system primitives; PAK streams use LZ4 compression.
+- `DotTiled` provides tiled-map support in `PurrplingCore`.
 
-## Project Structure
+## Structure
 
 ```text
 KittyCat.slnx
-|-- PurrplingCore/                Main reusable engine; depends on Toolkit and ECS
-|-- PurrplingCore.Toolkit/        Shared hosting, DI, content, VFS, messaging, and rendering toolkit
-|-- PurrplingCore.Ecs/            ECS integration; depends on Toolkit
-`-- KittyCat/
-    |-- KittyCat.Game/            Game implementation and shared content; depends on PurrplingCore
-    |-- KittyCat.Content/         Content and PAK builder; depends on Toolkit
-    |-- KittyCat.DesktopGL/       DesktopGL executable; depends on Game
-    |-- KittyCat.WindowsDX/       WindowsDX executable; depends on Game
-    |-- KittyCat.Android/         Android executable; depends on Game
-    `-- KittyCat.iOS/             iOS executable; depends on Game
+|-- PurrplingCore.Toolkit/        Shared hosting, DI, content, VFS, messaging, and rendering
+|-- PurrplingCore.Ecs/             ECS integration and world composition
+|-- PurrplingCore/                 Reusable engine built on Toolkit and ECS
+|-- KittyCat/
+        |-- KittyCat.Game/             Game code, services, scenes, ECS content, and localization
+        |-- KittyCat.Content/          .NET 9 content compiler and PAK/catalog builder
+        |-- KittyCat.DesktopGL/        DesktopGL entry point
+        |-- KittyCat.WindowsDX/        WindowsDX entry point
+        |-- KittyCat.Android/          Android entry point and asset provider
+        `-- KittyCat.iOS/              iOS entry point
 ```
 
-The root `KittyCat.slnx` contains PurrplingCore, Toolkit, ECS, Game, Content, DesktopGL, and WindowsDX. Android and iOS projects exist in the repository but are not included in that solution. `KittyCat/KittyCat.slnx` is a smaller runtime-focused solution containing PurrplingCore, Toolkit, ECS, Game, DesktopGL, and WindowsDX.
-
-`PurrplingCore.Toolkit.Analyzers/` currently contains analyzer-related directory scaffolding but no project files included in either solution.
+The root solution includes Toolkit, ECS, PurrplingCore, Game, Content, DesktopGL, and
+WindowsDX. Android and iOS projects are present but are not included in the root solution.
+`KittyCat/KittyCat.slnx` is the smaller runtime-focused solution and excludes Content.
+`PurrplingCore.Toolkit.Analyzers/` currently contains directory scaffolding only.
 
 ## Dependency Direction
 
 ```text
-PurrplingCore.Toolkit --> PurrplingCore.Ecs
-PurrplingCore.Toolkit --> PurrplingCore
-PurrplingCore.Ecs     --> PurrplingCore
-PurrplingCore         --> KittyCat.Game --> platform executables
-PurrplingCore.Toolkit --> KittyCat.Content
+PurrplingCore.Toolkit <- PurrplingCore.Ecs <- PurrplingCore <- KittyCat.Game
+                    ^                    ^                 ^              ^
+                    |                    |                 |              +-- platform projects
+                    +--------------------+-----------------+-- KittyCat.Content
 ```
 
-Keep dependencies flowing in this direction. PurrplingCore projects must not depend on KittyCat projects or platform frontends.
+The arrows mean "is referenced by". Keep dependencies flowing from lower-level reusable
+code toward higher-level game code. Core projects must not reference `KittyCat.Game` or
+platform frontends.
 
-## Hosting And Services
+## Main Systems
 
-- `GameHostBuilder.Services` is the bootstrap/host service collection.
-- `IServiceModule` registrations added with `AddServiceModule` are resolved from the host provider and applied later to the cloned game service collection during `GameHost.Initialize()`.
-- Use `ConfigureHostServices<TModule>()` for modules that must run immediately against bootstrap services.
-- Prefer fluent/convenience APIs as extension methods; keep `IGameHostBuilder` limited to essential host capabilities.
-- Platform entry points explicitly call `UsePurrplingCore()` before `AddGame<KittyCatGame>()`. Android supplies its asset-backed `IFileProvider` there.
+### Hosting and DI
 
-## Build
+- `GameHost.CreateBuilder()` creates the host and adds core services.
+- Platform entry points call `UsePurrplingCore()` and then `AddGame<KittyCatGame>()`.
+- `GameHostBuilder.Services` is the bootstrap service collection.
+- `GameHostServicesAttribute` applies modules immediately to host services.
+- `GameServicesAttribute` registers modules for the cloned game-service collection.
+- The framework is DI-driven. Modules expose registrations and are composed through the host
+    and engine instead of being hard-wired together.
+- Prefer extension methods for fluent APIs. Keep `IGameHostBuilder` small and focused.
 
-Primary local validation:
+Framework modules are modular and optional. The engine is the composition boundary that brings
+the selected framework modules together. A module may be disabled by default when it is not
+needed by most games, but the engine must provide an explicit opt-in path for games that need it.
+Game-specific composition belongs in the engine or game layer, not in lower-level Toolkit code.
+
+### ECS
+
+`PurrplingCore.Ecs` builds worlds from signatures, keyed factories, modules, system metadata,
+and ordered system groups. `WorldFactory`, `WorldManager`, and `SystemRegistry` are the
+main composition points. Game-specific ECS systems and components belong in `KittyCat.Game`.
+
+### VFS, content, and PAKs
+
+- `VirtualFileSystemManager` provides the stable aggregate file-system root.
+- Desktop uses the physical game directory as a fallback; mobile uses an asset-backed provider.
+- `VirtualFileSystemStartup` mounts memory, user, cache, and temporary file systems.
+- `ContentPackageManager` discovers and mounts PAK/ZIP files from `Content/Paks`.
+- PAK files use the `PCAT` format, path hashing, optional compression, and AES-256 CBC with
+    HMAC-SHA256 key verification.
+- `AssetRegistry` stores GUID-keyed metadata; `AssetManager` loads and reference-counts assets.
+- Asset catalogs are binary at runtime, with JSON support for development and legacy data.
+- Runtime file access goes through `IFileProvider`/VFS; direct `File` and `Directory` access
+    belongs in build-time tools, not runtime code.
+
+### Modding
+
+`ModDiscovery` finds `manifest.json` files. `ModFactory` builds mounted file systems for
+directories, ZIPs, and PAKs. Mods can be data-only content packs or code mods loaded through
+an isolated `ModAssemblyLoadContext`. `ModRegistry` owns loaded-mod identity and de-duplication.
+
+### Content pipeline
+
+`KittyCat.Content` wraps the MonoGame content builder, compiles source assets to XNB, copies
+metadata, and optionally creates directory-grouped PAKs with asset catalogs. Its build-time
+File I/O is intentional; runtime asset access must use the VFS rules above.
+
+## Coding Rules
+
+- Keep code simple, readable, and broadly reusable.
+- Prefer small focused types and clear ownership over large frameworks or enterprise patterns.
+- Build modularly and reuse existing abstractions before adding new ones.
+- Treat frame time, allocations, I/O, startup cost, and update/draw work as important.
+- Measure or reason about performance at hot paths; do not add speculative micro-optimizations.
+- Preserve public APIs and dependency direction unless the task requires a deliberate change.
+- Use existing language and framework features before introducing custom infrastructure.
+- Add XML summaries and short comments where they improve navigation or explain non-obvious
+    decisions, lifecycle rules, performance constraints, or platform behavior.
+- All code, XML documentation, comments, and repository guidance are written in English.
+
+## Working Rules
+
+- Start from the smallest relevant file, symbol, failing behavior, or test.
+- State a local hypothesis, make the smallest useful edit, and run a focused validation.
+- Do not refactor unrelated code or revert changes made by the user.
+- Prefer a project build for validation when no narrower test exists.
+
+## Validation
 
 ```powershell
 dotnet build .\KittyCat\KittyCat.DesktopGL\KittyCat.DesktopGL.csproj --configuration Debug
-```
-
-WindowsDX validation:
-
-```powershell
 dotnet build .\KittyCat\KittyCat.WindowsDX\KittyCat.WindowsDX.csproj --configuration Debug
 ```
 
-Android and iOS builds require their corresponding .NET workloads; iOS also requires Apple signing/build infrastructure.
+Android and iOS builds require their corresponding .NET workloads; iOS also requires Apple
+signing and build infrastructure.
