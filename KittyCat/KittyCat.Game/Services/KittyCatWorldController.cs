@@ -1,11 +1,9 @@
-﻿using Friflo.Engine.ECS;
-using Friflo.Engine.ECS.Systems;
+﻿using System;
+using Friflo.Engine.ECS;
 using PurrplingCore.Ecs;
 using Microsoft.Xna.Framework;
-using PurrplingCore.Ecs.Systems;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Rendering;
-using System;
 
 namespace KittyCat.Services;
 
@@ -13,8 +11,7 @@ namespace KittyCat.Services;
 public class WorldController : DrawableGameComponent
 {
     private bool _disposed;
-    private bool _initialized;
-    private World _world;
+    private readonly World _world;
 
     public WorldController(Game game, IWorldFactory worldFactory) : base(game)
     {
@@ -24,12 +21,7 @@ public class WorldController : DrawableGameComponent
 
     public override void Initialize()
     {
-        if (_initialized) return;
-
         _world.Initialize();
-        _initialized = true;
-
-        //Game.Content.Load<string>("test");
         base.Initialize();
     }
 
@@ -53,7 +45,6 @@ public class WorldController : DrawableGameComponent
 
     public override void Draw(GameTime gameTime)
     {
-        GraphicsDevice.Clear(Color.MonoGameOrange);
         _world.Draw(gameTime.ToUpdateTick());
     }
 

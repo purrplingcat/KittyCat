@@ -12,6 +12,7 @@
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.5">
       <PrivateAssets>All</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Friflo.Engine.ECS.Generators" Version="3.6.0" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\PurrplingCore\PurrplingCore.csproj" />

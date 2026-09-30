@@ -4,6 +4,7 @@ using PurrplingCore.Hosting;
 using KittyCat.Localization;
 using KittyCat.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
@@ -57,8 +58,9 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
     protected override void Initialize()
     {
         var resolution = GetRequiredService<Resolution>();
+        var playfield = GetRequiredService<IOptions<StarCatcherOptions>>().Value.Playfield;
 
-        resolution.SetResolution(1280, 720).ApplyChanges();
+        resolution.SetResolution(playfield.Width, playfield.Height).ApplyChanges();
         //resolution.ApplyChanges(); 
 
         InitializeLocalization();
