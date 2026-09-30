@@ -74,6 +74,9 @@ Game-specific composition belongs in the engine or game layer, not in lower-leve
 `PurrplingCore.Ecs` builds worlds from signatures, keyed factories, modules, system metadata,
 and ordered system groups. `WorldFactory`, `WorldManager`, and `SystemRegistry` are the
 main composition points. Game-specific ECS systems and components belong in `KittyCat.Game`.
+Whenever working with ECS/Friflo code, follow `.github/instructions/friflo-ecs.instructions.md`
+and consult the relevant official [Friflo.Engine.ECS documentation](https://friflo.gitbook.io/friflo.engine.ecs),
+verifying APIs against the package version used by the project.
 
 ### VFS, content, and PAKs
 

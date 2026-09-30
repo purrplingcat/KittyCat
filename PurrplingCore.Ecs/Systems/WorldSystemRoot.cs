@@ -39,6 +39,15 @@ public sealed class DrawSystemGroup() : SystemGroup("Draw")
 [TopLevelGroup]
 public sealed class InitializeSystemGroup() : SystemGroup("Initialize")
 {
+    private bool _initialized;
+
+    protected override void OnUpdateGroup()
+    {
+        if (_initialized) return;
+
+        _initialized = true;
+        base.OnUpdateGroup();
+    }
 }
 
 [TopLevelGroup]
@@ -49,8 +58,12 @@ public sealed class FixedUpdateSystemGroup() : SystemGroup("FixedUpdate")
     public float Timestep { get; set; } = 1f / 50f;
     public float MaxDeltaTime { get; set; } = 0.25f;
     
+    public void Reset()
+    {
+        _accumulator = 0f;
+    }
 
-    public new void Update(UpdateTick tick)
+    public void FixedUpdate(UpdateTick tick)
     {
         var realDeltaTime = tick.deltaTime;
         var totalTime = tick.time;
@@ -64,7 +77,7 @@ public sealed class FixedUpdateSystemGroup() : SystemGroup("FixedUpdate")
 
         while (_accumulator >= Timestep)
         {
-            base.Update(new UpdateTick(Timestep, totalTime));
+            Update(new UpdateTick(Timestep, totalTime));
             totalTime += Timestep;
             _accumulator -= Timestep;
         }

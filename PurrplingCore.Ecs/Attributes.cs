@@ -14,7 +14,7 @@ public class SystemAttribute(Type groupType) : Attribute
 }
 
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-public sealed class SystemAttribute<T> : SystemAttribute where T : BaseSystemGroup
+public sealed class SystemAttribute<T> : SystemAttribute where T : SystemGroup
 {
     public SystemAttribute() : base(typeof(T)) { }
 }

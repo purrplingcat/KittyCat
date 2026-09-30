@@ -84,7 +84,7 @@ public static class SystemGroupExtensions
             return worldRoot.World;
         }
 
-        throw new InvalidOperationException($"SystemGroup {@group.Name} is not attached to a WorldSystemRoot.");
+        throw new InvalidOperationException($"SystemGroup {group.Name} is not attached to a WorldSystemRoot.");
     }
 
     public static bool TryGetWorld(this SystemGroup group, [MaybeNullWhen(false)] out World world)

@@ -23,6 +23,7 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
 {
     private readonly IServiceProvider _provider;
     private readonly GraphicsDeviceManager _graphicsManager;
+    private readonly GameClock _gameClock;
     private readonly ILogger _logger;
     private GameVersion? _version;
     private bool _isInitialized;
@@ -32,10 +33,12 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
     {
         public void ConfigureServices(IServiceCollection services)
         {
-            services.ExposeMonoGameService<IGraphicsDeviceService>()
-                    .ExposeMonoGameService<IGraphicsDeviceManager>()
-                    .ExposeMonoGameService<GraphicsDeviceManager>()
-                    .Expose((Game game) => game.Services);
+            services
+                .Expose<IGameClock, Game>(game => game.Clock)
+                .Expose<GameServiceContainer, Game>(game => game.Services)
+                .ExposeMonoGameService<IGraphicsDeviceService>()
+                .ExposeMonoGameService<IGraphicsDeviceManager>()
+                .ExposeMonoGameService<GraphicsDeviceManager>();
         }
 
     }
@@ -84,9 +87,12 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
 
     public bool IsRunning => _isRunning;
 
+    internal IGameClock Clock => _gameClock;
+
     public Game(IServiceProvider provider)
     {
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        _gameClock = new GameClock();
         _graphicsManager = new GraphicsDeviceManager(this);
         IsMouseVisible = true; // Default to showing the mouse cursor
         Content.RootDirectory = "Content";
@@ -149,6 +155,18 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
         _isInitialized = true;
         Initialized?.Invoke(this, EventArgs.Empty);
         _logger.LogTrace("Game initialized!");
+    }
+
+    protected override void Update(GameTime gameTime)
+    {
+        _gameClock.RecordUpdate(gameTime);
+        base.Update(gameTime);
+    }
+
+    protected override void Draw(GameTime gameTime)
+    {
+        _gameClock.RecordDraw(gameTime);
+        base.Draw(gameTime);
     }
 
     protected override void BeginRun()

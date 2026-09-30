@@ -1,6 +1,5 @@
 ﻿using Friflo.Engine.ECS.Systems;
 using Microsoft.Extensions.Logging;
-using System.Text;
 
 namespace PurrplingCore.Ecs.Diagnostics;
 

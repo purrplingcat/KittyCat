@@ -57,25 +57,7 @@ public class World : IWorld, IDisposable
         _systemRoot = new WorldSystemRoot(this);
 
         Signature = signature;
-        _systemRoot.OnSystemChanged += OnSystemRootChanged;
         _store.EventRecorder.Enabled = true;
-    }
-
-    private void OnSystemRootChanged(SystemChanged changed)
-    {
-        if (!_initialized) return;
-
-        string systemName = changed.system.Name;
-        string actionName = changed.action.ToString().ToLowerInvariant();
-
-        if (changed.field != null)
-        {
-            actionName += $" field {changed.field} in";
-        }
-
-        throw new InvalidOperationException(
-            $"Cannot {actionName} system '{systemName}': World has been initialized."
-        );
     }
 
     protected virtual void OnInitialize()
@@ -127,7 +109,7 @@ public class World : IWorld, IDisposable
         _store.EventRecorder.ClearEvents();
         if (_doFixedUpdate)
         {
-            _fixedUpdateSystems.Update(tick);
+            _fixedUpdateSystems.FixedUpdate(tick);
         }
         _updateSystems.Update(tick);
         Updated?.Invoke(this, tick);
@@ -188,6 +170,7 @@ public class World : IWorld, IDisposable
                 Updated = null;
                 Drawn = null;
                 OnDispose();
+
             }
 
             Disposed?.Invoke(this, EventArgs.Empty);
