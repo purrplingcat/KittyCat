@@ -84,6 +84,22 @@ public class World : IWorld, IDisposable
         Initialized?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Clears elapsed time accumulated toward the next fixed update.
+    /// </summary>
+    /// <remarks>
+    /// Call after a discontinuity in simulation time, such as resuming after world updates were suspended.
+    /// Call on the same thread as <see cref="Update(UpdateTick)"/>, outside an active update.
+    /// Has no effect before initialization or when the fixed update group has no systems.
+    /// </remarks>
+    public void ResetFixedStep()
+    {
+        EnsureNotDisposed();
+        if (!_initialized) return;
+
+        _fixedUpdateSystems.Reset();
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void EnsureCoreGroups()
     {

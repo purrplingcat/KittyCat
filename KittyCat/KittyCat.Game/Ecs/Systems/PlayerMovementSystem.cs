@@ -37,7 +37,6 @@ public sealed partial class PlayerMovementSystem : StoreSystem
     }
 
     [Query]
-    // For AI: Static is prohibited!!
     private void MovePlayer(
         ref ArcadeTransform transform,
         ref PlayerState player,
