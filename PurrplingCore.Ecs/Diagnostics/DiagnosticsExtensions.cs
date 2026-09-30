@@ -11,7 +11,7 @@ public static class DiagnosticExtensions
         if (!logger.IsEnabled(LogLevel.Debug)) return;
 
         logger.LogDebug("=== System tree for '{WorldName}' [{WorldType}] ===", world.Name, world.Signature.Name);
-        logger.LogDebug("{RootType}", world.SystemRoot.Name);
+        logger.LogDebug("{RootName}", world.SystemRoot.Name);
 
         var children = world.SystemRoot.ChildSystems;
         for (int i = 0; i < children.Count; i++)

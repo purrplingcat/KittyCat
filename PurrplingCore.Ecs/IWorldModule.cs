@@ -19,13 +19,15 @@ public enum SystemOrder
     Last,
 }
 
-public class SortedSystemSet()
+public class SortedSystemSet(Type? key = null)
 {
     private readonly List<SystemEntry> _entries = [];
     private readonly List<SystemEntry> _firstOrdered = [];
     private readonly List<SystemEntry> _lastOrdered = [];
     private readonly HashSet<Type> _types = [];
     private SystemEntry[]? _sorted;
+
+    public Type? Key { get; } = key;
 
     public readonly record struct SystemEntry(Type Type, SystemOrder Order = SystemOrder.Default)
     {

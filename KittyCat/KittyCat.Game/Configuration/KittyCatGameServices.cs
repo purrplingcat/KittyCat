@@ -29,10 +29,13 @@ public class KittyCatGameServices : IServiceModule
         // Register world and their systems
         static void ConfigureWorld(IWorldBlueprint world)
         {
-            world.Systems.Add<PhysicsSystem>();
+            world.AddSystem<PhysicsSystem>();
             world.Systems.In<UpdateSystemGroup>()
-                 .Add<TestGroup>()
-                 .Add<PhysicsCleanupSystem>(SystemOrder.Last);
+                         .Add<PhysicsCleanupSystem>(SystemOrder.Last)
+                         .Add<TestGroup>()
+                         .Add<ThirdGroup>();
+            world.Systems.In<TestGroup>()
+                         .Add<SecondGroup>();
         }
 
         services.AddWorld(ConfigureWorld);

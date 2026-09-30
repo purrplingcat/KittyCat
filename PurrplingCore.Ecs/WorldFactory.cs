@@ -75,11 +75,11 @@ public sealed class DefaultWorldFactory(IServiceScopeFactory scopeFactory) : IWo
 
     private void ConfigureDefaults(IWorldBlueprint blueprint)
     {
-        blueprint.Systems
-            .AddRoot<InitializeSystemGroup>()
-            .AddRoot<FixedUpdateSystemGroup>()
-            .AddRoot<UpdateSystemGroup>()
-            .AddRoot<DrawSystemGroup>();
+        blueprint
+            .AddRootGroup<InitializeSystemGroup>()
+            .AddRootGroup<FixedUpdateSystemGroup>()
+            .AddRootGroup<UpdateSystemGroup>()
+            .AddRootGroup<DrawSystemGroup>();
     }
 
     private static void ApplyModules(IWorldBlueprint blueprint, IEnumerable<IWorldModule> modules)
@@ -158,6 +158,12 @@ public sealed class SystemProvider(
             if (system == group)
                 throw new InvalidOperationException("Cannot add itself to group");
             
+            if (system.ParentGroup != null)
+                throw new InvalidOperationException(
+                    $"Cannot add system '{system.Name}' to group '{group.Name}': " +
+                    $"System is already apart of '{system.ParentGroup.Name}' group"
+                );
+
             group.Add(system);
         }
     }
@@ -167,13 +173,21 @@ public class SystemRegistry
 {
     private readonly Dictionary<Type, SortedSystemSet> _groups = [];
 
-    public SortedSystemSet this[Type key] => _groups[key];
+    public SortedSystemSet this[Type key]
+    {
+        get => _groups[key];
+        set 
+        { 
+            ArgumentNullException.ThrowIfNull(value);
+            _groups[key] = value; 
+        }
+    }
 
     public SortedSystemSet GetOrCreate(Type key)
     {
         if (!_groups.TryGetValue(key, out var systemSet))
         {
-            systemSet = new SortedSystemSet();
+            systemSet = new SortedSystemSet(key);
             _groups[key] = systemSet;
         }
 
@@ -211,9 +225,9 @@ public static class SystemRegistryExtensions
     /// <summary>
     /// Adds all concrete systems from an assembly using their declared system metadata.
     /// </summary>
-    public static SystemRegistry AddFromAssembly(this SystemRegistry systems, Assembly assembly)
+    public static IWorldBlueprint AddSystems(this IWorldBlueprint world, Assembly assembly)
     {
-        ArgumentNullException.ThrowIfNull(systems);
+        ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(assembly);
 
         foreach (var typeInfo in assembly.DefinedTypes)
@@ -223,10 +237,26 @@ public static class SystemRegistryExtensions
                 continue;
             }
 
-            systems.Register(typeInfo.AsType());
+            world.AddSystem(typeInfo.AsType());
         }
 
-        return systems;
+        return world;
+    }
+
+    public static IWorldBlueprint AddSystems(this IWorldBlueprint world, IEnumerable<Type> systemTypes)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(systemTypes);
+
+        foreach (var type in systemTypes)
+        {
+            if (!typeof(BaseSystem).IsAssignableFrom(type))
+                continue;
+
+            world.AddSystem(type);
+        }
+
+        return world;
     }
 
     /// <summary>
@@ -242,53 +272,53 @@ public static class SystemRegistryExtensions
     /// <summary>
     /// Registers a system of type <typeparamref name="TSystem"/> in the appropriate system group based on its metadata.
     /// </summary>
-    public static SystemRegistry Add<TSystem>(this SystemRegistry registry) where TSystem : BaseSystem
+    public static IWorldBlueprint AddSystem<TSystem>(this IWorldBlueprint world) where TSystem : BaseSystem
     {
         var metadata = SystemMetadata.For<TSystem>();
         var entry = metadata.ToSystemEntry();
 
-        registry.GetOrCreate(metadata.GroupType)
-                .Add(entry);
+        world.Systems.GetOrCreate(metadata.GroupType)
+                     .Add(entry);
 
-        return registry;
+        return world;
     }
 
-    public static SystemRegistry Add<TSystem>(this SystemRegistry registry, SystemMetadata systemMetadata) where TSystem : BaseSystem
+    public static IWorldBlueprint AddSystem<TSystem>(this IWorldBlueprint world, SystemMetadata systemMetadata) where TSystem : BaseSystem
     {
         var entry = systemMetadata.ToSystemEntry();
 
-        registry.GetOrCreate(systemMetadata.GroupType)
-                .Add(entry);
+        world.Systems.GetOrCreate(systemMetadata.GroupType)
+                     .Add(entry);
 
-        return registry;
+        return world;
     }
 
-    public static SystemRegistry AddRoot<TSytemGroup>(this SystemRegistry registry) where TSytemGroup : SystemGroup
+    public static IWorldBlueprint AddRootGroup<TSystemGroup>(this IWorldBlueprint world) where TSystemGroup : SystemGroup
     {
-        var metadata = SystemMetadata.For<TSytemGroup>();
+        var metadata = SystemMetadata.For<TSystemGroup>();
         var entry = metadata.ToSystemEntry();
 
-        registry.GetOrCreate(typeof(SystemRoot))
-                .Add(entry);
+        world.Systems.GetOrCreate(typeof(SystemRoot))
+                     .Add(entry);
 
-        return registry;
+        return world;
     }
 
     /// <summary>
     /// Registers the specified system type in its metadata-defined system group.
     /// </summary>
-    /// <param name="registry">The system registry to update.</param>
+    /// <param name="world">The system registry to update.</param>
     /// <param name="systemType">The type of system to register.</param>
     /// <returns>The updated system registry.</returns>
-    public static SystemRegistry Register(this SystemRegistry registry, Type systemType)
+    public static IWorldBlueprint AddSystem(this IWorldBlueprint world, Type systemType)
     {
         var metadata = SystemMetadata.For(systemType);
         var entry = metadata.ToSystemEntry();
 
-        registry.GetOrCreate(metadata.GroupType)
-                .Add(entry);
+        world.Systems.GetOrCreate(metadata.GroupType)
+                     .Add(entry);
 
-        return registry;
+        return world;
     }
 
     public static TSystem Provide<TSystem>(this SystemProvider provider) where TSystem : BaseSystem
