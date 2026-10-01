@@ -64,7 +64,7 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
     }
 
     /// <summary>
-    /// Loads game content, such as textures and particle systems.
+    /// Loads the HUD font through the game renderer.
     /// </summary>
     protected override void LoadContent()
     {

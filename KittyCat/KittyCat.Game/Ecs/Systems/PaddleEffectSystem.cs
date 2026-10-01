@@ -4,8 +4,9 @@ using KittyCat.Ecs.Components;
 
 namespace KittyCat.Ecs.Systems;
 
-/// <summary>Advances paddle-size effects and the temporary invincibility blink.</summary>
-/// <summary>Expires paddle size effects and blinks the player during temporary invincibility.</summary>
+/// <summary>
+/// Expires paddle-size effects and blinks the player during temporary invincibility.
+/// </summary>
 public sealed class PaddleEffectSystem : QuerySystem<ArcadeTransform, PlayerState, ArcadeVisual>
 {
     private const float BlinkIntervalSeconds = 0.042f;
@@ -31,6 +32,7 @@ public sealed class PaddleEffectSystem : QuerySystem<ArcadeTransform, PlayerStat
                         if (blinkCount > 0)
                         {
                             player.InvincibilityBlinkTime -= blinkCount * BlinkIntervalSeconds;
+                            // Skipped intervals only change visibility when their count is odd.
                             if ((blinkCount & 1) != 0) visual.IsVisible = !visual.IsVisible;
                         }
                     }

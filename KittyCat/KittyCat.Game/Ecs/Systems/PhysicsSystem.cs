@@ -6,6 +6,9 @@ using System;
 
 namespace KittyCat.Ecs.Systems;
 
+/// <summary>
+/// Placeholder for physics command processing, simulation, and ECS synchronization.
+/// </summary>
 [Order(Order.Later + 100)]
 public class PhysicsSystem() : BaseSystem()
 {
@@ -14,11 +17,10 @@ public class PhysicsSystem() : BaseSystem()
         //EntityStore store = world.CurrentStore;
         //PhysicsWorld physicsWorld = physicsExtension.GetFor(store);
 
-        // --- FÁZE 1: ECS -> Fyzika (Předání příkazů) ---
-        // Projdeme entity, které mají nějaké příkazy k vykonání
+        // Phase 1: send queued ECS commands to the physics world.
         /*store.Query<PhysicsCommandBuffer, PhysicsBody>().ForEach(ref (ref var commandBuffer, ref var body) =>
         {
-            // Projdeme všechny příkazy v bufferu
+            // Execute all commands for this body.
             foreach (var command in commandBuffer.Commands)
             {
                 switch (command.Type)
@@ -34,16 +36,14 @@ public class PhysicsSystem() : BaseSystem()
                         break;
                 }
             }
-            // Vyčistíme buffer po zpracování
+            // Clear commands after processing.
             commandBuffer.Commands.Clear();
         });*/
 
-        // --- FÁZE 2: Simulace ---
-        // Řekneme fyzikálnímu enginu, aby provedl svůj výpočet
+        // Phase 2: advance the physics simulation.
         //physicsWorld.Step(Tick.deltaTime);
 
-        // --- FÁZE 3: Fyzika -> ECS (Synchronizace výsledků) ---
-        // Projdeme všechny fyzikální entity a zapíšeme jejich novou pozici
+        // Phase 3: synchronize physics positions back to ECS components.
         /*store.Query<PhysicsBody, Transform>().ForEach(ref (ref var body, ref var transform) =>
         {
             var physicsEntity = physicsWorld.GetEntity(body.Id);

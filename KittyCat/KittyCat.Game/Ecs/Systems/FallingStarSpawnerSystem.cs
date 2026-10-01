@@ -12,7 +12,9 @@ using PurrplingCore.Ecs.Systems;
 
 namespace KittyCat.Ecs.Systems;
 
-/// <summary>Maintains score-driven star waves and their speed for each world store.</summary>
+/// <summary>
+/// Maintains score-driven star waves and their speed for each world store.
+/// </summary>
 [System<UpdateSystemGroup>]
 public sealed partial class FallingStarSpawnerSystem : QuerySystem<ArcadeTransform, FallingStar, ArcadeVisual>
 {
@@ -28,6 +30,7 @@ public sealed partial class FallingStarSpawnerSystem : QuerySystem<ArcadeTransfo
     protected override void OnUpdate()
     {
         ref var state = ref Query.Store.GetSingleton<StarSpawnState>(StarSpawnState.EntityName);
+        // The generated player query aggregates into system fields; reset them for each store.
         _score = 0;
         _gameIsActive = false;
         ReadPlayersQuery(Query.Store);
@@ -107,7 +110,7 @@ public sealed partial class FallingStarSpawnerSystem : QuerySystem<ArcadeTransfo
         var firstBonusScore = 5;
         if (score < firstBonusScore) return _options.Stars.InitialMaxActive;
 
-        // From score 5, the chance of a maximum-size base wave rises with easy progress; each wave also rolls a bonus star.
+        // From score 5, increase the chance of a maximum-size wave; roll a bonus star separately.
         var progress = Math.Clamp(
             (float)(score - firstBonusScore) / (tuning.EasyScoreLimit - firstBonusScore),
             0,

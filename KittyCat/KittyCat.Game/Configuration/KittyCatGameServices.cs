@@ -13,7 +13,9 @@ using System.Reflection;
 
 namespace KittyCat.Configuration;
 
-/// <summary>Composes game-specific world systems and validates Star Catcher settings.</summary>
+/// <summary>
+/// Composes game-specific world systems and validates Star Catcher settings.
+/// </summary>
 public class KittyCatGameServices : IServiceModule
 {
     public Assembly Assembly => GetType().Assembly;
@@ -29,11 +31,11 @@ public class KittyCatGameServices : IServiceModule
         services.AddSceneManager();
 
         // Cleanup is opt-in; the game explicitly selects it for its default world.
-        services // Register the game world and its systems
+        services
             .AddWorld(ConfigureWorld)
             .AddModule<EntityCleanupModule>();
 
-        services // Register the StarCatcher options
+        services
             .AddOptions<StarCatcherOptions>()
             .BindConfiguration(StarCatcherOptions.SectionName)
             .Validate(IsValid, "StarCatcher configuration contains invalid gameplay values.");
@@ -41,7 +43,6 @@ public class KittyCatGameServices : IServiceModule
 
     private static void ConfigureWorld(IWorldBlueprint world)
     {
-        // Register the example game's systems in their update, initialize, and draw groups.
         world.AddSystem<PaddleEffectSystem>();
         world.AddSystem<PlayerMovementSystem>();
         world.AddSystem<FallingStarSystem>();

@@ -4,10 +4,14 @@ using Microsoft.Xna.Framework;
 
 namespace KittyCat.Ecs.Systems;
 
-/// <summary>Creates and restores the example game's player from its configured starting values.</summary>
+/// <summary>
+/// Creates and restores the example game's player from its configured starting values.
+/// </summary>
 internal static class PlayerSetup
 {
-    /// <summary>Builds the player's transform at the configured starting position.</summary>
+    /// <summary>
+    /// Builds the player's transform at the configured starting position.
+    /// </summary>
     public static ArcadeTransform CreateTransform(StarCatcherOptions options)
     {
         var size = new Vector2(options.Paddle.Width, options.Paddle.Height);
@@ -18,7 +22,9 @@ internal static class PlayerSetup
         };
     }
 
-    /// <summary>Creates fresh run state using the configured movement speed, width, and starting lives.</summary>
+    /// <summary>
+    /// Creates fresh run state using the configured movement speed, width, and starting lives.
+    /// </summary>
     public static PlayerState CreateState(PaddleOptions options)
     {
         return new PlayerState
@@ -29,7 +35,9 @@ internal static class PlayerSetup
         };
     }
 
-    /// <summary>Restores position and all run-scoped values after game over.</summary>
+    /// <summary>
+    /// Restores position and all run-scoped values after game over.
+    /// </summary>
     public static void Reset(ref ArcadeTransform transform, ref PlayerState player, StarCatcherOptions options)
     {
         transform.Size.X = player.BasePaddleWidth;
@@ -45,6 +53,7 @@ internal static class PlayerSetup
 
     private static Vector2 GetStartingPosition(PlayfieldOptions playfield, Vector2 size)
     {
+        // Keep one paddle-height of space below the starting position.
         return new Vector2((playfield.Width - size.X) / 2, playfield.Height - size.Y * 2);
     }
 }

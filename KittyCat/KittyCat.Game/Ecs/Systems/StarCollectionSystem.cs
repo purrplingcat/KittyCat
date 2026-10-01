@@ -34,14 +34,14 @@ public sealed partial class StarCollectionSystem : QuerySystem<ArcadeTransform, 
                 ref var player = ref players[playerIndex];
                 if (player.Lives <= 0) continue;
 
-                // Keep the current player's mutable state across the generated star query.
+                // Keep mutations between star callbacks, then write the player back after query iteration.
                 _collectingPlayerTransform = playerTransform;
                 _collectingPlayer = player;
                 _collectedStars = 0;
                 CollectStarsQuery(Query.Store);
 
                 _collectingPlayer.Score += _collectedStars;
-                // Strike is the consecutive-star count and is reset when any star is missed.
+                // A miss in FallingStarSystem resets this consecutive collection count.
                 _collectingPlayer.Strike += _collectedStars;
                 playerTransform = _collectingPlayerTransform;
                 player = _collectingPlayer;

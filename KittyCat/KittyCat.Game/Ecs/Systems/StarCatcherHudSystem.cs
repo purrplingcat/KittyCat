@@ -6,7 +6,9 @@ using PurrplingCore.Ecs.Systems;
 
 namespace KittyCat.Ecs.Systems;
 
-/// <summary>Draws the player's HUD after world entities in the same SpriteBatch frame.</summary>
+/// <summary>
+/// Draws the player's HUD after world entities in the same SpriteBatch frame.
+/// </summary>
 [System<DrawSystemGroup>]
 [PurrplingCore.Ecs.RunAfter<StarCatcherDrawSystem>]
 public sealed class StarCatcherHudSystem(StarCatcherRenderer renderer) : QuerySystem<PlayerState>

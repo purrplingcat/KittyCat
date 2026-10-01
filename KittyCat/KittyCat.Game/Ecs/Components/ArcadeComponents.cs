@@ -3,13 +3,17 @@ using Microsoft.Xna.Framework;
 
 namespace KittyCat.Ecs.Components;
 
-/// <summary>Shared position and size for the player and visible game objects.</summary>
+/// <summary>
+/// Shared position and size for the player and visible game objects.
+/// </summary>
 public struct ArcadeTransform : IComponent
 {
     public Vector2 Position;
     public Vector2 Size;
 
-    /// <summary>Returns whether this transform overlaps another axis-aligned transform.</summary>
+    /// <summary>
+    /// Returns whether this transform overlaps another axis-aligned transform.
+    /// </summary>
     public readonly bool Intersects(in ArcadeTransform other)
     {
         return Position.X < other.Position.X + other.Size.X
@@ -24,7 +28,9 @@ public struct ArcadeTransform : IComponent
 /// </summary>
 public struct PlayerState : IComponent
 {
-    /// <summary>Unmodified movement speed before hard-stage and strike multipliers.</summary>
+    /// <summary>
+    /// Unmodified movement speed before hard-stage and strike multipliers.
+    /// </summary>
     public float MoveSpeed;
     public float BasePaddleWidth;
     public float PaddleEffectTime;
@@ -32,7 +38,9 @@ public struct PlayerState : IComponent
     public float InvincibilityBlinkTime;
     public PaddleSizeEffect PaddleEffect;
     public int Score;
-    /// <summary>Consecutive stars collected; a missed star resets this value.</summary>
+    /// <summary>
+    /// Consecutive stars collected; a missed star resets this value.
+    /// </summary>
     public int Strike;
     public int Lives;
 }
@@ -44,7 +52,9 @@ public enum PaddleSizeEffect : byte
     Shrink,
 }
 
-/// <summary>Runtime movement and collection state for a spawned star.</summary>
+/// <summary>
+/// Runtime movement and collection state for a spawned star.
+/// </summary>
 public struct FallingStar : IComponent
 {
     public float FallSpeed;
@@ -52,9 +62,14 @@ public struct FallingStar : IComponent
     public PaddleSizeEffect PaddleEffect;
 }
 
-/// <summary>Per-world timing and wave selection for the star spawner.</summary>
+/// <summary>
+/// Per-world timing and wave selection for the star spawner.
+/// </summary>
 public struct StarSpawnState : IComponent
 {
+    /// <summary>
+    /// Identifies the unique entity shared by initialization and spawning.
+    /// </summary>
     public const string EntityName = "StarSpawner";
 
     public float TimeUntilSpawn;
@@ -69,7 +84,9 @@ public enum BonusHeartState : byte
     Popping,
 }
 
-/// <summary>Velocity and lifetime state for the bouncing life bonus.</summary>
+/// <summary>
+/// Velocity and lifetime state for the bouncing life bonus.
+/// </summary>
 public struct BonusHeart : IComponent
 {
     public Vector2 Velocity;

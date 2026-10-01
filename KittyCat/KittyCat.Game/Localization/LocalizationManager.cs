@@ -4,7 +4,10 @@ using KittyCat.Core.Localization;
 using PurrplingCore.Toolkit.Localization;
 
 namespace KittyCat.Localization;
-/// <summary>Selects KittyCat's default culture and resource catalog.</summary>
+
+/// <summary>
+/// Selects KittyCat's default culture and resource catalog.
+/// </summary>
 internal static class LocalizationManager
 {
     public const string DEFAULT_CULTURE_CODE = "en-EN";

@@ -12,7 +12,9 @@ using PurrplingCore.Ecs.Systems;
 
 namespace KittyCat.Ecs.Systems;
 
-/// <summary>Spawns the life bonus, bounces it around the playfield, and handles collection or expiry.</summary>
+/// <summary>
+/// Spawns the life bonus, bounces it around the playfield, and handles collection or expiry.
+/// </summary>
 [System<UpdateSystemGroup>]
 public sealed partial class HeartSystem : QuerySystem<ArcadeTransform, BonusHeart, ArcadeVisual>
 {
@@ -223,6 +225,7 @@ public sealed partial class HeartSystem : QuerySystem<ArcadeTransform, BonusHear
     private static void MoveAxis(ref float position, ref float velocity, float maximum, float deltaTime)
     {
         position += velocity * deltaTime;
+        // Large frame steps can cross more than one boundary; reflect until back in range.
         while (position < 0 || position > maximum)
         {
             if (position < 0)
@@ -240,6 +243,7 @@ public sealed partial class HeartSystem : QuerySystem<ArcadeTransform, BonusHear
 
     private bool TryCollect(ArcadeTransform heartTransform)
     {
+        // The generated query cannot stop early, so its callback skips remaining players after a hit.
         _collectingHeart = heartTransform;
         _heartCollected = false;
         CollectHeartQuery(Query.Store);

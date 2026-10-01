@@ -2,7 +2,9 @@ using System;
 
 namespace KittyCat.Configuration;
 
-/// <summary>Configuration root for the Star Catcher example game.</summary>
+/// <summary>
+/// Configuration root for the Star Catcher example game.
+/// </summary>
 public sealed class StarCatcherOptions
 {
     public const string SectionName = "StarCatcher";
@@ -14,38 +16,54 @@ public sealed class StarCatcherOptions
     public DifficultyOptions Difficulty { get; set; } = new();
 }
 
+/// <summary>
+/// Dimensions of the gameplay area in pixels.
+/// </summary>
 public sealed class PlayfieldOptions
 {
     public int Width { get; set; } = 1280;
     public int Height { get; set; } = 720;
 }
 
-/// <summary>Paddle dimensions, movement limits, lives, and temporary effects.</summary>
+/// <summary>
+/// Paddle dimensions, movement limits, lives, and temporary effects.
+/// </summary>
 public sealed class PaddleOptions
 {
     public const int MaximumLives = 5;
     public const float InvincibilityDurationSeconds = 2f;
 
-    /// <summary>Consecutive stars needed to fill the strike meter.</summary>
+    /// <summary>
+    /// Consecutive stars needed to fill the strike meter.
+    /// </summary>
     public int StrikesForMaximumSpeed { get; set; } = 30;
     public float Width { get; set; } = 64;
     public float Height { get; set; } = 28;
     public float MoveSpeed { get; set; } = 600;
     public int StartingLives { get; set; } = 3;
-    /// <summary>Maximum strike multiplier applied on top of the current difficulty-adjusted base speed.</summary>
+    /// <summary>
+    /// Maximum strike multiplier applied on top of the current difficulty-adjusted base speed.
+    /// </summary>
     public float MaximumStrikeSpeedMultiplier { get; set; } = 1.6f;
-    /// <summary>Base paddle-speed multiplier reached as hard-stage progress approaches its cap.</summary>
+    /// <summary>
+    /// Base paddle-speed multiplier reached as hard-stage progress approaches its cap.
+    /// </summary>
     public float HardSpeedMultiplier { get; set; } = 1.1f;
     public float EffectDurationSeconds { get; set; } = 8;
     public float ExpandMultiplier { get; set; } = 1.7f;
     public float ShrinkMultiplier { get; set; } = 0.6f;
 }
 
+/// <summary>
+/// Star size, spawn cadence, and movement modifiers.
+/// </summary>
 public sealed class StarOptions
 {
     public float Size { get; set; } = 24;
     public float InitialSpawnIntervalSeconds { get; set; } = 1.2f;
-    /// <summary>Number of stars active when a new run begins.</summary>
+    /// <summary>
+    /// Number of stars active when a new run begins.
+    /// </summary>
     public int InitialMaxActive { get; set; } = 1;
     public float SpecialSpawnChance { get; set; } = 0.16f;
     public float GreenSpeedMultiplier { get; set; } = 1.25f;
@@ -53,6 +71,9 @@ public sealed class StarOptions
     public float FastSpeedMultiplier { get; set; } = 1.8f;
 }
 
+/// <summary>
+/// Timing and movement of the extra-life bonus.
+/// </summary>
 public sealed class HeartOptions
 {
     public float Size { get; set; } = 28;
@@ -62,20 +83,34 @@ public sealed class HeartOptions
     public float PopDurationSeconds { get; set; } = 0.25f;
 }
 
-/// <summary>Score thresholds and tuning values for the easy, medium, and hard stages.</summary>
+/// <summary>
+/// Score thresholds and tuning values for the easy, medium, and hard stages.
+/// </summary>
 public sealed class DifficultyOptions
 {
-    /// <summary>Scores below this value remain easy; medium starts at this boundary.</summary>
+    /// <summary>
+    /// Scores below this value remain easy; medium starts at this boundary.
+    /// </summary>
     public int EasyScoreLimit { get; set; } = 40;
-    /// <summary>Hard starts at this score.</summary>
+    /// <summary>
+    /// Hard starts at this score.
+    /// </summary>
     public int HardScoreLimit { get; set; } = 100;
-    /// <summary>Score at which hard-stage speed and spawn pressure reach their configured maximum.</summary>
+    /// <summary>
+    /// Score at which hard-stage speed and spawn pressure reach their configured maximum.
+    /// </summary>
     public int ScoreForMaximumDifficulty { get; set; } = 180;
-    /// <summary>Largest base wave size during easy; the easy bonus roll may add one more.</summary>
+    /// <summary>
+    /// Largest base wave size during easy; the easy bonus roll may add one more.
+    /// </summary>
     public int EasyMaximumActiveStars { get; set; } = 5;
-    /// <summary>Global active-star cap used by medium and hard waves.</summary>
+    /// <summary>
+    /// Global active-star cap used by medium and hard waves.
+    /// </summary>
     public int MaximumActiveStars { get; set; } = 5;
-    /// <summary>Independent chance to add one star to an easy wave.</summary>
+    /// <summary>
+    /// Independent chance to add one star to an easy wave.
+    /// </summary>
     public float EasyBonusStarChance { get; set; } = 0.1f;
     public float EasySpawnIntervalSeconds { get; set; } = 0.8f;
     public float HardSpawnIntervalSeconds { get; set; } = 0.65f;
@@ -89,12 +124,17 @@ public sealed class DifficultyOptions
     public float MediumFastStarChance { get; set; } = 0.08f;
     public float HardFastStarChance { get; set; } = 0.14f;
 
-    /// <summary>Maps a score to its difficulty stage and normalized progress within that stage.</summary>
+    /// <summary>
+    /// Maps a score to its difficulty stage and normalized progress within that stage.
+    /// </summary>
     public DifficultyProgress GetProgress(int score)
     {
         return GetProgress(score, EasyScoreLimit, HardScoreLimit, ScoreForMaximumDifficulty);
     }
 
+    /// <summary>
+    /// Computes phase-local progress between the supplied score thresholds.
+    /// </summary>
     public static DifficultyProgress GetProgress(
         int score,
         int easyScoreLimit,
@@ -119,7 +159,9 @@ public sealed class DifficultyOptions
     }
 }
 
-/// <summary>The current score-based gameplay phase.</summary>
+/// <summary>
+/// The current score-based gameplay phase.
+/// </summary>
 public enum DifficultyStage : byte
 {
     Easy,
@@ -127,5 +169,7 @@ public enum DifficultyStage : byte
     Hard,
 }
 
-/// <summary>Difficulty phase and normalized progress within that phase.</summary>
+/// <summary>
+/// Difficulty phase and normalized progress within that phase.
+/// </summary>
 public readonly record struct DifficultyProgress(DifficultyStage Stage, float Progress);

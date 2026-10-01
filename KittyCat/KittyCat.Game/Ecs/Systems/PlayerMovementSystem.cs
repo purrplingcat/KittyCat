@@ -9,7 +9,9 @@ using PurrplingCore.Ecs.Systems;
 
 namespace KittyCat.Ecs.Systems;
 
-/// <summary>Moves the player within the playfield using keyboard input and score-based speed.</summary>
+/// <summary>
+/// Moves the player within the playfield using keyboard input and score-based speed.
+/// </summary>
 public sealed partial class PlayerMovementSystem : StoreSystem
 {
     private readonly PlayfieldOptions _playfield;

@@ -7,13 +7,16 @@ using System.Collections.Generic;
 
 namespace KittyCat.Services;
 
-/// <summary>Runs state entry and exit handlers and publishes game state transitions.</summary>
+/// <summary>
+/// Runs state entry and exit handlers and publishes game state transitions.
+/// </summary>
 [Singleton]
 public class GameStateMachine(IMessageBus messageBus, IEnumerable<IGameStateHandler> handlers)
     : StateMachine<GameState>(GameState.None, handlers)
 {
     protected override void OnStateChanged(GameState previousState, GameState newState)
     {
+        // Notify direct subscribers before publishing the transition to the message bus.
         base.OnStateChanged(previousState, newState);
         messageBus.Publish(new GameStateChangedMessage(previousState, newState));
     }

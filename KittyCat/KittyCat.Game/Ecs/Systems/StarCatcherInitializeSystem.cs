@@ -8,7 +8,9 @@ using PurrplingCore.Ecs.Systems;
 
 namespace KittyCat.Ecs.Systems;
 
-/// <summary>Creates the initial player entity from the configured playfield and paddle settings.</summary>
+/// <summary>
+/// Creates the per-store spawn state and initial player from the configured settings.
+/// </summary>
 [System<InitializeSystemGroup>]
 public sealed class StarCatcherInitializeSystem : StoreSystem
 {

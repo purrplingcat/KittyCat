@@ -9,7 +9,9 @@ using PurrplingCore.Ecs.Components;
 
 namespace KittyCat.Ecs.Systems;
 
-/// <summary>Restores the player and clears active bonuses when restarting after game over.</summary>
+/// <summary>
+/// Restores the player and clears active bonuses when restarting after game over.
+/// </summary>
 public sealed partial class RestartGameSystem : QuerySystem<ArcadeTransform, PlayerState, ArcadeVisual>
 {
     private readonly StarCatcherOptions _options;
@@ -21,7 +23,7 @@ public sealed partial class RestartGameSystem : QuerySystem<ArcadeTransform, Pla
 
     protected override void OnUpdate()
     {
-        // Space only restarts a game-over world; holding it during play has no effect.
+        // A held Space key cannot reset an active run; only game-over players are restored.
         if (!Keyboard.GetState().IsKeyDown(Keys.Space)) return;
 
         var restarted = false;
@@ -40,6 +42,7 @@ public sealed partial class RestartGameSystem : QuerySystem<ArcadeTransform, Pla
         }
 
         if (!restarted) return;
+        // Reset collected bonuses only after restoring the player, and defer star deletion.
         ResetStarsQuery(Query.Store);
         ResetHeartsQuery(Query.Store);
     }

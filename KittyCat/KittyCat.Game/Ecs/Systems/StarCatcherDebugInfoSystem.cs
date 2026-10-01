@@ -7,7 +7,9 @@ using PurrplingGame = PurrplingCore.Toolkit.Game;
 
 namespace KittyCat.Ecs.Systems;
 
-/// <summary>Writes FPS and ECS entity count to the window title for development diagnostics.</summary>
+/// <summary>
+/// Writes FPS and ECS entity count to the window title for development diagnostics.
+/// </summary>
 [System<UpdateSystemGroup>]
 public sealed class StarCatcherDebugInfoSystem : QuerySystem
 {
