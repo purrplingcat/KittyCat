@@ -107,13 +107,21 @@ public class SceneManager(
 
     public override void Draw(GameTime gameTime)
     {
-        if (_currentScene != null)
+        if (_currentScene is not null)
         {
-            var scene = _currentScene.Render(gameTime);
+            if (_currentScene.RenderMode == SceneRenderMode.Deferred)
+            {
+                // The scene queues into a renderer, which presents it later in the draw loop.
+                _currentScene.Submit(gameTime);
+            }
+            else
+            {
+                var scene = _currentScene.Render(gameTime);
 
-            _graphics.SpriteBatch.Begin(samplerState: SamplerState.PointClamp);
-            _graphics.SpriteBatch.Draw(scene, Color.White);
-            _graphics.SpriteBatch.End();
+                _graphics.SpriteBatch.Begin(samplerState: SamplerState.PointClamp);
+                _graphics.SpriteBatch.Draw(scene, Color.White);
+                _graphics.SpriteBatch.End();
+            }
         }
 
         base.Draw(gameTime);

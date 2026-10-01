@@ -8,6 +8,19 @@ using System;
 
 namespace PurrplingCore.Scenes;
 
+/// <summary>Determines how a scene's drawing reaches the screen.</summary>
+public enum SceneRenderMode
+{
+    /// <summary>The scene draws immediately into its own canvas, which the manager then blits.</summary>
+    Canvas,
+
+    /// <summary>
+    /// The scene only queues commands into a renderer, which presents them later in the draw
+    /// loop. The scene's canvas is never opened.
+    /// </summary>
+    Deferred,
+}
+
 public abstract class Scene : IDisposable
 {
     private readonly ContentManager _content;
@@ -28,6 +41,12 @@ public abstract class Scene : IDisposable
 
     public virtual string Name => _name;
     public string? Title { get; set; }
+
+    /// <summary>
+    /// How this scene reaches the screen. Override to return <see cref="SceneRenderMode.Deferred"/>
+    /// when <see cref="Draw"/> queues into a renderer instead of drawing immediately.
+    /// </summary>
+    public virtual SceneRenderMode RenderMode => SceneRenderMode.Canvas;
 
 
     #region Events
@@ -117,6 +136,18 @@ public abstract class Scene : IDisposable
         }
 
         return _canvas;
+    }
+
+    /// <summary>
+    /// Runs <see cref="Draw"/> without binding the canvas, for scenes in
+    /// <see cref="SceneRenderMode.Deferred"/> mode.
+    /// </summary>
+    public void Submit(GameTime time)
+    {
+        if (_initialized)
+        {
+            Draw(time);
+        }
     }
 
     protected virtual void Dispose(bool disposing)
