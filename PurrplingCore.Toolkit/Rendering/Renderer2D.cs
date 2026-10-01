@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -37,8 +38,6 @@ public class Renderer2D : IRenderer
 
         Name = name;
         _options = options;
-        Order = options.Order;
-        RenderGroup = options.RenderGroup;
         Enabled = options.Enabled;
         Context = new RenderContext(this);
         _postProcessors = [.. options.PostProcessors];
@@ -67,17 +66,19 @@ public class Renderer2D : IRenderer
 
         _layerTargets = new RenderTarget2D[_layers.Length];
         _layerScratch = new RenderTarget2D[_layers.Length];
+        Diagnostics = options.Diagnostics is { } diagnosticsOptions
+            ? new RendererDiagnostics(name, diagnosticsOptions, _layers)
+            : null;
     }
 
     public string Name { get; }
 
-    public int Order { get; }
-
-    public string? RenderGroup { get; }
-
     public bool Enabled { get; set; }
 
     public RenderContext Context { get; }
+
+    /// <summary>Optional rolling timing and command-count diagnostics configured at construction.</summary>
+    public RendererDiagnostics? Diagnostics { get; }
 
     /// <summary>
     /// Target the composed frame is written to. Null means the back buffer. Set by a host that
@@ -147,6 +148,9 @@ public class Renderer2D : IRenderer
             return;
         }
 
+        var diagnostics = Diagnostics;
+        var totalStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
+        diagnostics?.BeginFrame();
         var output = ResolveOutput(device);
         device.SetRenderTarget(output);
         if (_options.ClearColor is { } clearColor)
@@ -154,13 +158,38 @@ public class Renderer2D : IRenderer
             device.Clear(clearColor);
         }
 
-        Prepare(device);
-        Execute(device, output);
+        var stageStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
+        Prepare(device, diagnostics);
+        var prepareMilliseconds = diagnostics is null
+            ? 0
+            : Stopwatch.GetElapsedTime(stageStart).TotalMilliseconds;
 
+        stageStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
+        Execute(device, output, diagnostics);
+        var executeMilliseconds = diagnostics is null
+            ? 0
+            : Stopwatch.GetElapsedTime(stageStart).TotalMilliseconds;
+
+        var composeMilliseconds = 0d;
         if (_output is not null)
         {
+            stageStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
             device.SetRenderTarget(OutputOverride);
             Compose(ApplyChain(device, _postProcessors, _output, ref _outputScratch, OutputOverride));
+            if (diagnostics is not null)
+            {
+                composeMilliseconds = Stopwatch.GetElapsedTime(stageStart).TotalMilliseconds;
+            }
+        }
+
+        if (diagnostics is not null)
+        {
+            diagnostics.RecordFrame(
+                _frameId,
+                Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds,
+                prepareMilliseconds,
+                executeMilliseconds,
+                composeMilliseconds);
         }
 
         _frameId++;
@@ -174,31 +203,56 @@ public class Renderer2D : IRenderer
         return _output;
     }
 
-    private void Prepare(GraphicsDevice device)
+    private void Prepare(GraphicsDevice device, RendererDiagnostics? diagnostics)
     {
-        foreach (var layer in _layers)
+        for (var index = 0; index < _layers.Length; index++)
         {
-            if (!layer.Enabled) continue;
+            var layer = _layers[index];
+            if (!layer.Enabled)
+            {
+                diagnostics?.RecordLayerPrepared(index, false, 0, 0, 0);
+                continue;
+            }
 
+            var sortStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
             layer.Commands.Sort();
+            var sortMilliseconds = diagnostics is null
+                ? 0
+                : Stopwatch.GetElapsedTime(sortStart).TotalMilliseconds;
             var state = layer.CreateBatchState();
+            var prepareStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
             layer.Pass.Prepare(new RenderFrameContext(device, layer, _batcher!, _resources, _text, state));
+            if (diagnostics is not null)
+            {
+                diagnostics.RecordLayerPrepared(
+                    index,
+                    true,
+                    layer.Commands.Count,
+                    sortMilliseconds,
+                    Stopwatch.GetElapsedTime(prepareStart).TotalMilliseconds);
+            }
         }
     }
 
-    private void Execute(GraphicsDevice device, RenderTarget2D? output)
+    private void Execute(GraphicsDevice device, RenderTarget2D? output, RendererDiagnostics? diagnostics)
     {
         for (var index = 0; index < _layers.Length; index++)
         {
             var layer = _layers[index];
             if (!layer.Enabled) continue;
 
+            var executeStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
             var state = layer.CreateBatchState();
             var context = new RenderFrameContext(device, layer, _batcher!, _resources, _text, state);
 
             if (layer.Target is not { } spec)
             {
                 layer.Pass.Execute(context);
+                if (diagnostics is not null)
+                {
+                    diagnostics.RecordLayerExecuted(index, Stopwatch.GetElapsedTime(executeStart).TotalMilliseconds);
+                }
+
                 continue;
             }
 
@@ -210,6 +264,10 @@ public class Renderer2D : IRenderer
 
             device.SetRenderTarget(output);
             Compose(ApplyChain(device, layer.PostProcessors, target, ref _layerScratch[index], output));
+            if (diagnostics is not null)
+            {
+                diagnostics.RecordLayerExecuted(index, Stopwatch.GetElapsedTime(executeStart).TotalMilliseconds);
+            }
         }
     }
 

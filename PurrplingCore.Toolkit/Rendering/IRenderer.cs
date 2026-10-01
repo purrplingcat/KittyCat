@@ -19,12 +19,6 @@ public interface IRenderer : IDisposable
     /// <summary>Name used for diagnostics.</summary>
     string Name { get; }
 
-    /// <summary>Order within an automatic flush group.</summary>
-    int Order { get; }
-
-    /// <summary>Automatic flush group; null means this renderer is flushed manually.</summary>
-    string? RenderGroup { get; }
-
     /// <summary>Skips both submission and flushing while false.</summary>
     bool Enabled { get; set; }
 
@@ -44,16 +38,13 @@ public interface IRenderer : IDisposable
 /// <summary>Configuration for a single renderer, applied once during composition.</summary>
 public sealed class RendererOptions
 {
-    /// <summary>Order within an automatic flush group.</summary>
-    public int Order { get; set; } = 1000;
-
-    /// <summary>Automatic flush group; null opts out of automatic rendering.</summary>
-    public string? RenderGroup { get; set; } = "Default";
-
     public bool Enabled { get; set; } = true;
 
     /// <summary>Sampler inherited by layers that do not override it.</summary>
     public SamplerState DefaultSamplerState { get; set; } = SamplerState.PointClamp;
+
+    /// <summary>Enables bounded CPU timing and command-count diagnostics when non-null.</summary>
+    public RendererDiagnosticsOptions? Diagnostics { get; set; }
 
     /// <summary>Clears the renderer's own target before any layer draws.</summary>
     public Color? ClearColor { get; set; }

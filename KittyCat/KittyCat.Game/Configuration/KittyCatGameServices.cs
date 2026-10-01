@@ -54,17 +54,16 @@ public class KittyCatGameServices : IServiceModule
 
         // Declare renderer keys, layers, and renderer-specific configuration modules here.
         services
-            .AddRenderer(KittyCatRendererKey.World, order: RenderStage.World)
-            .AddModule<WorldRendererConfiguration>();
-        services.AddRenderer(
-            KittyCatRendererKey.Screen,
-            ConfigureScreenRenderer,
-            order: RenderStage.Screen);
+            .AddRenderer(KittyCatRendererKey.World)
+            .AddModule<WorldRendererConfiguration>()
+            .AddDrawComponent(DrawStage.World);
+        services
+            .AddRenderer(KittyCatRendererKey.Screen, ConfigureScreenRenderer)
+            .AddDrawComponent(DrawStage.Screen);
 
-        // Register draw-loop producers before the renderer component that flushes their commands.
+        // Register game components and flush each renderer at its own draw stage.
         services.AddWorldController();
         services.AddSceneManager();
-        services.AddRendererGameComponent();
     }
 
     /// <summary>
@@ -100,9 +99,9 @@ public sealed class WorldRendererConfiguration(Camera2D camera) : IRendererConfi
 {
     public void Configure(RendererOptions options)
     {
+        options.Diagnostics = new RendererDiagnosticsOptions();
         options.ClearColor = new Color(14, 20, 31);
         options.AddLayer(KittyCatLayers.Entities, new RenderLayerOptions { Camera = camera });
         options.AddLayer(KittyCatLayers.Effects, new RenderLayerOptions { Order = 100, Camera = camera });
     }
 }
-

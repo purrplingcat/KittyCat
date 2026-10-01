@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Graphics;
 using PurrplingCore.Toolkit.Rendering;
@@ -24,17 +23,23 @@ public static class ServiceCollectionExtensions
         public RendererOptions Options { get; } = options;
     }
 
-    /// <summary>Begins a renderer declaration identified by an arbitrary keyed-service key.</summary>
+    /// <summary>
+    /// Registers a keyed renderer without scheduling it in the game's draw loop.
+    /// </summary>
+    /// <param name="services">The service collection to add the renderer to.</param>
+    /// <param name="key">The unique key identifying the renderer.</param>
+    /// <returns>A builder for further configuring the renderer.</returns>
+    /// <remarks>
+    /// Call <see cref="AddDrawComponent(IRendererServicesBuilder, int)"/> to add a game-component driver;
+    /// otherwise initialize and flush the renderer from your own controller.
+    /// </remarks>
     public static IRendererServicesBuilder AddRenderer(
         this IServiceCollection services,
-        object key,
-        int order = 1000,
-        string? group = "Default")
+        object key)
     {
         ArgumentNullException.ThrowIfNull(key);
-        if (group is not null) ArgumentException.ThrowIfNullOrEmpty(group);
 
-        var options = new RendererOptions { Order = order, RenderGroup = group };
+        var options = new RendererOptions();
         var name = key as string ?? key.ToString() ?? key.GetType().Name;
         services.AddKeyedSingleton<IRenderer>(key, (provider, _) =>
         {
@@ -44,31 +49,30 @@ public static class ServiceCollectionExtensions
                 module.Configure(options);
             }
 
-            if (options.RenderGroup != group)
-            {
-                throw new InvalidOperationException("Set the render group in AddRenderer, not in the configuration type.");
-            }
-
             return new Renderer2D(name, options);
         });
 
         services.AddSingleton<IRenderer>(provider => provider.GetRequiredKeyedService<IRenderer>(key));
-
-        RegisterGroup(services, group);
         return new RendererServicesBuilder(services, name, key, options);
     }
 
-    /// <summary>Begins a renderer declaration using a named setup method, like <c>AddWorld(setup)</c>.</summary>
+    /// <summary>
+    /// Registers a keyed renderer without scheduling it in the game's draw loop and configures its options.
+    /// Call <see cref="AddDrawComponent(IRendererServicesBuilder, int)"/> to add a game-component driver;
+    /// otherwise initialize and flush the renderer from your own controller.
+    /// </summary>
+    /// <param name="services">The service collection to add the renderer to.</param>
+    /// <param name="key">The unique key identifying the renderer.</param>
+    /// <param name="configure">An action to configure the renderer's options.</param>
+    /// <returns>A builder for further configuring the renderer.</returns>
     public static IRendererServicesBuilder AddRenderer(
         this IServiceCollection services,
         object key,
-        Action<RendererOptions> configure,
-        int order = 1000,
-        string? group = "Default")
+        Action<RendererOptions> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
 
-        var builder = services.AddRenderer(key, order, group);
+        var builder = services.AddRenderer(key);
         configure(builder.Options);
         return builder;
     }
@@ -93,35 +97,41 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
-    private static void RegisterGroup(IServiceCollection services, string? group)
+    /// <summary>
+    /// Adds a draw-loop component that initializes and flushes this renderer.
+    /// </summary>
+    /// <param name="builder">The renderer services builder.</param>
+    /// <param name="drawOrder">The draw order of the added component. Defaults to <see cref="DrawStage.Default"/>.</param>
+    /// <returns>The same renderer services builder for further configuration.</returns>
+    /// <remarks>
+    /// Each call adds a separate component. Calling this more than once registers multiple components;
+    /// a different draw order does not replace an earlier one.
+    /// </remarks>
+    public static IRendererServicesBuilder AddDrawComponent(
+        this IRendererServicesBuilder builder,
+        int drawOrder = DrawStage.Default)
     {
-        if (group is not null)
-        {
-            services.TryAddKeyedSingleton(
-                serviceKey: group,
-                static (provider, key) => new RendererGroup(
-                    (string)key!,
-                    provider.GetServices<IRenderer>(),
-                    provider.GetRequiredService<GraphicsManager>())
-            );
-        }
+        ArgumentNullException.ThrowIfNull(builder);
+        builder.Services.AddRendererGameComponent(builder.Key, drawOrder);
+        return builder;
     }
 
     /// <summary>
-    /// Adds a draw-loop driver for one group. Renderers with a null group remain manually flushed.
-    /// At the default draw order of zero, register it after the components that submit to this group.
-    /// Use a higher draw order for producers that draw later.
+    /// Adds a draw-loop driver for one keyed renderer.
+    /// The renderer is initialized and flushed by this component at the supplied draw order.
     /// </summary>
     public static IServiceCollection AddRendererGameComponent(
         this IServiceCollection services,
-        string group = "Default",
-        int drawOrder = 0)
+        object key,
+        int drawOrder = DrawStage.Default)
     {
-        ArgumentException.ThrowIfNullOrEmpty(group);
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(key);
 
         services.AddSingleton<IGameComponent>(provider => new RendererGameComponent(
             provider.GetRequiredService<Toolkit.Game>(),
-            provider.GetRequiredKeyedService<RendererGroup>(group),
+            provider.GetRequiredKeyedService<IRenderer>(key),
+            provider.GetRequiredService<GraphicsManager>(),
             drawOrder));
 
         return services;

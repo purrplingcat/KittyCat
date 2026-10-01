@@ -1,34 +1,37 @@
 namespace PurrplingCore.Rendering;
 
 /// <summary>
-/// Conventional anchors for ordering draw components within the draw loop.
+/// Common draw-order anchors for MonoGame components.
 /// </summary>
 /// <remarks>
-/// These are plain constants rather than an enum so a game can define its own stages and
-/// interleave them with the built-in ones. The gaps of 500 exist so custom stages fit between
-/// anchors without renumbering. A group driver must order after everything that submits to
-/// its renderers, which is why <see cref="Submit"/> sits at zero alongside their producers.
+/// Lower values draw first. These constants are suggested anchors, not required stages;
+/// games can use their own values in the gaps or outside this range. They order components,
+/// not renderers or commands.
 /// </remarks>
-public static class RenderStage
+public static class DrawStage
 {
-    /// <summary>Components that queue commands, such as the world controller and scene manager.</summary>
-    public const int Submit = 0;
+    /// <summary>
+    /// MonoGame's default component draw order, used when no explicit ordering is needed.
+    /// </summary>
+    public const int Default = 0;
 
-    /// <summary>Skies, parallax backdrops, and anything behind the playable content.</summary>
+    /// <summary>
+    /// Draw order for backgrounds, skies, and parallax backdrops, before main world content.
+    /// </summary>
     public const int Background = 500;
 
-    /// <summary>Main world content drawn through a camera.</summary>
+    /// <summary>Draw order for the main camera-rendered world content.</summary>
     public const int World = 1000;
 
-    /// <summary>World-space overlays such as health bars and damage numbers.</summary>
+    /// <summary>Draw order for world-space overlays, after the main world content.</summary>
     public const int WorldOverlay = 2000;
 
-    /// <summary>Screen-space content: heads-up display, menus, subtitles, cursor.</summary>
+    /// <summary>Draw order for screen-space content, such as HUD, menus, subtitles, and cursor.</summary>
     public const int Screen = 3000;
 
-    /// <summary>Diagnostics drawn above everything else.</summary>
+    /// <summary>Draw order for debug diagnostics above normal screen-space content.</summary>
     public const int Debug = 4000;
 
-    /// <summary>Global composition and presentation.</summary>
+    /// <summary>Maximum draw order, reserved for final composition and presentation.</summary>
     public const int Final = int.MaxValue;
 }
