@@ -53,6 +53,7 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
         var playfield = GetRequiredService<IOptions<StarCatcherOptions>>().Value.Playfield;
 
         resolution.SetResolution(playfield.Width, playfield.Height).ApplyChanges();
+        Window.AllowUserResizing = true;
 
         InitializeLocalization();
         base.Initialize();

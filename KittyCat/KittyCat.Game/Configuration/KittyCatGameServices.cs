@@ -89,6 +89,7 @@ public class KittyCatGameServices : IServiceModule
     /// </summary>
     private static void ConfigureScreenRenderer(RendererOptions options)
     {
+        options.Output = RenderTargetSpec.MatchResolution();
         options.AddLayer(KittyCatLayers.Hud);
         options.AddLayer(KittyCatLayers.Modal, new RenderLayerOptions { Order = 100 });
     }
@@ -100,6 +101,7 @@ public sealed class WorldRendererConfiguration(Camera2D camera) : IRendererConfi
     public void Configure(RendererOptions options)
     {
         options.Diagnostics = new RendererDiagnosticsOptions();
+        options.Output = RenderTargetSpec.MatchResolution();
         options.ClearColor = new Color(14, 20, 31);
         options.AddLayer(KittyCatLayers.Entities, new RenderLayerOptions { Camera = camera });
         options.AddLayer(KittyCatLayers.Effects, new RenderLayerOptions { Order = 100, Camera = camera });

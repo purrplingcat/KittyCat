@@ -38,7 +38,7 @@ public sealed class RendererGameComponent : DrawableGameComponent
             renderer.VirtualResolution = _graphics.Resolution.Size;
         }
 
-        _renderer.Flush(_graphics.GraphicsDevice);
+        _renderer.Flush();
 
         base.Draw(gameTime);
     }

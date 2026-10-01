@@ -24,6 +24,7 @@ public class Renderer2D : IRenderer
     private readonly RenderResourceTable _resources = new();
     private readonly FrameTextBuffer _text = new();
     private ISpriteBatcher? _batcher;
+    private GraphicsDevice _device = null!;
     private RenderTarget2D? _output;
     private RenderTarget2D? _outputScratch;
     private int _frameId;
@@ -97,7 +98,10 @@ public class Renderer2D : IRenderer
         ArgumentNullException.ThrowIfNull(device);
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (_initialized) return;
+        if (_initialized)
+        {
+            throw new InvalidOperationException($"Renderer '{Name}' is already initialized.");
+        }
 
         _batcher = CreateBatcher(device);
 
@@ -115,6 +119,7 @@ public class Renderer2D : IRenderer
             processor.Initialize(device);
         }
 
+        _device = device;
         _initialized = true;
     }
 
@@ -132,9 +137,8 @@ public class Renderer2D : IRenderer
         }
     }
 
-    public void Flush(GraphicsDevice device)
+    public void Flush()
     {
-        ArgumentNullException.ThrowIfNull(device);
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (!_initialized)
@@ -151,59 +155,69 @@ public class Renderer2D : IRenderer
         var diagnostics = Diagnostics;
         var totalStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
         diagnostics?.BeginFrame();
-        var output = ResolveOutput(device);
-        device.SetRenderTarget(output);
+
+        // Resolve the output render target for this frame.
+        var output = ResolveOutput();
+        _device.SetRenderTarget(output);
         if (_options.ClearColor is { } clearColor)
         {
-            device.Clear(clearColor);
+            _device.Clear(clearColor);
+        }
+        else if (_output is not null)
+        {
+            // The private output is composed over other renderers, so stale pixels must not leak through.
+            _device.Clear(Color.Transparent);
         }
 
-        var stageStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
-        Prepare(device, diagnostics);
+        // Prepare the frame for rendering.
+        long stageStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
+        Prepare(diagnostics);
         var prepareMilliseconds = diagnostics is null
             ? 0
             : Stopwatch.GetElapsedTime(stageStart).TotalMilliseconds;
 
+        // Execute the rendering commands for this frame.
         stageStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
-        Execute(device, output, diagnostics);
-        var executeMilliseconds = diagnostics is null
+        Execute(output, diagnostics);
+        double executeMilliseconds = diagnostics is null
             ? 0
             : Stopwatch.GetElapsedTime(stageStart).TotalMilliseconds;
 
-        var composeMilliseconds = 0d;
+        // Compose the final image for this frame.
+        double composeMilliseconds = 0d;
         if (_output is not null)
         {
             stageStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
-            device.SetRenderTarget(OutputOverride);
-            Compose(ApplyChain(device, _postProcessors, _output, ref _outputScratch, OutputOverride));
+            var image = ApplyChain(_postProcessors, _output, ref _outputScratch, OutputOverride);
+            _device.SetRenderTarget(OutputOverride);
+            Compose(image, OutputOverride);
             if (diagnostics is not null)
             {
                 composeMilliseconds = Stopwatch.GetElapsedTime(stageStart).TotalMilliseconds;
             }
         }
 
-        if (diagnostics is not null)
-        {
-            diagnostics.RecordFrame(
-                _frameId,
-                Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds,
-                prepareMilliseconds,
-                executeMilliseconds,
-                composeMilliseconds);
-        }
+        diagnostics?.RecordFrame(
+            _frameId,
+            Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds,
+            prepareMilliseconds,
+            executeMilliseconds,
+            composeMilliseconds
+        );
 
         _frameId++;
     }
 
-    private RenderTarget2D? ResolveOutput(GraphicsDevice device)
+    private RenderTarget2D? ResolveOutput()
     {
-        if (_options.Output is not { } spec) return OutputOverride;
+        if (!_options.Output.HasValue) return OutputOverride;
 
-        EnsureTarget(device, spec, ref _output);
+        var spec = _options.Output.Value;
+        EnsureTarget(spec, ref _output);
         return _output;
     }
 
-    private void Prepare(GraphicsDevice device, RendererDiagnostics? diagnostics)
+    private void Prepare(RendererDiagnostics? diagnostics)
     {
         for (var index = 0; index < _layers.Length; index++)
         {
@@ -221,20 +235,18 @@ public class Renderer2D : IRenderer
                 : Stopwatch.GetElapsedTime(sortStart).TotalMilliseconds;
             var state = layer.CreateBatchState();
             var prepareStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
-            layer.Pass.Prepare(new RenderFrameContext(device, layer, _batcher!, _resources, _text, state));
-            if (diagnostics is not null)
-            {
-                diagnostics.RecordLayerPrepared(
-                    index,
-                    true,
-                    layer.Commands.Count,
-                    sortMilliseconds,
-                    Stopwatch.GetElapsedTime(prepareStart).TotalMilliseconds);
-            }
+            layer.Pass.Prepare(new RenderFrameContext(_device, layer, _batcher!, _resources, _text, state));
+            diagnostics?.RecordLayerPrepared(
+                index,
+                true,
+                layer.Commands.Count,
+                sortMilliseconds,
+                Stopwatch.GetElapsedTime(prepareStart).TotalMilliseconds
+            );
         }
     }
 
-    private void Execute(GraphicsDevice device, RenderTarget2D? output, RendererDiagnostics? diagnostics)
+    private void Execute(RenderTarget2D? output, RendererDiagnostics? diagnostics)
     {
         for (var index = 0; index < _layers.Length; index++)
         {
@@ -243,7 +255,7 @@ public class Renderer2D : IRenderer
 
             var executeStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
             var state = layer.CreateBatchState();
-            var context = new RenderFrameContext(device, layer, _batcher!, _resources, _text, state);
+            var context = new RenderFrameContext(_device, layer, _batcher!, _resources, _text, state);
 
             if (layer.Target is not { } spec)
             {
@@ -256,14 +268,15 @@ public class Renderer2D : IRenderer
                 continue;
             }
 
-            EnsureTarget(device, spec, ref _layerTargets[index]);
+            EnsureTarget(spec, ref _layerTargets[index]);
             var target = _layerTargets[index]!;
-            device.SetRenderTarget(target);
-            device.Clear(layer.ClearColor ?? Color.Transparent);
+            _device.SetRenderTarget(target);
+            _device.Clear(layer.ClearColor ?? Color.Transparent);
             layer.Pass.Execute(context);
 
-            device.SetRenderTarget(output);
-            Compose(ApplyChain(device, layer.PostProcessors, target, ref _layerScratch[index], output));
+            var image = ApplyChain(layer.PostProcessors, target, ref _layerScratch[index], output);
+            _device.SetRenderTarget(output);
+            Compose(image, output);
             if (diagnostics is not null)
             {
                 diagnostics.RecordLayerExecuted(index, Stopwatch.GetElapsedTime(executeStart).TotalMilliseconds);
@@ -276,7 +289,6 @@ public class Renderer2D : IRenderer
     /// step ping-pong between the source target and a scratch target of the same size.
     /// </summary>
     private RenderTarget2D ApplyChain(
-        GraphicsDevice device,
         IPostProcessor[] processors,
         RenderTarget2D source,
         ref RenderTarget2D? scratch,
@@ -284,31 +296,44 @@ public class Renderer2D : IRenderer
     {
         if (processors.Length == 0) return source;
 
-        scratch ??= new RenderTarget2D(device, source.Width, source.Height, false, source.Format, DepthFormat.None);
+        if (scratch is null || scratch.Width != source.Width || scratch.Height != source.Height || scratch.Format != source.Format)
+        {
+            scratch?.Dispose();
+            scratch = CreateTarget(source.Width, source.Height, source.Format, DepthFormat.None);
+        }
 
         var current = source;
         var other = scratch;
 
         foreach (var processor in processors)
         {
-            device.SetRenderTarget(other);
-            device.Clear(Color.Transparent);
-            processor.Process(new PostProcessContext(device, _batcher!, _resources, _text, current, other));
+            _device.SetRenderTarget(other);
+            _device.Clear(Color.Transparent);
+            processor.Process(new PostProcessContext(_device, _batcher!, _resources, _text, current, other));
             (current, other) = (other, current);
         }
 
-        device.SetRenderTarget(restoreTarget);
+        _device.SetRenderTarget(restoreTarget);
         return current;
     }
 
-    /// <summary>Draws an offscreen image onto the currently bound target at its native size.</summary>
-    private void Compose(Texture2D image)
+    /// <summary>
+    /// Draws an offscreen image onto the bound target, placed by <see cref="RendererOptions.ScaleMode"/>.
+    /// </summary>
+    private void Compose(Texture2D image, RenderTarget2D? target)
     {
+        var targetWidth = target?.Width ?? _device.PresentationParameters.BackBufferWidth;
+        var targetHeight = target?.Height ?? _device.PresentationParameters.BackBufferHeight;
+        var scale = GetScale(_options.ScaleMode, targetWidth, targetHeight, image.Width, image.Height);
+        var position = new Vector2(
+            MathF.Floor((targetWidth - image.Width * scale.X) * 0.5f),
+            MathF.Floor((targetHeight - image.Height * scale.Y) * 0.5f));
+
         var command = new DrawCommand
         {
             Source = new Rectangle(0, 0, image.Width, image.Height),
-            Position = Vector2.Zero,
-            Scale = Vector2.One,
+            Position = position,
+            Scale = scale,
             Origin = Vector2.Zero,
             Color = Color.White,
             ResourceIndex = _resources.GetTextureIndex(image),
@@ -321,17 +346,43 @@ public class Renderer2D : IRenderer
         batcher.End();
     }
 
-    private void EnsureTarget(GraphicsDevice device, RenderTargetSpec spec, ref RenderTarget2D? target)
+    private static Vector2 GetScale(RenderScaleMode mode, int targetWidth, int targetHeight, int imageWidth, int imageHeight)
     {
-        var (width, height) = ResolveSize(device, spec);
+        var scaleX = (float)targetWidth / imageWidth;
+        var scaleY = (float)targetHeight / imageHeight;
+        var fit = MathF.Min(scaleX, scaleY);
+
+        return mode switch
+        {
+            RenderScaleMode.Stretch => new Vector2(scaleX, scaleY),
+            RenderScaleMode.Fill => new Vector2(MathF.Max(scaleX, scaleY)),
+            RenderScaleMode.Center => Vector2.One,
+            // Below 1x there is no whole multiple, so shrink smoothly rather than overflow.
+            RenderScaleMode.IntegerFit => new Vector2(fit >= 1f ? MathF.Floor(fit) : fit),
+            _ => new Vector2(fit),
+        };
+    }
+
+    private void EnsureTarget(RenderTargetSpec spec, ref RenderTarget2D? target)
+    {
+        var (width, height) = ResolveSize(spec);
 
         if (target is not null && target.Width == width && target.Height == height) return;
 
         target?.Dispose();
-        target = new RenderTarget2D(device, width, height, false, spec.Format, spec.DepthFormat);
+        target = CreateTarget(width, height, spec.Format, spec.DepthFormat);
     }
 
-    private (int Width, int Height) ResolveSize(GraphicsDevice device, RenderTargetSpec spec)
+    // MonoGame clears DiscardContents targets on every bind, which would wipe layers already
+    // drawn into the output whenever a layer target or post-processor switches targets.
+    private RenderTarget2D CreateTarget(
+        int width,
+        int height,
+        SurfaceFormat format,
+        DepthFormat depthFormat)
+        => new(_device, width, height, false, format, depthFormat, 0, RenderTargetUsage.PreserveContents);
+
+    private (int Width, int Height) ResolveSize(RenderTargetSpec spec)
     {
         if (spec.ResizeMode == RenderTargetResizeMode.Fixed) return (spec.Width, spec.Height);
 
@@ -340,7 +391,7 @@ public class Renderer2D : IRenderer
             return (VirtualResolution.X, VirtualResolution.Y);
         }
 
-        var parameters = device.PresentationParameters;
+        var parameters = _device.PresentationParameters;
         return (parameters.BackBufferWidth, parameters.BackBufferHeight);
     }
 

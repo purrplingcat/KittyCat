@@ -25,14 +25,19 @@ public interface IRenderer : IDisposable
     /// <summary>Entry point used by draw systems, scenes, and overlays to queue commands.</summary>
     RenderContext Context { get; }
 
-    /// <summary>Creates batcher, targets, and pass resources. Called once before the first frame.</summary>
+    /// <summary>
+    /// Creates batcher, targets, and pass resources and binds the renderer to <paramref name="device"/>.
+    /// Called once before the first frame; every subsequent call throws.
+    /// </summary>
     void Initialize(GraphicsDevice device);
 
     /// <summary>Discards queued commands and starts a new frame.</summary>
     void BeginFrame();
 
-    /// <summary>Sorts, draws, post-processes, and composes everything queued this frame.</summary>
-    void Flush(GraphicsDevice device);
+    /// <summary>
+    /// Sorts, draws, post-processes, and composes everything queued this frame on the bound device.
+    /// </summary>
+    void Flush();
 }
 
 /// <summary>Configuration for a single renderer, applied once during composition.</summary>
@@ -51,6 +56,9 @@ public sealed class RendererOptions
 
     /// <summary>Draws into an offscreen target instead of straight into the bound output.</summary>
     public RenderTargetSpec? Output { get; set; }
+
+    /// <summary>How offscreen images are placed onto a target of a different size, such as the window.</summary>
+    public RenderScaleMode ScaleMode { get; set; } = RenderScaleMode.Fit;
 
     /// <summary>Processors applied to <see cref="Output"/> after all layers have drawn.</summary>
     public IList<IPostProcessor> PostProcessors { get; } = [];

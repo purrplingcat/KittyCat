@@ -7,7 +7,7 @@ The 2D renderer is optional. Draw systems, scenes, and ordinary objects submit c
 | Mode | Register | Who calls `Initialize` and `Flush`? |
 | --- | --- | --- |
 | Automatic renderer | `AddRenderer(key).AddLayer(...).AddDrawComponent()` | `RendererGameComponent`, via `Game.Components` |
-| Manual renderer via DI | `AddRenderer(key)` | Your controller calls `Initialize(device)` and `Flush(device)` |
+| Manual renderer via DI | `AddRenderer(key)` | Your controller calls `Initialize(device)` and `Flush()` |
 | No DI integration | `new Renderer2D(name, options)` | Your code owns initialization, flushing, and disposal |
 
 Renderer identity is a keyed-service key of type `object`. Use the same key for `AddRenderer`, `.AddModule<T>()`, and `[FromKeyedServices(key)] IRenderer`. Strings, enums, and other stable objects are supported. A configuration class is only a DI module, never the renderer marker. There is no global renderer order or group: each renderer is initialized and flushed by its own controller, component, or manual draw path. `AddRenderer(key)` only registers the service; it does not schedule rendering. Add `.AddDrawComponent()` to register a component that initializes and flushes it; the default order is `DrawStage.Default` (`0`). Pass a custom `drawOrder` when it must run after a particular submitter. Each call adds another component; a different order does not replace an earlier registration. Without it, your own controller must initialize and flush the renderer. The lower-level `services.AddRendererGameComponent(key, drawOrder)` remains available for advanced service registration.
@@ -16,10 +16,10 @@ The flow is:
 
 ```text
 producer.Draw() -> renderer.Context.Layer(id).Draw(...) -> per-layer command queue
-RendererGameComponent.Draw() or your own Draw() -> renderer.Flush(device)
+RendererGameComponent.Draw() or your own Draw() -> renderer.Flush()
 ```
 
-Submission must happen before the relevant flush **in the same frame**. `Flush` never initializes GPU resources: call `Initialize` first. A `RendererGameComponent` does this during its `Initialize` lifecycle; a manually driven renderer is your responsibility. Flushing before initialization throws `InvalidOperationException`.
+Submission must happen before the relevant flush **in the same frame**. `Flush` never initializes GPU resources: call `Initialize` first. `Initialize` binds the renderer to that device; every subsequent call throws. A `RendererGameComponent` does this during its `Initialize` lifecycle; a manually driven renderer is your responsibility. Flushing before initialization throws `InvalidOperationException`.
 
 ## Automatic rendering with DI
 
@@ -198,7 +198,7 @@ public sealed class CutsceneScene(
     protected override void Draw(GameTime time)
     {
         Context.Layer(Layers.Menu).Draw(_image, Vector2.Zero, Color.White);
-        renderer.Flush(graphics.GraphicsDevice);
+        renderer.Flush();
     }
 }
 ```
@@ -238,7 +238,7 @@ public sealed class StandaloneGame : PurrplingCore.Toolkit.Game
     protected override void Draw(GameTime gameTime)
     {
         _renderer.Context.Layer(World).Draw(_hero, new Vector2(32, 32), Color.White);
-        _renderer.Flush(GraphicsDevice);
+        _renderer.Flush();
         base.Draw(gameTime);
     }
 
@@ -299,7 +299,7 @@ public sealed class RawMonoGame : Microsoft.Xna.Framework.Game
     protected override void Draw(GameTime gameTime)
     {
         _renderer.Context.Layer(World).Draw(_hero, new Vector2(32, 32), Color.White);
-        _renderer.Flush(GraphicsDevice);
+        _renderer.Flush();
         base.Draw(gameTime);
     }
 
@@ -460,7 +460,7 @@ Run the benchmark after renderer initialization from a development command or is
 var result = RendererBenchmark.Run(() =>
 {
     renderer.Context.Layer(Layers.Sprites).Draw(sprite, position, Color.White);
-    renderer.Flush(graphicsDevice);
+    renderer.Flush();
 }, warmupFrames: 60, measuredFrames: 300);
 
 logger.LogInformation("Renderer avg {Average:F2} ms, p95 {P95:F2} ms",
