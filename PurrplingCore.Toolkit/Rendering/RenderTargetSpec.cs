@@ -5,13 +5,19 @@ namespace PurrplingCore.Toolkit.Rendering;
 /// <summary>Determines how a render target follows window or resolution changes.</summary>
 public enum RenderTargetResizeMode : byte
 {
-    /// <summary>Keeps the explicit <see cref="RenderTargetSpec.Width"/> and <see cref="RenderTargetSpec.Height"/>.</summary>
+    /// <summary>
+    /// Keeps the explicit <see cref="RenderTargetSpec.Width"/> and <see cref="RenderTargetSpec.Height"/>.
+    /// </summary>
     Fixed = 0,
 
-    /// <summary>Tracks the back buffer size.</summary>
+    /// <summary>
+    /// Tracks the back buffer size.
+    /// </summary>
     MatchScreen,
 
-    /// <summary>Tracks the virtual resolution, which may differ from the back buffer.</summary>
+    /// <summary>
+    /// Tracks the virtual resolution, which may differ from the back buffer.
+    /// </summary>
     MatchResolution,
 }
 
@@ -63,13 +69,16 @@ public readonly struct RenderTargetSpec
         return new RenderTargetSpec(RenderTargetResizeMode.Fixed, width, height, format, depthFormat);
     }
 
-    /// <summary>Creates a target that tracks the back buffer size.</summary>
+    /// <summary>
+    /// Creates a target that tracks the back buffer size.
+    /// </summary>
     public static RenderTargetSpec MatchScreen(
         SurfaceFormat format = SurfaceFormat.Color,
         DepthFormat depthFormat = DepthFormat.None)
         => new(RenderTargetResizeMode.MatchScreen, 0, 0, format, depthFormat);
 
-    /// <summary>Creates a target that tracks the virtual resolution.</summary>
+    /// <summary>
+    /// Creates a target that tracks the virtual resolution.</summary>
     public static RenderTargetSpec MatchResolution(
         SurfaceFormat format = SurfaceFormat.Color,
         DepthFormat depthFormat = DepthFormat.None)
