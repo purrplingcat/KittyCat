@@ -6,21 +6,20 @@ The 2D renderer is optional. Draw systems, scenes, and ordinary objects submit c
 
 | Mode | Register | Who calls `Initialize` and `Flush`? |
 | --- | --- | --- |
-| Automatic group | `AddRenderer(key, ...).AddLayer(...)`, then `AddRendererGameComponent(...)` | `RendererGameComponent`, via `Game.Components` |
-| Manual group | `AddRenderer(key, group: "Cutscene")` | Your scene/component calls `RendererGroup.Initialize()` and `Flush()` |
-| Manual renderer via DI | `AddRenderer(key, group: null)` | Your code calls `Initialize(device)` and `Flush(device)` |
+| Automatic renderer | `AddRenderer(key).AddLayer(...).AddDrawComponent()` | `RendererGameComponent`, via `Game.Components` |
+| Manual renderer via DI | `AddRenderer(key)` | Your controller calls `Initialize(device)` and `Flush(device)` |
 | No DI integration | `new Renderer2D(name, options)` | Your code owns initialization, flushing, and disposal |
 
-Renderer identity is a keyed-service key of type `object`. Use the same key for `AddRenderer`, `.AddModule<T>()`, and `[FromKeyedServices(key)] IRenderer`; strings, enums, and other stable objects are supported. A configuration class is only a DI module, never the renderer marker. Both setup styles return the same fluent `IRendererServicesBuilder`, including `.AddLayer(...)` and `.AddModule<T>()`. A keyed singleton `RendererGroup` is registered when a group is specified; `AddRendererGameComponent()` is its optional automatic driver. Pass `group: null` for a manually flushed renderer.
+Renderer identity is a keyed-service key of type `object`. Use the same key for `AddRenderer`, `.AddModule<T>()`, and `[FromKeyedServices(key)] IRenderer`. Strings, enums, and other stable objects are supported. A configuration class is only a DI module, never the renderer marker. There is no global renderer order or group: each renderer is initialized and flushed by its own controller, component, or manual draw path. `AddRenderer(key)` only registers the service; it does not schedule rendering. Add `.AddDrawComponent()` to register a component that initializes and flushes it; the default order is `DrawStage.Default` (`0`). Pass a custom `drawOrder` when it must run after a particular submitter. Each call adds another component; a different order does not replace an earlier registration. Without it, your own controller must initialize and flush the renderer. The lower-level `services.AddRendererGameComponent(key, drawOrder)` remains available for advanced service registration.
 
 The flow is:
 
 ```text
 producer.Draw() -> renderer.Context.Layer(id).Draw(...) -> per-layer command queue
-RendererGameComponent.Draw() or your own Draw() -> group.Flush() -> renderer.Flush(device)
+RendererGameComponent.Draw() or your own Draw() -> renderer.Flush(device)
 ```
 
-Submission must happen before the relevant flush **in the same frame**. `Flush` never initializes GPU resources: call `Initialize` first. A `RendererGameComponent` does this during its `Initialize` lifecycle; a manually driven renderer or group is your responsibility. Flushing before initialization throws `InvalidOperationException`.
+Submission must happen before the relevant flush **in the same frame**. `Flush` never initializes GPU resources: call `Initialize` first. A `RendererGameComponent` does this during its `Initialize` lifecycle; a manually driven renderer is your responsibility. Flushing before initialization throws `InvalidOperationException`.
 
 ## Automatic rendering with DI
 
@@ -62,19 +61,20 @@ public sealed class ExampleRenderingServices : IServiceModule
 {
     public void ConfigureServices(IServiceCollection services)
     {
-        services.AddRenderer(RendererKey.World, order: RenderStage.World)
-            .AddModule<WorldRendering>();
-        services.AddRenderer(RendererKey.Screen, order: RenderStage.Screen)
+        services.AddRenderer(RendererKey.World)
+            .AddModule<WorldRendering>()
+            .AddDrawComponent(DrawStage.World);
+        services.AddRenderer(RendererKey.Screen)
             .AddLayer(Layers.Hud)
-            .AddLayer(Layers.Menu, order: 100);
-        services.AddRendererGameComponent();
+            .AddLayer(Layers.Menu, order: 100)
+            .AddDrawComponent(DrawStage.Screen);
     }
 }
 ```
 
-The default group is `"Default"`. The game adds registered `IGameComponent` services to `Game.Components` during `Game.Initialize()`. The component initializes its group, then flushes it on every `Draw`. `options.Order` orders **renderers inside the group**; `layer.Order` orders layers **inside a renderer**. `drawOrder` on `AddRendererGameComponent` orders the **component relative to other MonoGame components**, and defaults to `0`. `RenderStage` contains optional `int` anchors, not a fixed enum; a game can use its own values.
+The game adds registered `IGameComponent` services to `Game.Components` during `Game.Initialize()`. Each renderer component initializes and flushes only its keyed renderer. `layer.Order` orders layers **inside a renderer**; `drawOrder` on `AddDrawComponent` orders the component relative to other MonoGame components and defaults to `0`. Calling `AddDrawComponent` again adds another component, even with a different `drawOrder`. `DrawStage` contains optional `int` anchors for components, not renderers; a game can use its own values.
 
-At equal `DrawOrder`, MonoGame 3.8.5 draws components in registration order. Register the renderer component after any same-order components that submit to it. For producers with a later `DrawOrder`, set `AddRendererGameComponent(drawOrder: ...)` high enough to follow them. Avoid `int.MaxValue` unless nothing ever needs to draw above the component. If two renderers need to be flushed at different points in the MonoGame draw loop, put them in different groups and register a component for each group.
+At equal `DrawOrder`, MonoGame 3.8.5 draws components in registration order. Give each renderer component an explicit draw order after its producers. If two renderers need to be flushed at different points in the MonoGame draw loop, register two components with different `drawOrder` values.
 
 ### Quick path: no configuration classes
 
@@ -82,11 +82,11 @@ For a small game, use the same builder without a configuration class:
 
 ```csharp
 services.AddRenderer("World")
-    .AddLayer(Layers.Sprites);
-services.AddRendererGameComponent();
+    .AddLayer(Layers.Sprites)
+    .AddDrawComponent();
 ```
 
-The renderer also joins `IEnumerable<IRenderer>` and its group. Inject it with `[FromKeyedServices(RendererKey.World)] IRenderer renderer`, then submit through `renderer.Context.Layer(Layers.Sprites)`. To use it only manually, pass `group: null` and do not add the automatic component. Add an `IRendererConfiguration` module under the same key when camera, effect, or other service dependencies must be injected; never build a second provider inside `ConfigureServices`.
+The renderer also joins `IEnumerable<IRenderer>`. Inject it with `[FromKeyedServices(RendererKey.World)] IRenderer renderer`, then submit through `renderer.Context.Layer(Layers.Sprites)`. Omit `.AddDrawComponent()` for manual ownership; your controller must call `Initialize` and `Flush`. Add an `IRendererConfiguration` module under the same key when camera, effect, or other service dependencies must be injected; never build a second provider inside `ConfigureServices`.
 
 ### Submitting from ECS
 
@@ -120,7 +120,7 @@ public sealed class SpriteDrawSystem([FromKeyedServices(RendererKey.World)] IRen
 }
 ```
 
-`Position2D` and `Sprite2D` above are game-owned Friflo components; provide your own definitions (`IComponent`), with `Vector2 Value`, `Texture2D Texture`, and `bool IsVisible` respectively. Register the system in your world blueprint (KittyCat uses `world.AddSystem<StarCatcherDrawSystem>()`). Register the world controller before `AddRendererGameComponent()`, as the example game does, so the system submits before the group flushes. See `KittyCat/KittyCat.Game/Ecs/Systems/StarCatcherDrawSystem.cs` and `KittyCat/KittyCat.Game/Services/StarCatcherRenderer.cs` for a complete in-repo example that also submits HUD content.
+`Position2D` and `Sprite2D` above are game-owned Friflo components; provide your own definitions (`IComponent`), with `Vector2 Value`, `Texture2D Texture`, and `bool IsVisible` respectively. Register the system in your world blueprint (KittyCat uses `world.AddSystem<StarCatcherDrawSystem>()`). Set the world renderer component's `drawOrder` after the world controller so the system submits before the renderer flushes. See `KittyCat/KittyCat.Game/Ecs/Systems/StarCatcherDrawSystem.cs` and `KittyCat/KittyCat.Game/Services/StarCatcherRenderer.cs` for a complete in-repo example that also submits HUD content.
 
 ### Submitting from an ordinary object
 
@@ -137,13 +137,13 @@ public sealed class BadgeOverlay([FromKeyedServices(RendererKey.Screen)] IRender
 }
 ```
 
-Invoke `BadgeOverlay.Draw` **before** the group component draws. For example, in a game's `Draw` override, submit before `base.Draw(gameTime)`; the latter drives the registered components. Load `badge` once during content loading, not every frame.
+Invoke `BadgeOverlay.Draw` before the component for the screen renderer draws. For example, in a game's `Draw` override, submit before `base.Draw(gameTime)`; the latter drives the registered components. Load `badge` once during content loading, not every frame.
 
 ## Scenes: with and without the renderer
 
 `SceneManager` remains usable without any renderer registration. An ordinary `Scene` has `RenderMode = Canvas`: the manager opens its canvas, calls `Draw`, and blits the canvas immediately. No `AddRenderer` or `AddRendererGameComponent` is necessary for that mode.
 
-For deferred rendering, inherit `RendererScene`. It exposes `Context`; `SceneManager` calls `Submit` rather than opening a canvas. It does not know which renderer the scene uses. Asset names in this example are placeholders for assets supplied by your game.
+For deferred rendering, inherit `RendererScene`. It exposes `Context`; `SceneManager` calls `Submit` rather than opening a canvas. It does not know which renderer the scene uses and does not flush it. Add `.AddDrawComponent(...)` after the scene's draw order, or flush the renderer in your own controller. Each call adds a separate component. Asset names in this example are placeholders for assets supplied by your game.
 
 ```csharp
 public sealed class MenuScene(
@@ -169,21 +169,12 @@ Register `services.AddSceneManager(); services.AddScene<MenuScene>();` and regis
 
 Canvas and deferred scenes can coexist, but they have different draw timing. If `SceneManager` blits a canvas before a later renderer clears the back buffer (`RendererOptions.ClearColor`), the canvas disappears. Place the canvas scene's draw after that renderer, or remove/relocate the clear when combining those paths. `RenderMode` is per scene, not a global switch.
 
-## Manual group, including a scene
+## Manual renderer, including a scene
 
-Specify a group name such as `"Cutscene"`, but do **not** register `AddRendererGameComponent(group: "Cutscene")`. `AddRenderer(key, ...)` registers a keyed `RendererGroup` automatically. Initialize it once when graphics are ready, then flush where you need the result:
-
-```csharp
-public sealed class CutsceneRendering : IRendererConfiguration
-{
-    public void Configure(RendererOptions options) => options.AddLayer(Layers.Menu);
-}
-```
-
-Register it in your `IServiceModule`:
+Each renderer can be owned by a specific controller or scene. Register it under its key, inject the same keyed `IRenderer`, and decide explicitly when it initializes and flushes:
 
 ```csharp
-services.AddRenderer(RendererKey.Cutscene, group: "Cutscene", order: RenderStage.Screen)
+services.AddRenderer(RendererKey.Cutscene)
     .AddModule<CutsceneRendering>();
 ```
 
@@ -191,13 +182,13 @@ services.AddRenderer(RendererKey.Cutscene, group: "Cutscene", order: RenderStage
 public sealed class CutsceneScene(
     GraphicsManager graphics,
     IContentManagerProvider contentProvider,
-    [FromKeyedServices(RendererKey.Cutscene)] IRenderer renderer,
-    [FromKeyedServices("Cutscene")] RendererGroup group)
+    [FromKeyedServices(RendererKey.Cutscene)] IRenderer renderer)
     : RendererScene(graphics, contentProvider, renderer)
 {
     private Texture2D _image = null!;
 
-    protected override void OnInitialize() => group.Initialize();
+    protected override void OnInitialize()
+        => renderer.Initialize(graphics.GraphicsDevice);
 
     protected override void LoadContent()
         => _image = Content.Load<Texture2D>("Scenes/Cutscene");
@@ -207,16 +198,12 @@ public sealed class CutsceneScene(
     protected override void Draw(GameTime time)
     {
         Context.Layer(Layers.Menu).Draw(_image, Vector2.Zero, Color.White);
-        group.Flush();
+        renderer.Flush(graphics.GraphicsDevice);
     }
 }
 ```
 
-Register `AddSceneManager` and `AddScene<CutsceneScene>` to have the manager invoke the scene. `RendererKey.Cutscene` identifies the renderer, while `CutsceneRendering` is its configuration module; `Layers.Menu` is a game-owned layer ID. This group can contain several renderers: register each with the same group name, assign distinct `Order` values, and a single `group.Flush()` executes them in order. Do not also register a game component for that group unless you deliberately need another flush point; flush the group after all its intended producers have submitted.
-
-### Mixed manual and automatic rendering
-
-Register `"Default"` renderers for the game component and `"Cutscene"` renderers for an explicitly flushed scene. Each group has its own sorted renderer snapshot. To control a **single** renderer without a group, register it with `group: null`, inject `[FromKeyedServices(key)] IRenderer`, and call `renderer.Initialize(graphics.GraphicsDevice)` when the device is ready, then `renderer.Flush(graphics.GraphicsDevice)` where required. No group or component will flush that renderer.
+Use `AddRendererGameComponent(key, drawOrder)` when a renderer should be driven by MonoGame. Use a scene or another game controller instead when the renderer belongs to a special workflow. No renderer group or global renderer order is involved.
 
 ## Fully manual setup without renderer DI
 
@@ -231,7 +218,7 @@ public sealed class StandaloneGame : PurrplingCore.Toolkit.Game
 
     public StandaloneGame(IServiceProvider provider) : base(provider)
     {
-        var options = new RendererOptions { ClearColor = Color.CornflowerBlue, RenderGroup = null };
+        var options = new RendererOptions { ClearColor = Color.CornflowerBlue };
         options.AddLayer(World);
         _renderer = new Renderer2D("Standalone", options);
     }
@@ -273,7 +260,7 @@ using var host = builder.Build();
 return host.Run();
 ```
 
-With this setup, nothing invokes `Initialize` or `Flush` for you. `Initialize` creates GPU resources; `Flush` requires it and must run on the graphics thread after submission. `Dispose` belongs to whoever constructed the renderer. Manual renderers do not receive the group-driven `VirtualResolution` update; set it yourself when using `RenderTargetSpec.MatchResolution`.
+With this setup, nothing invokes `Initialize` or `Flush` for you. `Initialize` creates GPU resources; `Flush` requires it and must run on the graphics thread after submission. `Dispose` belongs to whoever constructed the renderer. Manual renderers do not receive the component-driven `VirtualResolution` update; set it yourself when using `RenderTargetSpec.MatchResolution`.
 
 ### Without the PurrplingCore host or game class
 
@@ -326,7 +313,7 @@ public sealed class RawMonoGame : Microsoft.Xna.Framework.Game
 
 ## Layers, camera, targets, and extensions
 
-Each renderer has ordered layers (`RenderLayerOptions.Order`). A layer inherits the renderer's `DefaultSamplerState` (`PointClamp` by default) unless overridden. `SortMode` defaults to `Submission`, preserving the order in which calls were queued. Other modes are `FrontToBack`, `BackToFront`, and `Texture`; sorting is done separately within each layer. Distinct layers or groups do not share a global sort order.
+Each renderer has ordered layers (`RenderLayerOptions.Order`). A layer inherits the renderer's `DefaultSamplerState` (`PointClamp` by default) unless overridden. `SortMode` defaults to `Submission`, preserving the order in which calls were queued. Other modes are `FrontToBack`, `BackToFront`, and `Texture`; sorting is done separately within each layer. Renderers are independent and do not share a global sort order.
 
 World-space layers can share a DI-owned `Camera2D`. The renderer configuration is constructed by DI, so it receives the same camera instance as systems that update its position:
 
@@ -358,8 +345,9 @@ Register both services in your `IServiceModule`:
 
 ```csharp
 services.AddSingleton<Camera2D>();
-services.AddRenderer(RendererKey.World, order: RenderStage.World)
-    .AddModule<CameraWorldRendering>();
+services.AddRenderer(RendererKey.World)
+    .AddModule<CameraWorldRendering>()
+    .AddDrawComponent(DrawStage.World);
 ```
 
 Inject `Resolution` from `PurrplingCore.Toolkit.Graphics` (registered by `UsePurrplingCore`). Update `camera.Position` from your update code. Set viewport dimensions again when the resolution changes: `Camera2D` does not subscribe to `ResolutionChanged` by itself. `layer.Parallax` defaults to `Vector2.One` (follow the camera); zero keeps the layer fixed. Camera-less layers render in screen coordinates. Culling is performed **at submission**, using an axis-aligned visible rectangle; rotated sprites deliberately skip that culling test.
@@ -432,10 +420,60 @@ options.PostProcessors.Add(new TintProcessor(effect));
 
 For a layer-local effect, set `layer.Target` and add the processor to `layer.PostProcessors` instead. The target is required: without `options.Output`, the renderer-wide processor chain is currently skipped. The example's `backdrop` and `effect` must be loaded or constructed by game code; they are not registered as services automatically.
 
+## Diagnostics and benchmarks
+
+Diagnostics are opt-in. Configure them before the renderer is constructed; the default renderer path does not read the timer or retain samples:
+
+```csharp
+public sealed class WorldRendering : IRendererConfiguration
+{
+    public void Configure(RendererOptions options)
+    {
+        options.Diagnostics = new RendererDiagnosticsOptions
+        {
+            HistoryCapacity = 180,
+            SlowFrameThreshold = TimeSpan.FromMilliseconds(16.67),
+        };
+
+        options.AddLayer(Layers.Sprites);
+        options.AddLayer(Layers.Effects, new RenderLayerOptions { Order = 100 });
+    }
+}
+```
+
+`Renderer2D.Diagnostics` exposes the latest frame, per-layer command/sort/prepare/execute timings, and a rolling summary (average, min, p95, max, slow-frame count). `CopyHistory(Span<RendererFrameSample>)` copies retained frames without allocating. `CreateDebugReport()` formats the current snapshot for a log or debugger; call it on demand, since creating a string allocates.
+
+Use `GetSummary()` for a throttled development overlay. Call `CreateDebugReport()` on demand from a debug command rather than logging it every frame:
+
+```csharp
+if (renderer is Renderer2D renderer2D && renderer2D.Diagnostics is { } watch)
+{
+    var summary = watch.GetSummary();
+    logger.LogDebug("Renderer p95: {P95:F2} ms", summary.P95Milliseconds);
+    logger.LogDebug("{Report}", watch.CreateDebugReport());
+}
+```
+
+Run the benchmark after renderer initialization from a development command or isolated test scene, not from the normal draw callback. Keep the same scene submissions for each measured frame, and do not also let `RendererGameComponent` flush the renderer during the benchmark:
+
+```csharp
+var result = RendererBenchmark.Run(() =>
+{
+    renderer.Context.Layer(Layers.Sprites).Draw(sprite, position, Color.White);
+    renderer.Flush(graphicsDevice);
+}, warmupFrames: 60, measuredFrames: 300);
+
+logger.LogInformation("Renderer avg {Average:F2} ms, p95 {P95:F2} ms",
+    result.AverageMilliseconds,
+    result.P95Milliseconds);
+```
+
+`RendererBenchmark` reports CPU wall time for the action, after warm-up. It does not wait for queued GPU work to finish; use a graphics profiler for GPU timings. Benchmark results are comparable only when the device, scene, resolution, and workload are held constant.
+
 ## Lifecycle and current limits
 
 - Do not call `Flush` from a constructor, host service configuration, or before device initialization. An explicit `Initialize` must complete first. `RendererGameComponent.Initialize` handles this for its group; manually driven groups/renderers must do it themselves.
 - The first submission after a flush opens a fresh frame and clears the previous command lists. `BeginFrame()` is available for explicit clearing but is not required each frame. Calling it **after** submitting commands discards those commands. Submitting again after an early flush starts a new queue.
-- `RenderGroup = null` excludes a renderer from automatic groups. A named group registered without a game component remains manual. Disabled renderers discard submissions; disabled layers return an inactive `LayerWriter` that also discards submissions.
+- A renderer is only flushed by the controller or `RendererGameComponent` that owns it. Disabled renderers discard submissions; disabled layers return an inactive `LayerWriter` that also discards submissions.
 - The renderer currently has no built-in multithreaded submission synchronization. Submit and flush on the game/graphics thread. Pool-backed command lists and text buffers reuse capacity but may grow on their first large frame; layer and output targets are created when first used and recreated when their size changes. Post-process scratch targets are allocated once and are not currently resized with their source, so avoid combining a resizing target with a post-process chain until that lifecycle is handled.
 - `SpriteBatchBatcher` is the current default; one `Begin/End` encloses each non-empty sprite layer. Text is submitted through a reused `StringBuilder` because MonoGame 3.8.5 has no `ReadOnlySpan<char>` `DrawString` overload. Measure allocation and draw-call targets on the actual workload rather than assuming they are always zero.
