@@ -1,43 +1,47 @@
 using System;
-using Friflo.Engine.ECS;
 using KittyCat.Configuration;
+using KittyCat.Ecs;
 using KittyCat.Ecs.Components;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using PurrplingCore.Graphics;
 using PurrplingCore.Toolkit;
 using PurrplingCore.Toolkit.DI;
+using PurrplingCore.Toolkit.Rendering;
 
 namespace KittyCat.Services;
 
-/// <summary>Draws the example game's entities and HUD using MonoGame's SpriteBatch.</summary>
+/// <summary>Queues the example game's entities and HUD into the world and screen renderers.</summary>
+/// <remarks>
+/// Nothing here touches the graphics device. Commands are replayed when each renderer flushes
+/// at its own stage of the draw loop.
+/// </remarks>
 [Singleton]
-public sealed class StarCatcherRenderer : IDisposable
+public sealed class StarCatcherRenderer
 {
     private static readonly string[] HeartPixels = ["11011", "11111", "11111", "01110", "00100"];
     private const int StrikeMeterSegmentCount = 5;
     private readonly GraphicsManager _graphics;
     private readonly IContentManagerProvider _contentManagerProvider;
     private readonly StarCatcherOptions _options;
-    private Texture2D? _pixel;
+    private readonly RenderContext _world;
+    private readonly RenderContext _screen;
     private SpriteFont? _hudFont;
-    private bool _disposed;
 
     public StarCatcherRenderer(
         GraphicsManager graphics,
         IContentManagerProvider contentManagerProvider,
-        IOptions<StarCatcherOptions> options)
+        IOptions<StarCatcherOptions> options,
+        [FromKeyedServices(KittyCatRendererKey.World)] IRenderer worldRenderer,
+        [FromKeyedServices(KittyCatRendererKey.Screen)] IRenderer screenRenderer)
     {
         _graphics = graphics;
         _contentManagerProvider = contentManagerProvider;
         _options = options.Value;
-    }
-
-    public void BeginFrame()
-    {
-        _graphics.GraphicsDevice.Clear(new Color(14, 20, 31));
-        _graphics.SpriteBatch.Begin(samplerState: SamplerState.PointClamp);
+        _world = worldRenderer.Context;
+        _screen = screenRenderer.Context;
     }
 
     public void LoadContent()
@@ -50,6 +54,8 @@ public sealed class StarCatcherRenderer : IDisposable
     {
         if (!visual.IsVisible) return;
 
+        var entities = _world.Layer(KittyCatLayers.Entities);
+
         switch (visual.Kind)
         {
             case ArcadeVisualKind.Player:
@@ -58,32 +64,31 @@ public sealed class StarCatcherRenderer : IDisposable
                     : transform.Size.X < _options.Paddle.Width
                         ? new Color(240, 90, 100)
                         : new Color(70, 205, 220);
-                _graphics.SpriteBatch.Draw(
-                    Pixel,
-                    new Rectangle((int)transform.Position.X, (int)transform.Position.Y,
-                        (int)transform.Size.X, (int)transform.Size.Y),
-                    paddleColor);
+                DrawRect(entities, (int)transform.Position.X, (int)transform.Position.Y,
+                    (int)transform.Size.X, (int)transform.Size.Y, paddleColor);
                 break;
             case ArcadeVisualKind.Star:
-                DrawStar((int)transform.Position.X, (int)transform.Position.Y,
+                DrawStar(entities, (int)transform.Position.X, (int)transform.Position.Y,
                     (int)transform.Size.X, Color.Gold);
                 break;
             case ArcadeVisualKind.GreenStar:
-                DrawStar((int)transform.Position.X, (int)transform.Position.Y,
+                DrawStar(entities, (int)transform.Position.X, (int)transform.Position.Y,
                     (int)transform.Size.X, new Color(80, 235, 125));
                 break;
             case ArcadeVisualKind.RedStar:
-                DrawStar((int)transform.Position.X, (int)transform.Position.Y,
+                DrawStar(entities, (int)transform.Position.X, (int)transform.Position.Y,
                     (int)transform.Size.X, new Color(245, 75, 85));
                 break;
             case ArcadeVisualKind.Heart:
                 const int arenaHeartSize = 25;
-                DrawHeart((int)(transform.Position.X + (transform.Size.X - arenaHeartSize) / 2),
+                DrawHeart(entities,
+                    (int)(transform.Position.X + (transform.Size.X - arenaHeartSize) / 2),
                     (int)(transform.Position.Y + (transform.Size.Y - arenaHeartSize) / 2),
                     new Color(255, 90, 145), pixelSize: 5);
                 break;
             case ArcadeVisualKind.HeartPop:
-                DrawBurst((int)(transform.Position.X + transform.Size.X / 2),
+                DrawBurst(_world.Layer(KittyCatLayers.Effects),
+                    (int)(transform.Position.X + transform.Size.X / 2),
                     (int)(transform.Position.Y + transform.Size.Y / 2),
                     (int)Math.Max(transform.Size.X, transform.Size.Y), new Color(255, 150, 190));
                 break;
@@ -92,21 +97,21 @@ public sealed class StarCatcherRenderer : IDisposable
 
     public void DrawHud(int score, int lives, int strike)
     {
-        var spriteBatch = _graphics.SpriteBatch;
+        var hud = _screen.Layer(KittyCatLayers.Hud);
         var playfield = _options.Playfield;
-        spriteBatch.Draw(Pixel, new Rectangle(0, 0, playfield.Width, 54), new Color(24, 34, 49));
-        DrawStar(20, 15, 24, Color.Gold);
+        DrawRect(hud, 0, 0, playfield.Width, 54, new Color(24, 34, 49));
+        DrawStar(hud, 20, 15, 24, Color.Gold);
         // Labels use the HUD font; numeric values keep the game's seven-segment style.
-        spriteBatch.DrawString(HudFont, "SCORE", new Vector2(56, 17), Color.White);
-        DrawNumber(score, 116, 12, Color.White);
-        spriteBatch.DrawString(HudFont, "STRIKE", new Vector2(190, 17), new Color(120, 190, 255));
-        DrawStrikeMeter(strike);
-        DrawDifficultyIndicator(score);
+        hud.DrawString(HudFont, "SCORE", new Vector2(56, 17), Color.White);
+        DrawNumber(hud, score, 116, 12, Color.White);
+        hud.DrawString(HudFont, "STRIKE", new Vector2(190, 17), new Color(120, 190, 255));
+        DrawStrikeMeter(hud, strike);
+        DrawDifficultyIndicator(hud, score);
 
         var firstHeartX = playfield.Width - PaddleOptions.MaximumLives * 26 - 16;
         for (var index = 0; index < PaddleOptions.MaximumLives; index++)
         {
-            DrawHeart(firstHeartX + index * 26, 15,
+            DrawHeart(hud, firstHeartX + index * 26, 15,
                 index < lives ? Color.Salmon : new Color(75, 82, 94),
                 withShadow: index < _options.Paddle.StartingLives);
         }
@@ -117,37 +122,23 @@ public sealed class StarCatcherRenderer : IDisposable
         }
     }
 
-    public void EndFrame() => _graphics.SpriteBatch.End();
-
     private void DrawGameOver(int score)
     {
-        var spriteBatch = _graphics.SpriteBatch;
+        var modal = _screen.Layer(KittyCatLayers.Modal);
         var playfield = _options.Playfield;
-        spriteBatch.Draw(Pixel, new Rectangle(playfield.Width / 4, playfield.Height * 7 / 18,
-            playfield.Width / 2, playfield.Height / 4), new Color(64, 24, 38));
+        DrawRect(modal, playfield.Width / 4, playfield.Height * 7 / 18,
+            playfield.Width / 2, playfield.Height / 4, new Color(64, 24, 38));
         const string gameOverText = "GAME OVER";
         var textSize = HudFont.MeasureString(gameOverText);
-        spriteBatch.DrawString(HudFont, gameOverText,
+        modal.DrawString(HudFont, gameOverText,
             new Vector2((playfield.Width - textSize.X) / 2, playfield.Height / 2 - textSize.Y), Color.White);
         const string scoreLabel = "SCORE";
         textSize = HudFont.MeasureString(scoreLabel);
         var scoreY = playfield.Height / 2 + 8;
         var scoreGroupWidth = textSize.X + 8 + GetNumberWidth(score);
         var scoreX = (playfield.Width - scoreGroupWidth) / 2;
-        spriteBatch.DrawString(HudFont, scoreLabel, new Vector2(scoreX, scoreY), Color.White);
-        DrawNumber(score, (int)(scoreX + textSize.X + 8), scoreY, Color.White);
-    }
-
-    private Texture2D Pixel
-    {
-        get
-        {
-            if (_pixel is not null) return _pixel;
-
-            _pixel = new Texture2D(_graphics.GraphicsDevice, 1, 1);
-            _pixel.SetData([Color.White]);
-            return _pixel;
-        }
+        modal.DrawString(HudFont, scoreLabel, new Vector2(scoreX, scoreY), Color.White);
+        DrawNumber(modal, score, (int)(scoreX + textSize.X + 8), scoreY, Color.White);
     }
 
     private SpriteFont HudFont
@@ -156,7 +147,7 @@ public sealed class StarCatcherRenderer : IDisposable
             "The HUD font must be loaded before drawing. Call LoadContent() first.");
     }
 
-    private void DrawNumber(int value, int x, int y, Color color)
+    private void DrawNumber(in LayerWriter writer, int value, int x, int y, Color color)
     {
         ReadOnlySpan<byte> segments = [0b00111111, 0b00000110, 0b01011011, 0b01001111, 0b01100110,
             0b01101101, 0b01111101, 0b00000111, 0b01111111, 0b01101111];
@@ -176,13 +167,13 @@ public sealed class StarCatcherRenderer : IDisposable
         {
             var digitX = x + (digitCount - index - 1) * (digitWidth + digitSpacing);
             var mask = segments[digits[index] - '0'];
-            if ((mask & 1) != 0) DrawRect(digitX + 4, y, 12, 4, color);
-            if ((mask & 2) != 0) DrawRect(digitX + 16, y + 4, 4, 10, color);
-            if ((mask & 4) != 0) DrawRect(digitX + 16, y + 16, 4, 10, color);
-            if ((mask & 8) != 0) DrawRect(digitX + 4, y + 26, 12, 4, color);
-            if ((mask & 16) != 0) DrawRect(digitX, y + 16, 4, 10, color);
-            if ((mask & 32) != 0) DrawRect(digitX, y + 4, 4, 10, color);
-            if ((mask & 64) != 0) DrawRect(digitX + 4, y + 13, 12, 4, color);
+            if ((mask & 1) != 0) DrawRect(writer, digitX + 4, y, 12, 4, color);
+            if ((mask & 2) != 0) DrawRect(writer, digitX + 16, y + 4, 4, 10, color);
+            if ((mask & 4) != 0) DrawRect(writer, digitX + 16, y + 16, 4, 10, color);
+            if ((mask & 8) != 0) DrawRect(writer, digitX + 4, y + 26, 12, 4, color);
+            if ((mask & 16) != 0) DrawRect(writer, digitX, y + 16, 4, 10, color);
+            if ((mask & 32) != 0) DrawRect(writer, digitX, y + 4, 4, 10, color);
+            if ((mask & 64) != 0) DrawRect(writer, digitX + 4, y + 13, 12, 4, color);
         }
     }
 
@@ -197,7 +188,7 @@ public sealed class StarCatcherRenderer : IDisposable
         return digitCount * 20 + (digitCount - 1) * 8;
     }
 
-    private void DrawStrikeMeter(int strike)
+    private void DrawStrikeMeter(in LayerWriter writer, int strike)
     {
         const int x = 260;
         const int y = 18;
@@ -213,11 +204,11 @@ public sealed class StarCatcherRenderer : IDisposable
             var color = index < filledSegments
                 ? new Color(120, 190, 255)
                 : new Color(55, 70, 90);
-            DrawRect(x + index * (segmentWidth + segmentSpacing), y, segmentWidth, segmentHeight, color);
+            DrawRect(writer, x + index * (segmentWidth + segmentSpacing), y, segmentWidth, segmentHeight, color);
         }
     }
 
-    private void DrawDifficultyIndicator(int score)
+    private void DrawDifficultyIndicator(in LayerWriter writer, int score)
     {
         const int centerX = 340;
         const int centerY = 27;
@@ -230,30 +221,26 @@ public sealed class StarCatcherRenderer : IDisposable
             _ => new Color(245, 75, 85),
         };
 
-        for (var offsetY = -radius; offsetY <= radius; offsetY++)
-        {
-            var halfWidth = (int)Math.Sqrt(radius * radius - offsetY * offsetY);
-            DrawRect(centerX - halfWidth, centerY + offsetY, halfWidth * 2 + 1, 1, color);
-        }
+        writer.FillCircle(_graphics.GraphicsDevice, new Vector2(centerX, centerY), radius, color);
     }
 
-    private void DrawStar(int x, int y, int size, Color color)
+    private void DrawStar(in LayerWriter writer, int x, int y, int size, Color color)
     {
-        DrawRect(x + size / 2 - 3, y, 6, size, color);
-        DrawRect(x, y + size / 2 - 3, size, 6, color);
+        DrawRect(writer, x + size / 2 - 3, y, 6, size, color);
+        DrawRect(writer, x, y + size / 2 - 3, size, 6, color);
     }
 
-    private void DrawHeart(int x, int y, Color color, int pixelSize = 4, bool withShadow = false)
+    private void DrawHeart(in LayerWriter writer, int x, int y, Color color, int pixelSize = 4, bool withShadow = false)
     {
         if (withShadow)
         {
-            DrawHeartShape(x + 2, y + 2, pixelSize, new Color(0, 0, 0, 110));
+            DrawHeartShape(writer, x + 2, y + 2, pixelSize, new Color(0, 0, 0, 110));
         }
 
-        DrawHeartShape(x, y, pixelSize, color);
+        DrawHeartShape(writer, x, y, pixelSize, color);
     }
 
-    private void DrawHeartShape(int x, int y, int pixelSize, Color color)
+    private void DrawHeartShape(in LayerWriter writer, int x, int y, int pixelSize, Color color)
     {
         for (var row = 0; row < HeartPixels.Length; row++)
         {
@@ -261,33 +248,26 @@ public sealed class StarCatcherRenderer : IDisposable
             {
                 if (HeartPixels[row][column] == '1')
                 {
-                    DrawRect(x + column * pixelSize, y + row * pixelSize, pixelSize, pixelSize, color);
+                    DrawRect(writer, x + column * pixelSize, y + row * pixelSize, pixelSize, pixelSize, color);
                 }
             }
         }
     }
 
-    private void DrawBurst(int centerX, int centerY, int size, Color color)
+    private void DrawBurst(in LayerWriter writer, int centerX, int centerY, int size, Color color)
     {
         var radius = Math.Max(5, size / 2);
         var ray = Math.Max(2, size / 8);
-        DrawRect(centerX - ray / 2, centerY - radius, ray, radius * 2, color);
-        DrawRect(centerX - radius, centerY - ray / 2, radius * 2, ray, color);
-        DrawRect(centerX - radius, centerY - radius, ray, ray, color);
-        DrawRect(centerX + radius - ray, centerY - radius, ray, ray, color);
-        DrawRect(centerX - radius, centerY + radius - ray, ray, ray, color);
-        DrawRect(centerX + radius - ray, centerY + radius - ray, ray, ray, color);
+        DrawRect(writer, centerX - ray / 2, centerY - radius, ray, radius * 2, color);
+        DrawRect(writer, centerX - radius, centerY - ray / 2, radius * 2, ray, color);
+        DrawRect(writer, centerX - radius, centerY - radius, ray, ray, color);
+        DrawRect(writer, centerX + radius - ray, centerY - radius, ray, ray, color);
+        DrawRect(writer, centerX - radius, centerY + radius - ray, ray, ray, color);
+        DrawRect(writer, centerX + radius - ray, centerY + radius - ray, ray, ray, color);
     }
 
-    private void DrawRect(int x, int y, int width, int height, Color color)
+    private void DrawRect(in LayerWriter writer, int x, int y, int width, int height, Color color)
     {
-        _graphics.SpriteBatch.Draw(Pixel, new Rectangle(x, y, width, height), color);
-    }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        _pixel?.Dispose();
+        writer.FillRect(_graphics.GraphicsDevice, new Rectangle(x, y, width, height), color);
     }
 }

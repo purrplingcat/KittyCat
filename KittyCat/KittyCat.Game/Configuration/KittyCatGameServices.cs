@@ -1,13 +1,17 @@
-﻿using KittyCat.Ecs.Systems;
+﻿using KittyCat.Ecs;
+using KittyCat.Ecs.Systems;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
+using Microsoft.Extensions.Options;
 using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.DI;
 using PurrplingCore.Ecs.Modules;
-using PurrplingCore.Ecs.Systems;
+using PurrplingCore.Rendering;
 using PurrplingCore.Scenes;
 using PurrplingCore.Toolkit;
 using PurrplingCore.Toolkit.Hosting;
+using PurrplingCore.Toolkit.Rendering;
 using System;
 using System.Reflection;
 
@@ -20,27 +24,52 @@ public class KittyCatGameServices : IServiceModule
 {
     public Assembly Assembly => GetType().Assembly;
 
+    /// <summary>
+    /// Resolves the default content manager used by game scenes.
+    /// </summary>
     protected virtual ContentManager GetDefaultContentManager(IServiceProvider provider)
     {
         return provider.GetRequiredService<IContentManagerProvider>().ContentManager;
     }
 
+    /// <summary>
+    /// Registers the game's settings, world, renderers, and draw-loop components.
+    /// </summary>
     public void ConfigureServices(IServiceCollection services)
     {
-        services.AddWorldController();
-        services.AddSceneManager();
+        // Register shared services consumed by world and renderer modules here.
+        services.AddSingleton<Camera2D>();
 
-        // Cleanup is opt-in; the game explicitly selects it for its default world.
+        // Bind and validate game-wide options before registering systems that consume them.
+        services
+            .AddOptions<StarCatcherOptions>()
+            .BindConfiguration(StarCatcherOptions.SectionName)
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<StarCatcherOptions>, StarCatcherOptionsValidator>();
+
+        // Declare the world's systems and world-specific modules here.
         services
             .AddWorld(ConfigureWorld)
             .AddModule<EntityCleanupModule>();
 
+        // Declare renderer keys, layers, and renderer-specific configuration modules here.
         services
-            .AddOptions<StarCatcherOptions>()
-            .BindConfiguration(StarCatcherOptions.SectionName)
-            .Validate(IsValid, "StarCatcher configuration contains invalid gameplay values.");
+            .AddRenderer(KittyCatRendererKey.World, order: RenderStage.World)
+            .AddModule<WorldRendererConfiguration>();
+        services.AddRenderer(
+            KittyCatRendererKey.Screen,
+            ConfigureScreenRenderer,
+            order: RenderStage.Screen);
+
+        // Register draw-loop producers before the renderer component that flushes their commands.
+        services.AddWorldController();
+        services.AddSceneManager();
+        services.AddRendererGameComponent();
     }
 
+    /// <summary>
+    /// Adds gameplay and drawing systems to the default world.
+    /// </summary>
     private static void ConfigureWorld(IWorldBlueprint world)
     {
         world.AddSystem<PaddleEffectSystem>();
@@ -56,53 +85,24 @@ public class KittyCatGameServices : IServiceModule
         world.AddSystem<StarCatcherHudSystem>();
     }
 
-    private static bool IsValid(StarCatcherOptions options)
+    /// <summary>
+    /// Declares the screen-space layers used by the HUD and modal overlay.
+    /// </summary>
+    private static void ConfigureScreenRenderer(RendererOptions options)
     {
-        return options.Playfield.Width > 0
-            && options.Playfield.Height > 0
-            && options.Paddle.Width > 0
-            && options.Paddle.Height > 0
-            && options.Paddle.MoveSpeed > 0
-            && options.Paddle.StrikesForMaximumSpeed > 0
-            && options.Paddle.MaximumStrikeSpeedMultiplier >= 1
-            && options.Paddle.HardSpeedMultiplier >= 1
-            && options.Paddle.StartingLives is > 0 and <= PaddleOptions.MaximumLives
-            && options.Paddle.EffectDurationSeconds > 0
-            && options.Paddle.ExpandMultiplier > 1
-            && options.Paddle.ShrinkMultiplier is > 0 and < 1
-            && options.Stars.Size > 0
-            && options.Stars.InitialSpawnIntervalSeconds > 0
-            && options.Stars.InitialMaxActive > 0
-            && options.Stars.InitialMaxActive <= options.Difficulty.EasyMaximumActiveStars
-            && options.Stars.SpecialSpawnChance is >= 0 and <= 1
-            && options.Stars.GreenSpeedMultiplier > 0
-            && options.Stars.RedSpeedMultiplier > 0
-            && options.Stars.FastSpeedMultiplier >= 1
-            && options.Hearts.Size > 0
-            && options.Hearts.Size < options.Playfield.Width
-            && options.Hearts.Size < options.Playfield.Height
-            && options.Hearts.SpawnIntervalSeconds > 0
-            && options.Hearts.Speed > 0
-            && options.Hearts.LifetimeSeconds > 0
-            && options.Hearts.PopDurationSeconds > 0
-            && options.Difficulty.EasyScoreLimit > 0
-            && options.Difficulty.HardScoreLimit > options.Difficulty.EasyScoreLimit
-            && options.Difficulty.ScoreForMaximumDifficulty > options.Difficulty.HardScoreLimit
-            && options.Difficulty.EasyMaximumActiveStars >= options.Stars.InitialMaxActive
-            && options.Difficulty.MaximumActiveStars >= options.Difficulty.EasyMaximumActiveStars
-            && options.Difficulty.EasyBonusStarChance is >= 0 and <= 1
-            && options.Difficulty.EasySpawnIntervalSeconds > 0
-            && options.Difficulty.EasySpawnIntervalSeconds <= options.Stars.InitialSpawnIntervalSeconds
-            && options.Difficulty.HardSpawnIntervalSeconds > 0
-            && options.Difficulty.HardSpawnIntervalSeconds <= options.Difficulty.EasySpawnIntervalSeconds
-            && options.Difficulty.EasyMinimumFallSpeed > 0
-            && options.Difficulty.EasyMaximumFallSpeed >= options.Difficulty.EasyMinimumFallSpeed
-            && options.Difficulty.MediumMinimumFallSpeed >= options.Difficulty.EasyMinimumFallSpeed
-            && options.Difficulty.MediumMaximumFallSpeed >= options.Difficulty.MediumMinimumFallSpeed
-            && options.Difficulty.HardMinimumFallSpeed >= options.Difficulty.MediumMinimumFallSpeed
-            && options.Difficulty.HardMaximumFallSpeed >= options.Difficulty.HardMinimumFallSpeed
-            && options.Difficulty.EasyFastStarChance is >= 0 and <= 1
-            && options.Difficulty.MediumFastStarChance is >= 0 and <= 1
-            && options.Difficulty.HardFastStarChance is >= 0 and <= 1;
+        options.AddLayer(KittyCatLayers.Hud);
+        options.AddLayer(KittyCatLayers.Modal, new RenderLayerOptions { Order = 100 });
+    }
+
+}
+
+public sealed class WorldRendererConfiguration(Camera2D camera) : IRendererConfiguration
+{
+    public void Configure(RendererOptions options)
+    {
+        options.ClearColor = new Color(14, 20, 31);
+        options.AddLayer(KittyCatLayers.Entities, new RenderLayerOptions { Camera = camera });
+        options.AddLayer(KittyCatLayers.Effects, new RenderLayerOptions { Order = 100, Camera = camera });
     }
 }
+
