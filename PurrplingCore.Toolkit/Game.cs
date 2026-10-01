@@ -28,6 +28,7 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
     private GameVersion? _version;
     private bool _isInitialized;
     private bool _isRunning;
+    private bool _disposed;
 
     private sealed class CoreGameServices : IServiceModule
     {
@@ -182,6 +183,15 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
         base.EndRun();
         _isRunning = false;
         Exited?.Invoke(this, EventArgs.Empty);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (!_disposed)
+        {
+            _disposed = true;
+            base.Dispose(disposing);
+        }
     }
 
     protected T GetRequiredService<T>() where T : class

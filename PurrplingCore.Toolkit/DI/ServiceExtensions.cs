@@ -138,10 +138,5 @@ public static partial class ServiceExtensions
                        .GetRequiredService<T>();
     }
 
-    public static IServiceCollection AddDisposable(this IServiceCollection services, IDisposable disposable)
-    {
-        services.TryAddEnumerable(ServiceDescriptor.Singleton(disposable));
-        return services;
-    }
 }
 

@@ -60,9 +60,8 @@ public sealed class WorldController : DrawableGameComponent
         {
             _disposed = true;
             _world.Dispose();
+            base.Dispose(disposing);
         }
-
-        base.Dispose(disposing);
     }
 }
 

@@ -163,22 +163,9 @@ public class ApplicationHost : IDisposable
         }
         finally
         {
-            // Dispose all registered services and providers
-            DisposeRegisteredServices();
+            // The service provider disposes the services it owns.
             DisposeProvider(_applicationServiceProvider);
             DisposeProvider(_hostServiceProvider);
-        }
-    }
-
-    private void DisposeRegisteredServices()
-    {
-        if (_applicationServiceProvider == null)
-            return;
-
-        var disposables = _applicationServiceProvider.GetServices<IDisposable>();
-        foreach (var service in disposables)
-        {
-            service.Dispose();
         }
     }
 

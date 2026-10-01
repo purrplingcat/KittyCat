@@ -68,11 +68,6 @@ public static class ServiceCollectionExtensions
     public static IWorldServicesBuilder AddModule<TModule>(this IWorldServicesBuilder builder, TModule module)
         where TModule : class, IWorldModule
     {
-        if (module is IDisposable disposable)
-        {
-            builder.Services.AddDisposable(disposable);
-        }
-
         builder.Services.TryAddEnumerable(
             ServiceDescriptor.KeyedSingleton<IWorldModule>(builder.Key, module)
         );
