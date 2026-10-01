@@ -12,6 +12,7 @@ using PurrplingCore.Ecs.Systems;
 
 namespace KittyCat.Ecs.Systems;
 
+/// <summary>Maintains score-driven star waves and their speed for each world store.</summary>
 [System<UpdateSystemGroup>]
 public sealed class FallingStarSpawnerSystem : QuerySystem<ArcadeTransform, FallingStar, ArcadeVisual>
 {
@@ -52,39 +53,26 @@ public sealed class FallingStarSpawnerSystem : QuerySystem<ArcadeTransform, Fall
 
         if (!gameIsActive) return;
 
-        var difficulty = Math.Clamp((float)score / _options.Difficulty.ScoreForMaximumDifficulty, 0, 1);
-        var spawnInterval = MathHelper.Lerp(
-            _options.Stars.InitialSpawnIntervalSeconds,
-            _options.Difficulty.MaximumSpawnIntervalSeconds,
-            difficulty);
-        var maximumActive = _options.Stars.InitialMaxActive
-            + (int)((_options.Difficulty.MaximumActiveStars - _options.Stars.InitialMaxActive) * difficulty);
+        // Difficulty tuning uses the highest score in this store; the player query is cached per store.
+        var difficulty = _options.Difficulty.GetProgress(score);
+        var tuning = _options.Difficulty;
+        // Easy cadence tightens with score. Medium keeps the easy interval; hard uses its faster interval.
+        var spawnInterval = difficulty.Stage == DifficultyStage.Hard
+            ? tuning.HardSpawnIntervalSeconds
+            : difficulty.Stage == DifficultyStage.Medium
+                ? tuning.EasySpawnIntervalSeconds
+                : MathHelper.Lerp(_options.Stars.InitialSpawnIntervalSeconds, tuning.EasySpawnIntervalSeconds, difficulty.Progress);
         var activeCount = CountActiveStars();
+        var desiredActive = GetDesiredActiveStars(score, difficulty, state, activeCount, tuning);
 
         state.TimeUntilSpawn -= Tick.deltaTime;
-        if (activeCount >= maximumActive || state.TimeUntilSpawn > 0) return;
-
-        foreach (var (transforms, stars, visuals, entities) in Query.Chunks)
-        {
-            for (var index = 0; index < entities.Length; index++)
-            {
-                ref var star = ref stars[index];
-                if (star.IsActive) continue;
-
-                SpawnStar(ref transforms[index], ref star, ref visuals[index], difficulty);
-                state.TimeUntilSpawn = spawnInterval;
-                return;
-            }
-        }
-
-        if (state.CreatedStarCount >= _options.Stars.MaximumCreatedStars) return;
+        if (activeCount >= desiredActive || state.TimeUntilSpawn > 0) return;
 
         var size = _options.Stars.Size;
         var entity = Query.Store.CreateEntity(
             new ArcadeTransform { Position = new Vector2(0, -size), Size = new Vector2(size, size) },
             new FallingStar(),
             new ArcadeVisual { Kind = ArcadeVisualKind.Star });
-        state.CreatedStarCount++;
 
         ref var transform = ref entity.GetComponent<ArcadeTransform>();
         ref var newStar = ref entity.GetComponent<FallingStar>();
@@ -93,8 +81,82 @@ public sealed class FallingStarSpawnerSystem : QuerySystem<ArcadeTransform, Fall
         state.TimeUntilSpawn = spawnInterval;
     }
 
+    private int GetDesiredActiveStars(
+        int score,
+        DifficultyProgress difficulty,
+        StoreState state,
+        int activeCount,
+        DifficultyOptions tuning)
+    {
+        if (difficulty.Stage == DifficultyStage.Easy)
+        {
+            // Lock one target per wave so its random size does not change while stars are spawning.
+            if (activeCount == 0 || state.WaveTarget == 0)
+            {
+                state.WaveTarget = SelectEasyWaveSize(score, tuning);
+            }
+
+            state.WaveWasActive |= activeCount > 0;
+            return state.WaveTarget;
+        }
+
+        if (state.WaveTarget == 0 || (activeCount == 0 && state.WaveWasActive))
+        {
+            // Medium/hard select once at wave start; the target is reset only after a completed wave.
+            state.WaveTarget = difficulty.Stage == DifficultyStage.Medium
+                ? SelectMediumWaveSize(tuning.EasyMaximumActiveStars)
+                : Random.Shared.Next(1, tuning.MaximumActiveStars + 1);
+            state.WaveWasActive = false;
+        }
+
+        state.WaveWasActive |= activeCount > 0;
+        return state.WaveTarget;
+    }
+
+    private int SelectEasyWaveSize(int score, DifficultyOptions tuning)
+    {
+        var firstBonusScore = 5;
+        if (score < firstBonusScore) return _options.Stars.InitialMaxActive;
+
+        // From score 5, the chance of a maximum-size base wave rises with easy progress; each wave also rolls a bonus star.
+        var progress = Math.Clamp(
+            (float)(score - firstBonusScore) / (tuning.EasyScoreLimit - firstBonusScore),
+            0,
+            1);
+        var minimum = _options.Stars.InitialMaxActive;
+        var maximum = tuning.EasyMaximumActiveStars;
+        var maximumWaveChance = progress / (maximum - minimum + 1);
+        var baseWaveSize = Random.Shared.NextSingle() < maximumWaveChance
+            ? maximum
+            : Random.Shared.Next(minimum, maximum);
+
+        if (Random.Shared.NextSingle() < tuning.EasyBonusStarChance)
+        {
+            baseWaveSize++;
+        }
+
+        return Math.Min(baseWaveSize, tuning.MaximumActiveStars);
+    }
+
+    private static int SelectMediumWaveSize(int maximumStars)
+    {
+        // 80% of waves target 1-3 stars; the remaining 20% target 4-5.
+        var roll = Random.Shared.Next(100);
+        var count = roll switch
+        {
+            < 30 => 1,
+            < 55 => 2,
+            < 80 => 3,
+            < 92 => 4,
+            _ => 5,
+        };
+
+        return Math.Min(count, maximumStars);
+    }
+
     private int CountActiveStars()
     {
+        // Disabled/pending-destroy stars are excluded from the default query and do not occupy a wave slot.
         var count = 0;
         foreach (var (transforms, stars, visuals, entities) in Query.Chunks)
         {
@@ -111,7 +173,7 @@ public sealed class FallingStarSpawnerSystem : QuerySystem<ArcadeTransform, Fall
         ref ArcadeTransform transform,
         ref FallingStar star,
         ref ArcadeVisual visual,
-        float difficulty)
+        DifficultyProgress difficulty)
     {
         star.PaddleEffect = GetRandomPaddleEffect();
         star.FallSpeed = GetFallSpeed(difficulty, star.PaddleEffect);
@@ -138,16 +200,25 @@ public sealed class FallingStarSpawnerSystem : QuerySystem<ArcadeTransform, Fall
         return Random.Shared.Next(2) == 0 ? PaddleSizeEffect.Expand : PaddleSizeEffect.Shrink;
     }
 
-    private float GetFallSpeed(float difficulty, PaddleSizeEffect paddleEffect)
+    private float GetFallSpeed(DifficultyProgress difficulty, PaddleSizeEffect paddleEffect)
     {
-        var minimum = MathHelper.Lerp(
-            _options.Difficulty.EasyMinimumFallSpeed,
-            _options.Difficulty.HardMinimumFallSpeed,
-            difficulty);
-        var maximum = MathHelper.Lerp(
-            _options.Difficulty.EasyMaximumFallSpeed,
-            _options.Difficulty.HardMaximumFallSpeed,
-            difficulty);
+        var tuning = _options.Difficulty;
+        // Easy only changes density; medium and hard interpolate speed and fast-star chance within their phase.
+        var (minimum, maximum, fastChance) = difficulty.Stage switch
+        {
+            DifficultyStage.Easy => (
+                tuning.EasyMinimumFallSpeed,
+                tuning.EasyMaximumFallSpeed,
+                tuning.EasyFastStarChance),
+            DifficultyStage.Medium => (
+                MathHelper.Lerp(tuning.EasyMinimumFallSpeed, tuning.MediumMinimumFallSpeed, difficulty.Progress),
+                MathHelper.Lerp(tuning.EasyMaximumFallSpeed, tuning.MediumMaximumFallSpeed, difficulty.Progress),
+                MathHelper.Lerp(tuning.EasyFastStarChance, tuning.MediumFastStarChance, difficulty.Progress)),
+            _ => (
+                MathHelper.Lerp(tuning.MediumMinimumFallSpeed, tuning.HardMinimumFallSpeed, difficulty.Progress),
+                MathHelper.Lerp(tuning.MediumMaximumFallSpeed, tuning.HardMaximumFallSpeed, difficulty.Progress),
+                MathHelper.Lerp(tuning.MediumFastStarChance, tuning.HardFastStarChance, difficulty.Progress)),
+        };
         var speed = minimum + Random.Shared.NextSingle() * (maximum - minimum);
         speed *= paddleEffect switch
         {
@@ -156,10 +227,6 @@ public sealed class FallingStarSpawnerSystem : QuerySystem<ArcadeTransform, Fall
             _ => 1f
         };
 
-        var fastChance = MathHelper.Lerp(
-            _options.Difficulty.EasyFastStarChance,
-            _options.Difficulty.HardFastStarChance,
-            difficulty);
         return paddleEffect == PaddleSizeEffect.None && Random.Shared.NextSingle() < fastChance
             ? speed * _options.Stars.FastSpeedMultiplier
             : speed;
@@ -169,6 +236,7 @@ public sealed class FallingStarSpawnerSystem : QuerySystem<ArcadeTransform, Fall
     {
         public ArchetypeQuery<PlayerState> Players { get; } = store.Query<PlayerState>();
         public float TimeUntilSpawn { get; set; }
-        public int CreatedStarCount { get; set; }
+        public int WaveTarget { get; set; }
+        public bool WaveWasActive { get; set; }
     }
 }

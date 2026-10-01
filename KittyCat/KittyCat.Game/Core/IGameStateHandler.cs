@@ -1,9 +1,8 @@
-﻿namespace KittyCat.Core;
+﻿using PurrplingCore.Toolkit.States;
 
-public interface IGameStateHandler
+namespace KittyCat.Core;
+
+/// <summary>Handles a KittyCat-specific game state.</summary>
+public interface IGameStateHandler : IStateHandler<GameState>
 {
-    GameState HandledState { get; }
-
-    void OnEnterState();
-    void OnExitState();
 }

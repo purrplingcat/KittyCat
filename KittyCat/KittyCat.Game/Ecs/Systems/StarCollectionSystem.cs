@@ -5,11 +5,14 @@ using Friflo.Engine.ECS.Systems;
 using KittyCat.Configuration;
 using KittyCat.Ecs.Components;
 using Microsoft.Extensions.Options;
-using Microsoft.Xna.Framework;
 using PurrplingCore.Ecs;
+using PurrplingCore.Ecs.Components;
 
 namespace KittyCat.Ecs.Systems;
 
+/// <summary>
+/// Collects overlapping stars, applies their effects, and advances score and strike.
+/// </summary>
 public sealed class StarCollectionSystem : QuerySystem<ArcadeTransform, PlayerState>
 {
     private readonly Dictionary<EntityStore, ArchetypeQuery<ArcadeTransform, FallingStar, ArcadeVisual>> _starQueries = [];
@@ -43,8 +46,6 @@ public sealed class StarCollectionSystem : QuerySystem<ArcadeTransform, PlayerSt
                 ref var player = ref players[playerIndex];
                 if (player.Lives <= 0) continue;
 
-                var playerPosition = playerTransform.Position;
-                var playerSize = playerTransform.Size;
                 var collectedStars = 0;
 
                 foreach (var (starTransforms, starComponents, visuals, starEntities) in stars.Chunks)
@@ -55,16 +56,22 @@ public sealed class StarCollectionSystem : QuerySystem<ArcadeTransform, PlayerSt
                         if (!star.IsActive) continue;
 
                         ref var starTransform = ref starTransforms[starIndex];
-                        if (!Intersects(playerPosition, playerSize, starTransform)) continue;
+                        if (!playerTransform.Intersects(in starTransform)) continue;
 
                         collectedStars++;
                         ApplyPaddleEffect(ref playerTransform, ref player, star.PaddleEffect);
                         star.IsActive = false;
                         visuals[starIndex].IsVisible = false;
+                        var entityId = starEntities.EntityAt(starIndex).Id;
+                        // Queue entity changes because this code is inside a query-chunk loop.
+                        CommandBuffer.AddTag<PendingDestroy>(entityId);
+                        CommandBuffer.AddTag<Disabled>(entityId);
                     }
                 }
 
                 player.Score += collectedStars;
+                // Strike is the consecutive-star count and is reset when any star is missed.
+                player.Strike += collectedStars;
             }
         }
     }
@@ -78,17 +85,10 @@ public sealed class StarCollectionSystem : QuerySystem<ArcadeTransform, PlayerSt
 
         player.PaddleEffect = effect;
         player.PaddleEffectTime = _paddleOptions.EffectDurationSeconds;
-        var multiplier = effect == PaddleSizeEffect.Expand
-            ? _paddleOptions.ExpandMultiplier
-            : _paddleOptions.ShrinkMultiplier;
-        transform.Size.X = player.BasePaddleWidth * multiplier;
-    }
+        var width = effect == PaddleSizeEffect.Expand
+            ? transform.Size.X + 16
+            : _paddleOptions.Width * _paddleOptions.ShrinkMultiplier;
 
-    private static bool Intersects(Vector2 firstPosition, Vector2 firstSize, ArcadeTransform second)
-    {
-        return firstPosition.X < second.Position.X + second.Size.X
-            && firstPosition.X + firstSize.X > second.Position.X
-            && firstPosition.Y < second.Position.Y + second.Size.Y
-            && firstPosition.Y + firstSize.Y > second.Position.Y;
+        transform.Size.X = Math.Clamp(width, 16, 128);
     }
 }

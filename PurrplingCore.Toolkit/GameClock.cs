@@ -9,6 +9,7 @@ public interface IGameClock
 {
     GameTickSnapshot UpdateTick { get; }
     GameTickSnapshot DrawTick { get; }
+    double Fps { get; }
 }
 
 /// <summary>
@@ -22,11 +23,15 @@ public readonly record struct GameTickSnapshot(
 
 internal sealed class GameClock : IGameClock
 {
+    private const double FpsSampleDurationSeconds = 1;
     private long _updateCount;
     private long _drawCount;
+    private double _fpsElapsedSeconds;
+    private int _fpsFrameCount;
 
     public GameTickSnapshot UpdateTick { get; private set; }
     public GameTickSnapshot DrawTick { get; private set; }
+    public double Fps { get; private set; }
 
     public void RecordUpdate(GameTime gameTime)
     {
@@ -44,5 +49,13 @@ internal sealed class GameClock : IGameClock
             gameTime.ElapsedGameTime,
             gameTime.TotalGameTime,
             gameTime.IsRunningSlowly);
+
+        _fpsElapsedSeconds += gameTime.ElapsedGameTime.TotalSeconds;
+        _fpsFrameCount++;
+        if (_fpsElapsedSeconds < FpsSampleDurationSeconds) return;
+
+        Fps = _fpsFrameCount / _fpsElapsedSeconds;
+        _fpsElapsedSeconds = 0;
+        _fpsFrameCount = 0;
     }
 }

@@ -1,26 +1,21 @@
-﻿using PurrplingCore.Graphics;
-using PurrplingCore.Scenes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using PurrplingCore.Toolkit.DI;
+using PurrplingCore.Graphics;
 using PurrplingCore.Toolkit.Graphics;
-using System;
-using System.Collections.Generic;
 
-namespace KittyCat.Services;
+namespace PurrplingCore.Scenes;
 
-[Singleton]
-[Alias(typeof(IGameComponent))]
+/// <summary>Activates, updates, renders, and disposes scenes owned by a game.</summary>
 public class SceneManager(
-    KittyCatGame game, 
-    SceneProvider sceneProvider, 
-    GraphicsManager graphics, 
+    PurrplingCore.Toolkit.Game game,
+    SceneProvider sceneProvider,
+    GraphicsManager graphics,
     ILogger<SceneManager> logger,
     IOptions<SceneManagerOptions> options) : DrawableGameComponent(game)
 {
-    private readonly KittyCatGame _game = game;
+    private readonly PurrplingCore.Toolkit.Game _game = game;
     private readonly SceneProvider _sceneProvider = sceneProvider;
     private readonly GraphicsManager _graphics = graphics;
     private readonly ILogger<SceneManager> _logger = logger;
@@ -28,15 +23,13 @@ public class SceneManager(
     private readonly List<Scene> _scenes = [];
     private readonly List<Scene> _scenesToUpdate = [];
     private readonly GameTime _slowTime = new(TimeSpan.Zero, TimeSpan.Zero, isRunningSlowly: true);
-    private readonly TimeSpan _bgTickDelta = TimeSpan.FromMilliseconds(1000 / 10); // 10 FPS
+    private readonly TimeSpan _bgTickDelta = TimeSpan.FromMilliseconds(1000 / 10);
     private Scene? _currentScene;
     private bool _disposed;
 
     public List<Scene> Scenes => _scenes;
 
-    #region Events
     public event Action<Scene?>? SceneSwitched;
-    #endregion
 
     public void SwitchScene(Scene newScene)
     {
@@ -46,11 +39,7 @@ public class SceneManager(
         OnSceneSwitched();
     }
 
-    public void SwitchScene<T>() where T : Scene
-    {
-        var newScene = _sceneProvider.GetScene<T>();
-        SwitchScene(newScene); 
-    }
+    public void SwitchScene<T>() where T : Scene => SwitchScene(_sceneProvider.GetScene<T>());
 
     public void SwitchScene(Type sceneType)
     {
@@ -61,14 +50,13 @@ public class SceneManager(
             throw new ArgumentException($"Type {sceneType.Name} is not a valid Scene type.", nameof(sceneType));
         }
 
-        var newScene = _sceneProvider.GetScene(sceneType);
-        SwitchScene(newScene);
+        SwitchScene(_sceneProvider.GetScene(sceneType));
     }
 
     protected virtual void OnSceneSwitched()
     {
-        _game.Window.Title = _currentScene?.Title != null 
-            ? $"{_currentScene.Title} - {_game.Title}" 
+        _game.Window.Title = _currentScene?.Title != null
+            ? $"{_currentScene.Title} - {_game.Title}"
             : _game.Title;
 
         SceneSwitched?.Invoke(_currentScene);
@@ -81,8 +69,7 @@ public class SceneManager(
 
         if (_options.InitialSceneType != null)
         {
-            var initialScene = _sceneProvider.GetScene(_options.InitialSceneType);
-            SwitchScene(initialScene);
+            SwitchScene(_sceneProvider.GetScene(_options.InitialSceneType));
         }
     }
 
@@ -90,18 +77,16 @@ public class SceneManager(
     {
         _slowTime.ElapsedGameTime += gameTime.ElapsedGameTime;
         _slowTime.TotalGameTime = gameTime.TotalGameTime;
-        _currentScene?.Update(gameTime); // Update the current scene
+        _currentScene?.Update(gameTime);
 
-        // Update background scenes at a slower rate
         if (_slowTime.ElapsedGameTime >= _bgTickDelta)
         {
-            PrepareScenesToUpdate(); // Prepare the list of scenes to update
+            PrepareScenesToUpdate();
             foreach (var scene in _scenesToUpdate)
             {
                 scene.Update(_slowTime);
             }
 
-            // Reset the elapsed time for the slow update
             _slowTime.ElapsedGameTime -= _bgTickDelta;
         }
 
@@ -131,7 +116,6 @@ public class SceneManager(
             _graphics.SpriteBatch.End();
         }
 
-        
         base.Draw(gameTime);
     }
 
@@ -139,21 +123,21 @@ public class SceneManager(
     {
         base.Dispose(disposing);
 
-        if (!_disposed)
+        if (_disposed) return;
+
+        if (disposing)
         {
-            if (disposing)
+            foreach (var scene in _scenes)
             {
-                foreach (var scene in _scenes)
-                {
-                    scene.Dispose();
-                }
-                _scenes.Clear();
-                _currentScene?.Dispose();
-                _currentScene = null;
+                scene.Dispose();
             }
 
-            _disposed = true;
-            _logger.LogDebug("SceneManager disposed.");
+            _scenes.Clear();
+            _currentScene?.Dispose();
+            _currentScene = null;
         }
+
+        _disposed = true;
+        _logger.LogDebug("SceneManager disposed.");
     }
 }

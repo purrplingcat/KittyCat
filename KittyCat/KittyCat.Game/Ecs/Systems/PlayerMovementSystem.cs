@@ -9,13 +9,18 @@ using PurrplingCore.Ecs.Systems;
 
 namespace KittyCat.Ecs.Systems;
 
+/// <summary>Moves the player within the playfield using keyboard input and score-based speed.</summary>
 public sealed partial class PlayerMovementSystem : StoreSystem
 {
     private readonly PlayfieldOptions _playfield;
+    private readonly PaddleOptions _paddle;
+    private readonly DifficultyOptions _difficulty;
 
     public PlayerMovementSystem(IOptions<StarCatcherOptions> options)
     {
         _playfield = options.Value.Playfield;
+        _paddle = options.Value.Paddle;
+        _difficulty = options.Value.Difficulty;
     }
 
     protected override void OnUpdate(EntityStore store)
@@ -33,7 +38,17 @@ public sealed partial class PlayerMovementSystem : StoreSystem
             direction.Normalize();
         }
 
-        MovePlayerQuery(store, direction, _playfield.Width, _playfield.Height);
+        MovePlayerQuery(
+            store,
+            direction,
+            _playfield.Width,
+            _playfield.Height,
+            _paddle.StrikesForMaximumSpeed,
+            _paddle.MaximumStrikeSpeedMultiplier,
+            _paddle.HardSpeedMultiplier,
+            _difficulty.EasyScoreLimit,
+            _difficulty.HardScoreLimit,
+            _difficulty.ScoreForMaximumDifficulty);
     }
 
     [Query]
@@ -42,11 +57,27 @@ public sealed partial class PlayerMovementSystem : StoreSystem
         ref PlayerState player,
         Vector2 direction,
         int playfieldWidth,
-        int playfieldHeight)
+        int playfieldHeight,
+        int strikesForMaximumSpeed,
+        float maximumStrikeSpeedMultiplier,
+        float hardSpeedMultiplier,
+        int easyScoreLimit,
+        int hardScoreLimit,
+        int maximumDifficultyScore)
     {
         if (player.Lives <= 0) return;
 
-        transform.Position += direction * player.MoveSpeed * Tick.deltaTime;
+        // Hard difficulty raises the base; strike then scales that base up to its configured cap.
+        var strikeProgress = Math.Clamp((float)player.Strike / strikesForMaximumSpeed, 0, 1);
+        var difficulty = DifficultyOptions.GetProgress(
+            player.Score,
+            easyScoreLimit,
+            hardScoreLimit,
+            maximumDifficultyScore);
+        var hardProgress = difficulty.Stage == DifficultyStage.Hard ? difficulty.Progress : 0;
+        var baseSpeed = player.MoveSpeed * MathHelper.Lerp(1, hardSpeedMultiplier, hardProgress);
+        var moveSpeed = baseSpeed * MathHelper.Lerp(1, maximumStrikeSpeedMultiplier, strikeProgress);
+        transform.Position += direction * moveSpeed * Tick.deltaTime;
         transform.Position.X = Math.Clamp(transform.Position.X, 0, playfieldWidth - transform.Size.X);
         transform.Position.Y = Math.Clamp(transform.Position.Y, 0, playfieldHeight - transform.Size.Y);
     }

@@ -3,36 +3,30 @@ using PurrplingCore.Graphics;
 using PurrplingCore.Hosting;
 using KittyCat.Localization;
 using KittyCat.Services;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using PurrplingCore.Toolkit;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Graphics;
 using System;
-using System.Collections.Generic;
-using System.Globalization;
 using System.Reflection;
 
 namespace KittyCat;
 /// <summary>
-/// The main class for the game, responsible for managing game components, settings, 
-/// and platform-specific configurations.
+/// Configures the example game's resolution, content, input, and drawing lifecycle.
 /// </summary>
 [GameServices<KittyCatGameServices>]
 public class KittyCatGame : PurrplingCore.Toolkit.Game
 {
+    private KeyboardState _previousKeyboardState;
+
     public static Version Version { get; }
     public static string VersionInfo { get; }
     public static string GameName { get; }
 
     /// <summary>
-    /// Initializes a new instance of the game. Configures platform-specific settings, 
-    /// initializes services like settings and leaderboard managers, and sets up the 
-    /// screen manager for screen transitions.
+    /// Creates the game with services supplied by the host.
     /// </summary>
     public KittyCatGame(IServiceProvider provider) : base(provider)
     {
@@ -41,7 +35,6 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
 
     static KittyCatGame()
     {
-        // Set the game name and version information.
         GameName = "KittyCat";
         Version = typeof(KittyCatGame).Assembly
             .GetName()
@@ -52,8 +45,7 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
     }
 
     /// <summary>
-    /// Initializes the game, including setting up localization and adding the 
-    /// initial screens to the ScreenManager.
+    /// Applies the playfield resolution and initializes localization.
     /// </summary>
     protected override void Initialize()
     {
@@ -61,7 +53,6 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
         var playfield = GetRequiredService<IOptions<StarCatcherOptions>>().Value.Playfield;
 
         resolution.SetResolution(playfield.Width, playfield.Height).ApplyChanges();
-        //resolution.ApplyChanges(); 
 
         InitializeLocalization();
         base.Initialize();
@@ -69,18 +60,7 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
 
     private static void InitializeLocalization()
     {
-        // Load supported languages and set the default language.
-        List<CultureInfo> cultures = LocalizationManager.GetSupportedCultures();
-        var languages = new List<CultureInfo>();
-        for (int i = 0; i < cultures.Count; i++)
-        {
-            languages.Add(cultures[i]);
-        }
-
-        // TODO You should load this from a settings file or similar,
-        // based on what the user or operating system selected.
-        var selectedLanguage = LocalizationManager.DEFAULT_CULTURE_CODE;
-        LocalizationManager.SetCulture(selectedLanguage);
+        LocalizationManager.SetCulture(LocalizationManager.DEFAULT_CULTURE_CODE);
     }
 
     /// <summary>
@@ -89,6 +69,7 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
     protected override void LoadContent()
     {
         base.LoadContent();
+        GetRequiredService<StarCatcherRenderer>().LoadContent();
     }
 
     /// <summary>
@@ -99,26 +80,19 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
     /// </param>
     protected override void Update(GameTime gameTime)
     {
-        // Exit the game if the Back button (GamePad) or Escape key (Keyboard) is pressed.
+        var keyboard = Keyboard.GetState();
         if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed
-            || Keyboard.GetState().IsKeyDown(Keys.Escape))
+            || keyboard.IsKeyDown(Keys.Escape))
             Exit();
 
-        if (Keyboard.GetState().IsKeyDown(Keys.F11))
+        if (keyboard.IsKeyDown(Keys.F11) && !_previousKeyboardState.IsKeyDown(Keys.F11))
         {
-            // Toggle fullscreen mode when F11 is pressed.
             var graphicsManager = GetRequiredService<GraphicsManager>();
             graphicsManager.ToggleFullScreen();
         }
 
-        // TODO: Add your update logic here
-
+        _previousKeyboardState = keyboard;
         base.Update(gameTime);
-    }
-
-    protected override void UnloadContent()
-    {
-        base.UnloadContent();
     }
 
     /// <summary>
@@ -129,7 +103,6 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
     /// </param>
     protected override void Draw(GameTime gameTime)
     {
-        // Clears the screen with the MonoGame orange color before drawing.
         GraphicsDevice.Clear(Color.Black);
 
         base.Draw(gameTime);

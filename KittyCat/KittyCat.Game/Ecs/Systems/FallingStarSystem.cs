@@ -8,10 +8,14 @@ using Microsoft.Extensions.Options;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.Attributes;
+using PurrplingCore.Ecs.Components;
 using PurrplingCore.Ecs.Systems;
 
 namespace KittyCat.Ecs.Systems;
 
+/// <summary>
+/// Moves active stars and applies miss penalties when they leave the playfield.
+/// </summary>
 [System<UpdateSystemGroup>]
 public sealed class FallingStarSystem : QuerySystem<ArcadeTransform, FallingStar, ArcadeVisual>
 {
@@ -37,7 +41,9 @@ public sealed class FallingStarSystem : QuerySystem<ArcadeTransform, FallingStar
 
     protected override void OnUpdate()
     {
-        var missedStars = 0;
+        // Any missed star breaks the strike; only ordinary stars cost a life.
+        var missedLifeStar = false;
+        var anyMissedStars = false;
         foreach (var (transforms, stars, visuals, entities) in Query.Chunks)
         {
             for (var index = 0; index < entities.Length; index++)
@@ -52,11 +58,15 @@ public sealed class FallingStarSystem : QuerySystem<ArcadeTransform, FallingStar
 
                 star.IsActive = false;
                 visual.IsVisible = false;
-                if (star.PaddleEffect == PaddleSizeEffect.None) missedStars++;
+                // Defer structural changes until after query iteration completes.
+                CommandBuffer.AddTag<PendingDestroy>(entities.EntityAt(index).Id);
+                CommandBuffer.AddTag<Disabled>(entities.EntityAt(index).Id);
+                anyMissedStars = true;
+                if (star.PaddleEffect == PaddleSizeEffect.None) missedLifeStar = true;
             }
         }
 
-        if (missedStars == 0) return;
+        if (!anyMissedStars) return;
 
         var playerQuery = _playerQueries[Query.Store];
         foreach (var (players, entities) in playerQuery.Chunks)
@@ -64,9 +74,13 @@ public sealed class FallingStarSystem : QuerySystem<ArcadeTransform, FallingStar
             for (var index = 0; index < entities.Length; index++)
             {
                 ref var player = ref players[index];
-                if (player.Lives > 0)
+                player.Strike = 0;
+                // Protect the player from follow-up misses without suppressing strike resets.
+                if (player.Lives > 0 && missedLifeStar && player.InvincibilityTime <= 0)
                 {
-                    player.Lives = Math.Max(0, player.Lives - missedStars);
+                    player.Lives--;
+                    player.InvincibilityTime = PaddleOptions.InvincibilityDurationSeconds;
+                    player.InvincibilityBlinkTime = 0;
                 }
             }
         }

@@ -52,34 +52,10 @@ with.
     See the documentation for more information.
     -->
     <CharacterRegions>
-      <!-- Latin Character and Extended Set -->
+      <!-- Latin-1 covers the current HUD labels and Western European text. -->
       <CharacterRegion>
         <Start>&#32;</Start>
         <End>&#254;</End>
-      </CharacterRegion>
-
-      <!-- Hiragana (U+3040 - U+309F) -->
-      <CharacterRegion>
-        <Start>&#12352;</Start>
-        <End>&#12447;</End>
-      </CharacterRegion>
-
-      <!-- Katakana (U+30A0 - U+30FF) -->
-      <CharacterRegion>
-        <Start>&#12448;</Start>
-        <End>&#12543;</End>
-      </CharacterRegion>
-
-      <!-- Common Kanji (CJK Unified Ideographs - typically U+4E00 to U+9FFF) -->
-      <CharacterRegion>
-        <Start>&#19968;</Start>
-        <End>&#40879;</End>
-      </CharacterRegion>
-
-      <!-- Cyrillic Character Set -->
-      <CharacterRegion>
-        <Start>&#1040;</Start>
-        <End>&#1103;</End>
       </CharacterRegion>
     </CharacterRegions>
   </Asset>
