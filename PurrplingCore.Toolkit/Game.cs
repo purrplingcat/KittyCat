@@ -147,6 +147,7 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
 
         foreach (var gameComponent in _provider.GetServices<IGameComponent>())
         {
+            _logger.LogTrace("Adding game component: {GameComponent}", gameComponent);
             Components.Add(gameComponent);
         }
 
