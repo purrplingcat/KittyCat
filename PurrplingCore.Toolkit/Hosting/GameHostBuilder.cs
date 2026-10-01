@@ -36,7 +36,12 @@ public class GameHostBuilder : ApplicationHostBuilder, IGameHostBuilder
         _gameFeatures = new GameFeatureCollection();
         if (!GameCrashLogger.IsRegistered)
         {
-            GameCrashLogger.Register(Environment);
+            var options = new GameHostCrashLoggerOptions()
+            {
+                BaseDirectory = Environment.BaseDirectory,
+                WriteCrashLog = Environment.IsProduction()
+            };
+            GameCrashLogger.Register(options);
         }
     }
 

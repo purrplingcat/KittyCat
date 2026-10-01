@@ -10,7 +10,8 @@ public sealed class GameHostCrashLoggerOptions
     /// Relative names are written to the application's base directory.
     /// </summary>
     public string LogFileName { get; init; } = GameCrashLogger.DefaultLogFileName;
-    public bool WriteCrashLog { get; init; } = HostEnvironment.IsDebugBuild;
+    public string BaseDirectory { get; init; } = AppContext.BaseDirectory;
+    public bool WriteCrashLog { get; init; } = HostEnvironment.IsReleaseBuild;
 }
 
 /// <summary>
@@ -23,7 +24,7 @@ public static class GameCrashLogger
     private static readonly object RegistrationLock = new();
     private static string? _logFilePath;
     private static string? _logFileName;
-    private static bool _writeCrashLogFile = HostEnvironment.IsDebugBuild;
+    private static bool _writeCrashLogFile = HostEnvironment.IsReleaseBuild;
 
     /// <summary>
     /// Gets whether the process-wide crash logger has already been registered.
@@ -38,24 +39,11 @@ public static class GameCrashLogger
     /// </summary>
     public static void Register(GameHostCrashLoggerOptions? options = null)
     {
-        _writeCrashLogFile = options?.WriteCrashLog ?? HostEnvironment.IsDebugBuild;
-        Register(AppContext.BaseDirectory, options?.LogFileName ?? DefaultLogFileName);
-    }
+        options ??= new GameHostCrashLoggerOptions();
+        _writeCrashLogFile = options.WriteCrashLog;
 
-    /// <summary>
-    /// Registers the logger using the supplied host environment's base directory.
-    /// </summary>
-    public static void Register(IHostEnvironment environment, GameHostCrashLoggerOptions? options = null)
-    {
-        ArgumentNullException.ThrowIfNull(environment);
-        _writeCrashLogFile = options?.WriteCrashLog ?? environment.IsDevelopment();
-        Register(environment.BaseDirectory, options?.LogFileName ?? DefaultLogFileName);
-    }
-
-    private static void Register(string baseDirectory, string logFileName)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(logFileName);
-        var logFilePath = GetLogFilePath(baseDirectory, logFileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.LogFileName);
+        var logFilePath = GetLogFilePath(options.BaseDirectory, options.LogFileName);
 
         lock (RegistrationLock)
         {
@@ -64,10 +52,27 @@ public static class GameCrashLogger
                 throw new Exception("The crash logger has already been registered.");
             }
 
-            _logFileName = logFileName;
+            _logFileName = options.LogFileName;
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
             TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
             Volatile.Write(ref _logFilePath, logFilePath);
+        }
+    }
+
+    public static void Unregister()
+    {
+        lock (RegistrationLock)
+        {
+            if (_logFilePath == null)
+            {
+                return;
+            }
+
+            AppDomain.CurrentDomain.UnhandledException -= OnUnhandledException;
+            TaskScheduler.UnobservedTaskException -= OnUnobservedTaskException;
+            Volatile.Write(ref _logFilePath, null);
+            _logFileName = null;
+            _writeCrashLogFile = HostEnvironment.IsReleaseBuild;
         }
     }
 
