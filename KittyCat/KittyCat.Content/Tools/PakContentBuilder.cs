@@ -206,7 +206,7 @@ public class PakContentBuilder
 
             try
             {
-                paker.AddDirectory(dirPath, $"Content/{dirName}");
+                paker.AddDirectory(dirPath, dirName);
                 // The unique sidecar path lets an aggregate provider expose every package catalog.
                 if (AssetCatalogBuilder.Generate(
                     parameters.RootedSourceDirectory,
