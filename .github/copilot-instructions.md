@@ -25,6 +25,8 @@
 ## Engineering Style
 
 - Keep code simple, readable, universal, modular, and reusable.
+- Do not use tuple types in generic collections or APIs. Prefer a named record/class/struct when values represent a domain concept; use tuples only for short-lived local groupings where the names and lifetime are obvious.
+- Avoid unnecessary object construction and repeated `new` expressions in setup APIs; prefer collection/object initializers and existing DI ownership. Keep allocations out of hot paths.
 - Avoid enterprise patterns, ceremony, and abstractions unless they are clearly necessary for the game, engine, or framework.
 - Prefer the smallest solution that has clear ownership and can be tested.
 - Reuse existing project conventions and APIs before creating new infrastructure.
@@ -36,6 +38,7 @@
 ## Documentation
 
 - Add XML summaries for public framework and engine APIs when they improve discoverability.
+- Format XML `<summary>` documentation as conventional multi-line C# XML docs: put the opening tag, summary text, and closing tag on separate lines. Never compress a summary onto one line.
 - Add concise English comments for non-obvious lifecycle, platform, performance, or file-format decisions.
 - Keep comments accurate and update them when behavior changes.
 - Prefer documentation that helps a future developer navigate the code over comments that restate syntax.

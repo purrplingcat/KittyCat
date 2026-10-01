@@ -7,6 +7,11 @@ namespace PurrplingCore.Toolkit.Hosting.Services;
 
 public class AssemblyServices(params Assembly[] assemblies) : IServiceModule
 {
+    private readonly record struct ServiceRegistration(
+        Type ServiceType,
+        Type ImplementationType,
+        ServiceAttribute Attribute);
+
     private object _lock = new();
     private readonly Assembly[] _assemblies = assemblies;
     public virtual object? Key => null;
@@ -16,7 +21,7 @@ public class AssemblyServices(params Assembly[] assemblies) : IServiceModule
     {
         private readonly Type[] _types = [.. types.Where(t => Attribute.IsDefined(t, typeof(TSystemAtribute)))];
 
-        public IEnumerable<(Type ServiceType, Type ImplementationType, TSystemAtribute Attribute)> GetServices()
+        public IEnumerable<ServiceRegistration> GetServices()
         {
             foreach (var type in _types)
             {
@@ -24,35 +29,38 @@ public class AssemblyServices(params Assembly[] assemblies) : IServiceModule
                 if (attr != null)
                 {
                     var serviceType = attr.RegisterAs ?? type;
-                    yield return (serviceType, type, attr);
+                    yield return new ServiceRegistration(serviceType, type, attr);
                 }
             }
         }
 
         public void RegisterAsSingletnon(IServiceCollection services)
         {
-            foreach (var (serviceType, implementationType, attr) in GetServices())
+            foreach (var registration in GetServices())
             {
-                services.AddSingleton(serviceType, implementationType);
-                services.AddAliases(serviceType, implementationType.GetServiceTypeAliases(attr.WithInterfaces));
+                services.AddSingleton(registration.ServiceType, registration.ImplementationType);
+                services.AddAliases(registration.ServiceType, registration.ImplementationType
+                    .GetServiceTypeAliases(registration.Attribute.WithInterfaces));
             }
         }
 
         public void RegisterAsScoped(IServiceCollection services)
         {
-            foreach (var (serviceType, implementationType, attr) in GetServices())
+            foreach (var registration in GetServices())
             {
-                services.AddScoped(serviceType, implementationType);
-                services.AddAliases(serviceType, implementationType.GetServiceTypeAliases(attr.WithInterfaces));
+                services.AddScoped(registration.ServiceType, registration.ImplementationType);
+                services.AddAliases(registration.ServiceType, registration.ImplementationType
+                    .GetServiceTypeAliases(registration.Attribute.WithInterfaces));
             }
         }
 
         public void RegisterAsTransient(IServiceCollection services)
         {
-            foreach (var (serviceType, implementationType, attr) in GetServices())
+            foreach (var registration in GetServices())
             {
-                services.AddTransient(serviceType, implementationType);
-                services.AddAliases(serviceType, implementationType.GetServiceTypeAliases(attr.WithInterfaces));
+                services.AddTransient(registration.ServiceType, registration.ImplementationType);
+                services.AddAliases(registration.ServiceType, registration.ImplementationType
+                    .GetServiceTypeAliases(registration.Attribute.WithInterfaces));
             }
         }
     }
