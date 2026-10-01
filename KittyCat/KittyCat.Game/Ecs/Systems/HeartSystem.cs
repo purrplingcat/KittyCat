@@ -14,12 +14,16 @@ namespace KittyCat.Ecs.Systems;
 
 /// <summary>Spawns the life bonus, bounces it around the playfield, and handles collection or expiry.</summary>
 [System<UpdateSystemGroup>]
-public sealed class HeartSystem : QuerySystem<ArcadeTransform, BonusHeart, ArcadeVisual>
+public sealed partial class HeartSystem : QuerySystem<ArcadeTransform, BonusHeart, ArcadeVisual>
 {
     private readonly HeartOptions _options;
     private readonly PlayfieldOptions _playfield;
     private readonly int _scoreForMaximumDifficulty;
     private readonly Dictionary<EntityStore, StoreState> _storeStates = [];
+    private int _score;
+    private bool _gameIsActive;
+    private ArcadeTransform _collectingHeart;
+    private bool _heartCollected;
 
     public HeartSystem(IOptions<StarCatcherOptions> options)
     {
@@ -30,7 +34,7 @@ public sealed class HeartSystem : QuerySystem<ArcadeTransform, BonusHeart, Arcad
 
     protected override void OnAddStore(EntityStore store)
     {
-        _storeStates.Add(store, new StoreState(store, _options.SpawnIntervalSeconds));
+        _storeStates.Add(store, new StoreState(_options.SpawnIntervalSeconds));
         base.OnAddStore(store);
     }
 
@@ -43,18 +47,11 @@ public sealed class HeartSystem : QuerySystem<ArcadeTransform, BonusHeart, Arcad
     protected override void OnUpdate()
     {
         var state = _storeStates[Query.Store];
-        var gameIsActive = false;
-        var score = 0;
-        foreach (var (transforms, players, entities) in state.Players.Chunks)
-        {
-            for (var index = 0; index < entities.Length; index++)
-            {
-                score = Math.Max(score, players[index].Score);
-                gameIsActive |= players[index].Lives > 0;
-            }
-        }
+        _gameIsActive = false;
+        _score = 0;
+        ReadPlayersQuery(Query.Store);
 
-        if (!gameIsActive)
+        if (!_gameIsActive)
         {
             DeactivateHearts();
             state.TimeUntilSpawn = _options.SpawnIntervalSeconds;
@@ -63,9 +60,9 @@ public sealed class HeartSystem : QuerySystem<ArcadeTransform, BonusHeart, Arcad
 
         var deltaTime = Tick.deltaTime;
         // Heart speed scales with score independently of the star difficulty phases.
-        var difficulty = Math.Clamp((float)score / _scoreForMaximumDifficulty, 0, 1);
+        var difficulty = Math.Clamp((float)_score / _scoreForMaximumDifficulty, 0, 1);
         var heartSpeed = _options.Speed * (1 + difficulty);
-        var hasHeart = UpdateHearts(state.Players, deltaTime, heartSpeed);
+        var hasHeart = UpdateHearts(deltaTime, heartSpeed);
 
         state.TimeUntilSpawn -= deltaTime;
         if (hasHeart || state.TimeUntilSpawn > 0) return;
@@ -92,10 +89,14 @@ public sealed class HeartSystem : QuerySystem<ArcadeTransform, BonusHeart, Arcad
         state.TimeUntilSpawn = _options.SpawnIntervalSeconds;
     }
 
-    private bool UpdateHearts(
-        ArchetypeQuery<ArcadeTransform, PlayerState> players,
-        float deltaTime,
-        float heartSpeed)
+    [Query]
+    private void ReadPlayers(ref PlayerState player)
+    {
+        _score = Math.Max(_score, player.Score);
+        _gameIsActive |= player.Lives > 0;
+    }
+
+    private bool UpdateHearts(float deltaTime, float heartSpeed)
     {
         var hasHeart = false;
         foreach (var (transforms, hearts, visuals, entities) in Query.Chunks)
@@ -135,7 +136,7 @@ public sealed class HeartSystem : QuerySystem<ArcadeTransform, BonusHeart, Arcad
                 }
 
                 MoveAndBounce(ref transform, ref heart, deltaTime);
-                if (TryCollect(transform, players))
+                if (TryCollect(transform))
                 {
                     heart.State = BonusHeartState.Inactive;
                     visual.IsVisible = false;
@@ -237,30 +238,26 @@ public sealed class HeartSystem : QuerySystem<ArcadeTransform, BonusHeart, Arcad
         }
     }
 
-    private static bool TryCollect(
-        ArcadeTransform heartTransform,
-        ArchetypeQuery<ArcadeTransform, PlayerState> players)
+    private bool TryCollect(ArcadeTransform heartTransform)
     {
-        foreach (var (transforms, playerStates, entities) in players.Chunks)
-        {
-            for (var index = 0; index < entities.Length; index++)
-            {
-                ref var player = ref playerStates[index];
-                if (player.Lives <= 0 || !transforms[index].Intersects(in heartTransform)) continue;
-
-                // A heart grants only a capped life; it does not add score or strike.
-                player.Lives = Math.Min(PaddleOptions.MaximumLives, player.Lives + 1);
-                return true;
-            }
-        }
-
-        return false;
+        _collectingHeart = heartTransform;
+        _heartCollected = false;
+        CollectHeartQuery(Query.Store);
+        return _heartCollected;
     }
 
-    private sealed class StoreState(EntityStore store, float spawnInterval)
+    [Query]
+    private void CollectHeart(ref ArcadeTransform transform, ref PlayerState player)
     {
-        public ArchetypeQuery<ArcadeTransform, PlayerState> Players { get; } =
-            store.Query<ArcadeTransform, PlayerState>();
+        if (_heartCollected || player.Lives <= 0 || !transform.Intersects(in _collectingHeart)) return;
+
+        // A heart grants only a capped life; it does not add score or strike.
+        player.Lives = Math.Min(PaddleOptions.MaximumLives, player.Lives + 1);
+        _heartCollected = true;
+    }
+
+    private sealed class StoreState(float spawnInterval)
+    {
         public float TimeUntilSpawn { get; set; } = spawnInterval;
     }
 }

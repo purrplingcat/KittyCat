@@ -52,6 +52,7 @@ public class KittyCatGameServices : IServiceModule
         world.AddSystem<StarCatcherDebugInfoSystem>();
         world.AddSystem<StarCatcherInitializeSystem>();
         world.AddSystem<StarCatcherDrawSystem>();
+        world.AddSystem<StarCatcherHudSystem>();
     }
 
     private static bool IsValid(StarCatcherOptions options)

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Friflo.Engine.ECS;
 using Friflo.Engine.ECS.Systems;
 using KittyCat.Configuration;
@@ -8,53 +7,35 @@ using Microsoft.Extensions.Options;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.Attributes;
+using PurrplingCore.Ecs.Extensions;
 using PurrplingCore.Ecs.Systems;
 
 namespace KittyCat.Ecs.Systems;
 
 /// <summary>Maintains score-driven star waves and their speed for each world store.</summary>
 [System<UpdateSystemGroup>]
-public sealed class FallingStarSpawnerSystem : QuerySystem<ArcadeTransform, FallingStar, ArcadeVisual>
+public sealed partial class FallingStarSpawnerSystem : QuerySystem<ArcadeTransform, FallingStar, ArcadeVisual>
 {
     private readonly StarCatcherOptions _options;
-    private readonly Dictionary<EntityStore, StoreState> _storeStates = [];
+    private int _score;
+    private bool _gameIsActive;
 
     public FallingStarSpawnerSystem(IOptions<StarCatcherOptions> options)
     {
         _options = options.Value;
     }
 
-    protected override void OnAddStore(EntityStore store)
-    {
-        _storeStates.Add(store, new StoreState(store));
-        base.OnAddStore(store);
-    }
-
-    protected override void OnRemoveStore(EntityStore store)
-    {
-        _storeStates.Remove(store);
-        base.OnRemoveStore(store);
-    }
-
     protected override void OnUpdate()
     {
-        var state = _storeStates[Query.Store];
-        var score = 0;
-        var gameIsActive = false;
-        foreach (var (players, entities) in state.Players.Chunks)
-        {
-            for (var index = 0; index < entities.Length; index++)
-            {
-                ref var player = ref players[index];
-                score = Math.Max(score, player.Score);
-                gameIsActive |= player.Lives > 0;
-            }
-        }
+        ref var state = ref Query.Store.GetSingleton<StarSpawnState>(StarSpawnState.EntityName);
+        _score = 0;
+        _gameIsActive = false;
+        ReadPlayersQuery(Query.Store);
 
-        if (!gameIsActive) return;
+        if (!_gameIsActive) return;
 
-        // Difficulty tuning uses the highest score in this store; the player query is cached per store.
-        var difficulty = _options.Difficulty.GetProgress(score);
+        // Difficulty tuning uses the highest score in this store.
+        var difficulty = _options.Difficulty.GetProgress(_score);
         var tuning = _options.Difficulty;
         // Easy cadence tightens with score. Medium keeps the easy interval; hard uses its faster interval.
         var spawnInterval = difficulty.Stage == DifficultyStage.Hard
@@ -63,11 +44,13 @@ public sealed class FallingStarSpawnerSystem : QuerySystem<ArcadeTransform, Fall
                 ? tuning.EasySpawnIntervalSeconds
                 : MathHelper.Lerp(_options.Stars.InitialSpawnIntervalSeconds, tuning.EasySpawnIntervalSeconds, difficulty.Progress);
         var activeCount = CountActiveStars();
-        var desiredActive = GetDesiredActiveStars(score, difficulty, state, activeCount, tuning);
+        var desiredActive = GetDesiredActiveStars(_score, difficulty, ref state, activeCount, tuning);
 
         state.TimeUntilSpawn -= Tick.deltaTime;
         if (activeCount >= desiredActive || state.TimeUntilSpawn > 0) return;
 
+        // Finish writing ECS state before creating an entity can relocate component storage.
+        state.TimeUntilSpawn = spawnInterval;
         var size = _options.Stars.Size;
         var entity = Query.Store.CreateEntity(
             new ArcadeTransform { Position = new Vector2(0, -size), Size = new Vector2(size, size) },
@@ -78,13 +61,19 @@ public sealed class FallingStarSpawnerSystem : QuerySystem<ArcadeTransform, Fall
         ref var newStar = ref entity.GetComponent<FallingStar>();
         ref var visual = ref entity.GetComponent<ArcadeVisual>();
         SpawnStar(ref transform, ref newStar, ref visual, difficulty);
-        state.TimeUntilSpawn = spawnInterval;
+    }
+
+    [Query]
+    private void ReadPlayers(ref PlayerState player)
+    {
+        _score = Math.Max(_score, player.Score);
+        _gameIsActive |= player.Lives > 0;
     }
 
     private int GetDesiredActiveStars(
         int score,
         DifficultyProgress difficulty,
-        StoreState state,
+        ref StarSpawnState state,
         int activeCount,
         DifficultyOptions tuning)
     {
@@ -232,11 +221,4 @@ public sealed class FallingStarSpawnerSystem : QuerySystem<ArcadeTransform, Fall
             : speed;
     }
 
-    private sealed class StoreState(EntityStore store)
-    {
-        public ArchetypeQuery<PlayerState> Players { get; } = store.Query<PlayerState>();
-        public float TimeUntilSpawn { get; set; }
-        public int WaveTarget { get; set; }
-        public bool WaveWasActive { get; set; }
-    }
 }

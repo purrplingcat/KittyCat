@@ -52,6 +52,16 @@ public struct FallingStar : IComponent
     public PaddleSizeEffect PaddleEffect;
 }
 
+/// <summary>Per-world timing and wave selection for the star spawner.</summary>
+public struct StarSpawnState : IComponent
+{
+    public const string EntityName = "StarSpawner";
+
+    public float TimeUntilSpawn;
+    public int WaveTarget;
+    public bool WaveWasActive;
+}
+
 public enum BonusHeartState : byte
 {
     Inactive,

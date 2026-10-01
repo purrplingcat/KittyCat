@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Friflo.Engine.ECS;
 using Friflo.Engine.ECS.Systems;
 using KittyCat.Configuration;
@@ -17,26 +16,13 @@ namespace KittyCat.Ecs.Systems;
 /// Moves active stars and applies miss penalties when they leave the playfield.
 /// </summary>
 [System<UpdateSystemGroup>]
-public sealed class FallingStarSystem : QuerySystem<ArcadeTransform, FallingStar, ArcadeVisual>
+public sealed partial class FallingStarSystem : QuerySystem<ArcadeTransform, FallingStar, ArcadeVisual>
 {
-    private readonly Dictionary<EntityStore, ArchetypeQuery<PlayerState>> _playerQueries = [];
     private readonly PlayfieldOptions _playfield;
 
     public FallingStarSystem(IOptions<StarCatcherOptions> options)
     {
         _playfield = options.Value.Playfield;
-    }
-
-    protected override void OnAddStore(EntityStore store)
-    {
-        _playerQueries.Add(store, store.Query<PlayerState>());
-        base.OnAddStore(store);
-    }
-
-    protected override void OnRemoveStore(EntityStore store)
-    {
-        _playerQueries.Remove(store);
-        base.OnRemoveStore(store);
     }
 
     protected override void OnUpdate()
@@ -67,22 +53,19 @@ public sealed class FallingStarSystem : QuerySystem<ArcadeTransform, FallingStar
         }
 
         if (!anyMissedStars) return;
+        PenalizeMissedStarsQuery(Query.Store, missedLifeStar);
+    }
 
-        var playerQuery = _playerQueries[Query.Store];
-        foreach (var (players, entities) in playerQuery.Chunks)
+    [Query]
+    private static void PenalizeMissedStars(ref PlayerState player, bool missedLifeStar)
+    {
+        player.Strike = 0;
+        // Protect the player from follow-up misses without suppressing strike resets.
+        if (player.Lives > 0 && missedLifeStar && player.InvincibilityTime <= 0)
         {
-            for (var index = 0; index < entities.Length; index++)
-            {
-                ref var player = ref players[index];
-                player.Strike = 0;
-                // Protect the player from follow-up misses without suppressing strike resets.
-                if (player.Lives > 0 && missedLifeStar && player.InvincibilityTime <= 0)
-                {
-                    player.Lives--;
-                    player.InvincibilityTime = PaddleOptions.InvincibilityDurationSeconds;
-                    player.InvincibilityBlinkTime = 0;
-                }
-            }
+            player.Lives--;
+            player.InvincibilityTime = PaddleOptions.InvincibilityDurationSeconds;
+            player.InvincibilityBlinkTime = 0;
         }
     }
 }

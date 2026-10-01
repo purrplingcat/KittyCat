@@ -2,6 +2,7 @@ using Friflo.Engine.ECS;
 using KittyCat.Configuration;
 using KittyCat.Ecs.Components;
 using Microsoft.Extensions.Options;
+using PurrplingCore.Ecs.Extensions;
 using PurrplingCore.Ecs.Attributes;
 using PurrplingCore.Ecs.Systems;
 
@@ -20,6 +21,7 @@ public sealed class StarCatcherInitializeSystem : StoreSystem
 
     protected override void OnUpdate(EntityStore store)
     {
+        store.SetSingleton(StarSpawnState.EntityName, new StarSpawnState());
         store.CreateEntity(
             PlayerSetup.CreateTransform(_options),
             PlayerSetup.CreateState(_options.Paddle),
