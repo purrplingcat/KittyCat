@@ -85,25 +85,15 @@ public sealed class Camera2D : ICamera2D, IViewportCamera2D
 
     public Rectangle GetVisibleBounds(Vector2 parallax)
     {
-        EnsureTransform();
-
-        var inverse = Matrix.Invert(GetViewMatrix(parallax));
-        var topLeft = Vector2.Transform(Vector2.Zero, inverse);
-        var bottomRight = Vector2.Transform(_viewportSize, inverse);
-        var topRight = Vector2.Transform(new Vector2(_viewportSize.X, 0f), inverse);
-        var bottomLeft = Vector2.Transform(new Vector2(0f, _viewportSize.Y), inverse);
-
-        // Rotation means the four corners are not axis aligned, so take their bounding box.
-        var minX = MathF.Min(MathF.Min(topLeft.X, bottomRight.X), MathF.Min(topRight.X, bottomLeft.X));
-        var minY = MathF.Min(MathF.Min(topLeft.Y, bottomRight.Y), MathF.Min(topRight.Y, bottomLeft.Y));
-        var maxX = MathF.Max(MathF.Max(topLeft.X, bottomRight.X), MathF.Max(topRight.X, bottomLeft.X));
-        var maxY = MathF.Max(MathF.Max(topLeft.Y, bottomRight.Y), MathF.Max(topRight.Y, bottomLeft.Y));
-
+        GetVisibleOffsets(out var minimum, out var maximum);
+        var position = _position * parallax;
+        minimum += position;
+        maximum += position;
         return new Rectangle(
-            (int)MathF.Floor(minX),
-            (int)MathF.Floor(minY),
-            (int)MathF.Ceiling(maxX - minX),
-            (int)MathF.Ceiling(maxY - minY));
+            (int)MathF.Floor(minimum.X),
+            (int)MathF.Floor(minimum.Y),
+            (int)MathF.Ceiling(maximum.X - minimum.X),
+            (int)MathF.Ceiling(maximum.Y - minimum.Y));
     }
 
     /// <summary>
@@ -112,36 +102,40 @@ public sealed class Camera2D : ICamera2D, IViewportCamera2D
     /// </summary>
     public void ClampPosition(Rectangle bounds)
     {
-        var visible = GetVisibleBounds(Vector2.One);
+        GetVisibleOffsets(out var minimum, out var maximum);
         var position = _position;
 
-        if (visible.Width >= bounds.Width)
+        if (maximum.X - minimum.X >= bounds.Width)
         {
             position.X = bounds.Left + bounds.Width * 0.5f;
         }
-        else if (visible.Left < bounds.Left)
+        else
         {
-            position.X += bounds.Left - visible.Left;
-        }
-        else if (visible.Right > bounds.Right)
-        {
-            position.X -= visible.Right - bounds.Right;
+            position.X = Math.Clamp(position.X, bounds.Left - minimum.X, bounds.Right - maximum.X);
         }
 
-        if (visible.Height >= bounds.Height)
+        if (maximum.Y - minimum.Y >= bounds.Height)
         {
             position.Y = bounds.Top + bounds.Height * 0.5f;
         }
-        else if (visible.Top < bounds.Top)
+        else
         {
-            position.Y += bounds.Top - visible.Top;
-        }
-        else if (visible.Bottom > bounds.Bottom)
-        {
-            position.Y -= visible.Bottom - bounds.Bottom;
+            position.Y = Math.Clamp(position.Y, bounds.Top - minimum.Y, bounds.Bottom - maximum.Y);
         }
 
         Position = position;
+    }
+
+    private void GetVisibleOffsets(out Vector2 minimum, out Vector2 maximum)
+    {
+        EnsureTransform();
+        var inverse = Matrix.Invert(_rotationScale);
+        var topLeft = Vector2.Transform(-_origin, inverse);
+        var bottomRight = Vector2.Transform(_viewportSize - _origin, inverse);
+        var topRight = Vector2.Transform(new Vector2(_viewportSize.X, 0f) - _origin, inverse);
+        var bottomLeft = Vector2.Transform(new Vector2(0f, _viewportSize.Y) - _origin, inverse);
+        minimum = Vector2.Min(Vector2.Min(topLeft, bottomRight), Vector2.Min(topRight, bottomLeft));
+        maximum = Vector2.Max(Vector2.Max(topLeft, bottomRight), Vector2.Max(topRight, bottomLeft));
     }
 
     private void EnsureTransform()
