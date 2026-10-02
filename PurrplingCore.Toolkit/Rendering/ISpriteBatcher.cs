@@ -49,6 +49,8 @@ public readonly struct BatchState
 /// </remarks>
 public interface ISpriteBatcher
 {
+    bool IsBatchOpen { get; }
+    
     /// <summary>
     /// Opens a batch using <paramref name="state"/>.
     /// </summary>

@@ -28,13 +28,12 @@ public sealed class RendererGameComponent : DrawableGameComponent
     public override void Initialize()
     {
         base.Initialize();
-        _renderer.Initialize(_graphics.GraphicsDevice);
+        _renderer.Initialize(_graphics.GraphicsDevice);    
     }
 
     public override void Draw(GameTime gameTime)
     {
         _renderer.Flush();
-
         base.Draw(gameTime);
     }
 

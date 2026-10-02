@@ -17,6 +17,8 @@ public sealed class SpriteBatchBatcher : ISpriteBatcher
     private readonly SpriteBatch _spriteBatch;
     private bool _open;
 
+    public bool IsBatchOpen => _open;
+
     public SpriteBatchBatcher(SpriteBatch spriteBatch)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);

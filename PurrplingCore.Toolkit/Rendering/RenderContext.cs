@@ -168,7 +168,8 @@ public readonly ref struct LayerWriter
         ArgumentNullException.ThrowIfNull(texture);
 
         var bounds = source ?? new Rectangle(0, 0, texture.Width, texture.Height);
-        if (IsCulled(position, origin, scale, bounds.Width, bounds.Height, rotation)) return;
+        if (IsCulled(position, origin, scale, bounds.Width, bounds.Height, rotation)) 
+            return;
 
         var command = new DrawCommand
         {

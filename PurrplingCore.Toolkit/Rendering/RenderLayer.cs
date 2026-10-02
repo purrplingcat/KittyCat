@@ -98,7 +98,7 @@ public sealed class RenderLayer : IDisposable
 
         IViewportCamera2D? viewportCamera = options.Camera as IViewportCamera2D;
 
-        if (options.SyncCameraViewport && viewportCamera is null)
+        if (options.SyncCameraViewport && options.Camera != null && viewportCamera is null)
         {
             throw new ArgumentException("Camera viewport synchronization requires an IViewportCamera2D.", nameof(options));
         }
