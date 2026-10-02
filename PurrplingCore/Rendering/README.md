@@ -120,7 +120,7 @@ public sealed class SpriteDrawSystem([FromKeyedServices(RendererKey.World)] IRen
 }
 ```
 
-`Position2D` and `Sprite2D` above are game-owned Friflo components; provide your own definitions (`IComponent`), with `Vector2 Value`, `Texture2D Texture`, and `bool IsVisible` respectively. Register the system in your world blueprint (KittyCat uses `world.AddSystem<StarCatcherDrawSystem>()`). Set the world renderer component's `drawOrder` after the world controller so the system submits before the renderer flushes. See `KittyCat/KittyCat.Game/Ecs/Systems/StarCatcherDrawSystem.cs` and `KittyCat/KittyCat.Game/Services/StarCatcherRenderer.cs` for a complete in-repo example that also submits HUD content.
+`Position2D` and `Sprite2D` above are game-owned Friflo components; provide your own definitions (`IComponent`), with `Vector2 Value`, `Texture2D Texture`, and `bool IsVisible` respectively. Register the system in your world blueprint (KittyCat uses `world.AddSystem<StarCatcherDrawSystem>()`). Set the world renderer component's `drawOrder` after the world controller so the system submits before the renderer flushes. See `KittyCat/KittyCat.Game/Ecs/Systems/StarCatcherDrawSystem.cs` and `KittyCat/KittyCat.Game/Ecs/Systems/StarCatcherHudSystem.cs` for the in-repo direct-rendering examples.
 
 ### Submitting from an ordinary object
 
@@ -264,7 +264,7 @@ With this setup, nothing invokes `Initialize` or `Flush` for you. `Initialize` c
 
 ### Manual virtual resolution and camera viewport
 
-Set `VirtualResolution` before `Initialize` when using `RenderTargetSpec.MatchResolution`. Enable `SyncCameraViewport` on camera layers to size the camera viewport and center its origin from the resolved layer target. The renderer repeats this synchronization when the layer writer is opened, so changing `VirtualResolution` takes effect on the next submitted frame without reinitializing the renderer:
+Set `VirtualResolution` before `Initialize` when using `RenderTargetSpec.MatchResolution`. Enable `SyncCameraViewport` on camera layers to size the camera viewport and center its origin from the resolved layer target. The renderer traverses configured layers to synchronize their cameras during initialization and when each new frame opens, before returning its first layer writer. Changing `VirtualResolution` therefore takes effect at the start of the next frame without reinitializing the renderer. A camera shared by several layers may receive the same viewport more than once; `Camera2D` skips unchanged viewport sizes:
 
 ```csharp
 var camera = new Camera2D();
@@ -382,9 +382,13 @@ services.AddRenderer(RendererKey.World)
 
 Update `camera.Position` from your update code. With `SyncCameraViewport = true`, the renderer derives viewport dimensions from the layer target and centers the camera origin; omit it when the camera viewport is intentionally independent. `layer.Parallax` defaults to `Vector2.One` (follow the camera); zero keeps the layer fixed. Camera-less layers render in screen coordinates. Culling is performed **at submission**, using an axis-aligned visible rectangle; rotated sprites deliberately skip that culling test.
 
-For an offscreen layer or renderer, set `layer.Target` or `options.Output` to `RenderTargetSpec.MatchScreen()`, `MatchResolution()`, or `OfSize(width, height)`. Layer targets are composed onto the renderer output. `IPostProcessor` chains can be added to a layer's `PostProcessors` or a renderer's `PostProcessors`; processors are initialized with the renderer and disposed with it. The renderer-level chain currently runs only when `options.Output` is set. A layer's chain requires `layer.Target`. Do not assume a global post-processing stage across multiple renderer groups exists.
+For an offscreen layer or renderer, set `layer.Target` or `options.Output` to `RenderTargetSpec.MatchScreen()`, `MatchResolution()`, or `OfSize(width, height)`. Layer targets are composed onto the renderer output. `Renderer2D.OutputOverride` can direct the final composed image to an externally owned target; leave it null to use the back buffer. `IPostProcessor` chains can be added to a layer's `PostProcessors` or a renderer's `PostProcessors`; processors are initialized with the renderer and disposed with it. The renderer-level chain currently runs only when `options.Output` is set. A layer's chain requires `layer.Target`. Do not assume a global post-processing stage across multiple renderer groups exists.
 
 `RenderLayerOptions.Pass` replaces the default `DrawCommandPass` with your `IRenderLayerPass`; its `Initialize(GraphicsDevice)` is called before drawing and `Prepare/Execute` run during flush. A custom pass must explicitly replay `context.Layer.Commands` if it wants queued commands to appear. `Primitives2D` provides `FillRect`, `DrawRect`, `DrawLine`, and `FillCircle` extensions on `LayerWriter`; they currently take a `GraphicsDevice` to obtain the shared white pixel. That first pixel creation is a GPU operation, so warm it up after device initialization if draw systems must only enqueue during the frame.
+
+### Frame-scoped pass submissions
+
+A custom pass can implement `ILayerSubmissionPass<T>` to receive typed values from producers without putting them in the ordinary draw-command list. Producers call `renderer.Context.Submissions<T>(layerId).Submit(in value)`. The returned writer is a `ref struct` intended to stay local to the submitting method. The pass also implements `ClearSubmissions()`; `BeginFrame()` calls it when a new frame opens, before any new submissions are added. Requesting submissions for a layer whose pass does not accept `T` throws `InvalidOperationException`.
 
 ### Custom pass and post-processor
 
@@ -582,11 +586,13 @@ public sealed class WorldRendering : IRendererConfiguration
 Use `GetSummary()` for a throttled development overlay. Call `CreateDebugReport()` on demand from a debug command rather than logging it every frame:
 
 ```csharp
-if (renderer is Renderer2D renderer2D && renderer2D.Diagnostics is { } watch)
+var renderer2D = renderer as Renderer2D;
+var diagnostics = renderer2D?.Diagnostics;
+if (diagnostics is not null)
 {
-    var summary = watch.GetSummary();
+    var summary = diagnostics.GetSummary();
     logger.LogDebug("Renderer p95: {P95:F2} ms", summary.P95Milliseconds);
-    logger.LogDebug("{Report}", watch.CreateDebugReport());
+    logger.LogDebug("{Report}", diagnostics.CreateDebugReport());
 }
 ```
 
@@ -609,7 +615,7 @@ logger.LogInformation("Renderer avg {Average:F2} ms, p95 {P95:F2} ms",
 ## Lifecycle and current limits
 
 - Do not call `Flush` from a constructor, host service configuration, or before device initialization. An explicit `Initialize` must complete first. `RendererGameComponent.Initialize` handles this for its group; manually driven groups/renderers must do it themselves.
-- The first submission after a flush opens a fresh frame and clears the previous command lists. `BeginFrame()` is available for explicit clearing but is not required each frame. Calling it **after** submitting commands discards those commands. Submitting again after an early flush starts a new queue.
+- The first submission after a flush opens a fresh frame and clears the previous command lists and frame-scoped pass submissions. `BeginFrame()` is available for explicit clearing but is not required each frame. Calling it **after** submitting commands discards those commands. Submitting again after an early flush starts a new queue.
 - A renderer is only flushed by the controller or `RendererGameComponent` that owns it. Disabled renderers discard submissions; disabled layers return an inactive `LayerWriter` that also discards submissions.
-- The renderer currently has no built-in multithreaded submission synchronization. Submit and flush on the game/graphics thread. Pool-backed command lists and text buffers reuse capacity but may grow on their first large frame; layer and output targets are created when first used and recreated when their size changes. Post-process scratch targets are allocated once and are not currently resized with their source, so avoid combining a resizing target with a post-process chain until that lifecycle is handled.
+- The renderer currently has no built-in multithreaded submission synchronization. Submit and flush on the game/graphics thread. Pool-backed command lists and text buffers reuse capacity but may grow on their first large frame; layer and output targets are created when first used and recreated when their size changes. Post-process scratch targets are recreated when their source dimensions or format changes.
 - `SpriteBatchBatcher` is the current default; one `Begin/End` encloses each non-empty sprite layer. Text is submitted through a reused `StringBuilder` because MonoGame 3.8.5 has no `ReadOnlySpan<char>` `DrawString` overload. Measure allocation and draw-call targets on the actual workload rather than assuming they are always zero.
