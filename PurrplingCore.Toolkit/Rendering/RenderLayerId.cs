@@ -24,13 +24,19 @@ public readonly struct RenderLayerId : IEquatable<RenderLayerId>
         _name = name;
     }
 
-    /// <summary>Dense zero-based index used by renderers to address per-layer storage.</summary>
+    /// <summary>
+    /// Dense zero-based index used by renderers to address per-layer storage.
+    /// </summary>
     public ushort Value { get; }
 
-    /// <summary>Human readable name used for diagnostics and registration.</summary>
+    /// <summary>
+    /// Human readable name used for diagnostics and registration.
+    /// </summary>
     public string Name => _name ?? string.Empty;
 
-    /// <summary>Indicates whether this identifier was produced by <see cref="Of"/>.</summary>
+    /// <summary>
+    /// Indicates whether this identifier was produced by <see cref="Of"/>.
+    /// </summary>
     public bool IsValid => _name is not null;
 
     /// <summary>

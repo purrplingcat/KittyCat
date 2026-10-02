@@ -12,9 +12,29 @@ namespace PurrplingCore.Toolkit.Rendering;
 /// </remarks>
 public interface ICamera2D
 {
-    /// <summary>Returns the transform passed to the batcher for a layer with this parallax.</summary>
+    /// <summary>
+    /// Returns the transform passed to the batcher for a layer with this parallax.
+    /// </summary>
     Matrix GetViewMatrix(Vector2 parallax);
 
-    /// <summary>Returns the world-space region visible to a layer with this parallax.</summary>
+    /// <summary>
+    /// Returns the world-space region visible to a layer with this parallax.
+    /// </summary>
     Rectangle GetVisibleBounds(Vector2 parallax);
+}
+
+/// <summary>
+/// A camera whose viewport can be synchronized to its layer's render target.
+/// </summary>
+public interface IViewportCamera2D
+{
+    /// <summary>
+    /// Sets the screen-space viewport dimensions.
+    /// </summary>
+    void SetViewport(int width, int height);
+
+    /// <summary>
+    /// Centers the camera origin within the current viewport.
+    /// </summary>
+    void CenterOrigin();
 }

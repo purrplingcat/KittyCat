@@ -32,10 +32,14 @@ public sealed class FrameTextBuffer
         return offset;
     }
 
-    /// <summary>Returns the characters previously written by <see cref="Append"/>.</summary>
+    /// <summary>
+    /// Returns the characters previously written by <see cref="Append"/>.
+    /// </summary>
     public ReadOnlySpan<char> Slice(int offset, int length) => _buffer.AsSpan(offset, length);
 
-    /// <summary>Discards the current frame's text without releasing the backing array.</summary>
+    /// <summary>
+    /// Discards the current frame's text without releasing the backing array.
+    /// </summary>
     public void Clear() => _length = 0;
 
     private void EnsureCapacity(int required)

@@ -12,17 +12,47 @@ namespace PurrplingCore.Toolkit.Rendering;
 /// </remarks>
 public interface IRenderLayerPass : IDisposable
 {
-    /// <summary>Creates GPU resources once, before the first frame.</summary>
+    /// <summary>
+    /// Creates GPU resources once, before the first frame.
+    /// </summary>
     void Initialize(GraphicsDevice device);
 
-    /// <summary>Runs before any layer executes, for work that must precede all drawing.</summary>
+    /// <summary>
+    /// Runs before any layer executes, for work that must precede all drawing.
+    /// </summary>
     void Prepare(in RenderFrameContext context);
 
-    /// <summary>Draws the layer.</summary>
+    /// <summary>
+    /// Draws the layer.
+    /// </summary>
     void Execute(in RenderFrameContext context);
 }
 
-/// <summary>Base class for passes that only need to override <see cref="Execute"/>.</summary>
+/// <summary>
+/// Clears data submitted to a pass when its renderer starts another frame.
+/// </summary>
+public interface IFrameSubmissionPass
+{
+    /// <summary>
+    /// Discards pending submissions.
+    /// </summary>
+    void ClearSubmissions();
+}
+
+/// <summary>
+/// Accepts frame-scoped data of type <typeparamref name="T"/> through a layer writer.
+/// </summary>
+public interface ILayerSubmissionPass<T> : IFrameSubmissionPass where T : struct
+{
+    /// <summary>
+    /// Queues data for this pass to draw when the renderer flushes.
+    /// </summary>
+    void Submit(in T submission);
+}
+
+/// <summary>
+/// Base class for passes that only need to override <see cref="Execute"/>.
+/// </summary>
 public abstract class RenderLayerPass : IRenderLayerPass
 {
     public virtual void Initialize(GraphicsDevice device)

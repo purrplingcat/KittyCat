@@ -2,19 +2,29 @@ using System.Runtime.CompilerServices;
 
 namespace PurrplingCore.Toolkit.Rendering;
 
-/// <summary>Determines how a layer orders its draw commands before they reach the batcher.</summary>
+/// <summary>
+/// Determines how a layer orders its draw commands before they reach the batcher.
+/// </summary>
 public enum RenderSortMode : byte
 {
-    /// <summary>Keep submission order. No sorting work is performed at all.</summary>
+    /// <summary>
+    /// Keep submission order. No sorting work is performed at all.
+    /// </summary>
     Submission = 0,
 
-    /// <summary>Order by ascending depth, so lower depth values are drawn first.</summary>
+    /// <summary>
+    /// Order by ascending depth, so lower depth values are drawn first.
+    /// </summary>
     FrontToBack,
 
-    /// <summary>Order by descending depth, so higher depth values are drawn first.</summary>
+    /// <summary>
+    /// Order by descending depth, so higher depth values are drawn first.
+    /// </summary>
     BackToFront,
 
-    /// <summary>Group by texture to minimise texture switches inside a single batch.</summary>
+    /// <summary>
+    /// Group by texture to minimise texture switches inside a single batch.
+    /// </summary>
     Texture,
 }
 
@@ -30,19 +40,21 @@ public enum RenderSortMode : byte
 /// </remarks>
 public static class RenderSortKey
 {
-    /// <summary>Builds the sort key for a command in a layer using <paramref name="mode"/>.</summary>
+    /// <summary>
+    /// Builds the sort key for a command in a layer using <paramref name="mode"/>.
+    /// </summary>
     /// <param name="depth">Depth criterion, used by the depth-ordered modes.</param>
-    /// <param name="textureSortKey">Texture identity, used by <see cref="RenderSortMode.Texture"/>.</param>
+    /// <param name="resourceSortKey">Resource identity, used by <see cref="RenderSortMode.Texture"/>.</param>
     /// <param name="sequence">Submission index within the layer, used as the tie-breaker.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ulong Create(RenderSortMode mode, float depth, int textureSortKey, int sequence)
+    public static ulong Create(RenderSortMode mode, float depth, int resourceSortKey, int sequence)
     {
         var low = (uint)sequence;
         var high = mode switch
         {
             RenderSortMode.FrontToBack => Orderable(depth),
             RenderSortMode.BackToFront => ~Orderable(depth),
-            RenderSortMode.Texture => (uint)textureSortKey,
+            RenderSortMode.Texture => (uint)resourceSortKey,
             _ => 0u,
         };
 

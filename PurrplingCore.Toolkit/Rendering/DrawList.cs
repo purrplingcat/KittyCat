@@ -8,7 +8,7 @@ namespace PurrplingCore.Toolkit.Rendering;
 /// <remarks>
 /// Backing arrays are allocated once and grown by doubling; <see cref="Clear"/> only resets the
 /// element count, so a steady-state frame allocates nothing. Sorting is indirect: only the key
-/// and index arrays are permuted, which keeps 64-byte command payloads in place.
+/// and index arrays are permuted, which keeps command payloads in place.
 /// </remarks>
 public sealed class DrawList
 {
@@ -28,18 +28,24 @@ public sealed class DrawList
         _order = new int[capacity];
     }
 
-    /// <summary>Ordering applied by <see cref="Sort"/>.</summary>
+    /// <summary>
+    /// Ordering applied by <see cref="Sort"/>.
+    /// </summary>
     public RenderSortMode SortMode { get; }
 
-    /// <summary>Number of commands queued in the current frame.</summary>
+    /// <summary>
+    /// Number of commands queued in the current frame.
+    /// </summary>
     public int Count => _count;
 
-    /// <summary>Appends a command and records its sort key.</summary>
-    /// <param name="textureSortKey">
-    /// Texture identity used by <see cref="RenderSortMode.Texture"/>; ignored by the other modes.
+    /// <summary>
+    /// Appends a command and records its sort key.
+    /// </summary>
+    /// <param name="resourceSortKey">
+    /// Resource identity used by <see cref="RenderSortMode.Texture"/>; ignored by other modes.
     /// </param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Add(in DrawCommand command, int textureSortKey = 0)
+    public void Add(in DrawCommand command, int resourceSortKey = 0)
     {
         if (_count == _commands.Length)
         {
@@ -47,7 +53,8 @@ public sealed class DrawList
         }
 
         _commands[_count] = command;
-        _keys[_count] = RenderSortKey.Create(SortMode, command.Depth, textureSortKey, _count);
+        var resourceKey = ((int)command.Kind << 16) | (resourceSortKey & ushort.MaxValue);
+        _keys[_count] = RenderSortKey.Create(SortMode, command.Depth, resourceKey, _count);
         _count++;
     }
 
@@ -76,7 +83,9 @@ public sealed class DrawList
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref readonly DrawCommand At(int index) => ref _commands[_useOrder ? _order[index] : index];
 
-    /// <summary>Discards the current frame's commands without releasing the backing arrays.</summary>
+    /// <summary>
+    /// Discards the current frame's commands without releasing the backing arrays.
+    /// </summary>
     public void Clear()
     {
         _count = 0;

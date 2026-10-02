@@ -22,7 +22,9 @@ public abstract class RendererScene : Scene
         Context = renderer.Context;
     }
 
-    /// <summary>Entry point for queueing this scene's draw commands.</summary>
+    /// <summary>
+    /// Entry point for queueing this scene's draw commands.
+    /// </summary>
     protected RenderContext Context { get; }
 
     public sealed override SceneRenderMode RenderMode => SceneRenderMode.Deferred;

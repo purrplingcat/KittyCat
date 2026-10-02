@@ -262,6 +262,37 @@ return host.Run();
 
 With this setup, nothing invokes `Initialize` or `Flush` for you. `Initialize` creates GPU resources; `Flush` requires it and must run on the graphics thread after submission. `Dispose` belongs to whoever constructed the renderer. Manual renderers do not receive the component-driven `VirtualResolution` update; set it yourself when using `RenderTargetSpec.MatchResolution`.
 
+### Manual virtual resolution and camera viewport
+
+Set `VirtualResolution` before `Initialize` when using `RenderTargetSpec.MatchResolution`. Enable `SyncCameraViewport` on camera layers to size the camera viewport and center its origin from the resolved layer target. The renderer repeats this synchronization when the layer writer is opened, so changing `VirtualResolution` takes effect on the next submitted frame without reinitializing the renderer:
+
+```csharp
+var camera = new Camera2D();
+var options = new RendererOptions
+{
+    Output = RenderTargetSpec.MatchResolution(),
+    ScaleMode = RenderScaleMode.IntegerFit,
+};
+options.AddLayer(World, new RenderLayerOptions
+{
+    Camera = camera,
+    SyncCameraViewport = true,
+});
+
+var renderer = new Renderer2D("World", options)
+{
+    VirtualResolution = new Point(320, 180),
+};
+renderer.Initialize(graphicsDevice);
+
+renderer.Context.Layer(World).Draw(texture, position, Color.White);
+renderer.Flush();
+
+renderer.VirtualResolution = new Point(640, 360);
+```
+
+If the camera viewport should remain independent of the render target, leave `SyncCameraViewport` false and call `camera.SetViewport(width, height)` followed by `camera.CenterOrigin()` when your chosen viewport changes. `VirtualResolution` controls the `MatchResolution` render target; it does not automatically alter game-world coordinates or camera position.
+
 ### Without the PurrplingCore host or game class
 
 The Toolkit renderer also works with a plain MonoGame game. This version needs no DI, engine service module, world controller, scene manager, or renderer component. It still needs a MonoGame graphics device and your game's content asset.
@@ -313,7 +344,7 @@ public sealed class RawMonoGame : Microsoft.Xna.Framework.Game
 
 ## Layers, camera, targets, and extensions
 
-Each renderer has ordered layers (`RenderLayerOptions.Order`). A layer inherits the renderer's `DefaultSamplerState` (`PointClamp` by default) unless overridden. `SortMode` defaults to `Submission`, preserving the order in which calls were queued. Other modes are `FrontToBack`, `BackToFront`, and `Texture`; sorting is done separately within each layer. Renderers are independent and do not share a global sort order.
+Each renderer has ordered layers (`RenderLayerOptions.Order`). A layer inherits the renderer's `DefaultSamplerState` (`PointClamp` by default) unless overridden. `SortMode` defaults to `Submission`, preserving the order in which calls were queued. Other modes are `FrontToBack`, `BackToFront`, and `Texture`; sorting is done separately within each layer. `FrontToBack` sorts the `depth` argument to `Draw`/`DrawString` ascending (lower values first); `BackToFront` sorts it descending (higher values first). Equal depths retain submission order. This is CPU-side ordering only: the built-in SpriteBatch batcher submits every command with GPU `layerDepth` zero, so `depth` does not by itself provide depth-buffer testing. Renderers are independent and do not share a global sort order.
 
 World-space layers can share a DI-owned `Camera2D`. The renderer configuration is constructed by DI, so it receives the same camera instance as systems that update its position:
 
@@ -322,12 +353,10 @@ public sealed class CameraWorldRendering(Camera2D camera, Resolution resolution)
 {
     public void Configure(RendererOptions options)
     {
-        camera.SetViewport(resolution.Width, resolution.Height);
-        camera.CenterOrigin();
-
         options.AddLayer(Layers.Sprites, new RenderLayerOptions
         {
             Camera = camera,
+            SyncCameraViewport = true,
             CullingEnabled = true,
             SortMode = RenderSortMode.FrontToBack,
         });
@@ -335,6 +364,7 @@ public sealed class CameraWorldRendering(Camera2D camera, Resolution resolution)
         {
             Order = 100,
             Camera = camera,
+            SyncCameraViewport = true,
             BlendState = BlendState.Additive,
         });
     }
@@ -350,11 +380,11 @@ services.AddRenderer(RendererKey.World)
     .AddDrawComponent(DrawStage.World);
 ```
 
-Inject `Resolution` from `PurrplingCore.Toolkit.Graphics` (registered by `UsePurrplingCore`). Update `camera.Position` from your update code. Set viewport dimensions again when the resolution changes: `Camera2D` does not subscribe to `ResolutionChanged` by itself. `layer.Parallax` defaults to `Vector2.One` (follow the camera); zero keeps the layer fixed. Camera-less layers render in screen coordinates. Culling is performed **at submission**, using an axis-aligned visible rectangle; rotated sprites deliberately skip that culling test.
+Update `camera.Position` from your update code. With `SyncCameraViewport = true`, the renderer derives viewport dimensions from the layer target and centers the camera origin; omit it when the camera viewport is intentionally independent. `layer.Parallax` defaults to `Vector2.One` (follow the camera); zero keeps the layer fixed. Camera-less layers render in screen coordinates. Culling is performed **at submission**, using an axis-aligned visible rectangle; rotated sprites deliberately skip that culling test.
 
 For an offscreen layer or renderer, set `layer.Target` or `options.Output` to `RenderTargetSpec.MatchScreen()`, `MatchResolution()`, or `OfSize(width, height)`. Layer targets are composed onto the renderer output. `IPostProcessor` chains can be added to a layer's `PostProcessors` or a renderer's `PostProcessors`; processors are initialized with the renderer and disposed with it. The renderer-level chain currently runs only when `options.Output` is set. A layer's chain requires `layer.Target`. Do not assume a global post-processing stage across multiple renderer groups exists.
 
-`RenderLayerOptions.Pass` replaces the default `SpriteLayerPass` with your `IRenderLayerPass`; its `Initialize(GraphicsDevice)` is called before drawing and `Prepare/Execute` run during flush. A custom pass must explicitly replay `context.Layer.Commands` if it wants queued sprites to appear. `Primitives2D` provides `FillRect`, `DrawRect`, `DrawLine`, and `FillCircle` extensions on `LayerWriter`; they currently take a `GraphicsDevice` to obtain the shared white pixel. That first pixel creation is a GPU operation, so warm it up after device initialization if draw systems must only enqueue during the frame.
+`RenderLayerOptions.Pass` replaces the default `DrawCommandPass` with your `IRenderLayerPass`; its `Initialize(GraphicsDevice)` is called before drawing and `Prepare/Execute` run during flush. A custom pass must explicitly replay `context.Layer.Commands` if it wants queued commands to appear. `Primitives2D` provides `FillRect`, `DrawRect`, `DrawLine`, and `FillCircle` extensions on `LayerWriter`; they currently take a `GraphicsDevice` to obtain the shared white pixel. That first pixel creation is a GPU operation, so warm it up after device initialization if draw systems must only enqueue during the frame.
 
 ### Custom pass and post-processor
 
@@ -384,7 +414,113 @@ public sealed class BackdropPass(Texture2D backdrop) : RenderLayerPass
 options.AddLayer(Layers.Sprites, new RenderLayerOptions { Pass = new BackdropPass(backdrop) });
 ```
 
-The `backdrop` must be loaded before configuration; `RenderLayerPass` does not own or dispose it. `Prepare` is optional on the `RenderLayerPass` base class. To retain regular queued sprites as well, either replay `context.Layer.Commands` inside your pass or use a separate layer for the backdrop and leave `SpriteLayerPass` on the sprite layer.
+The `backdrop` must be loaded before configuration; `RenderLayerPass` does not own or dispose it. `Prepare` is optional on the `RenderLayerPass` base class. To retain regular queued commands as well, either replay `context.Layer.Commands` inside your pass or use a separate layer for the backdrop and leave `DrawCommandPass` on the sprite layer.
+
+#### Drawing vertex geometry
+
+For geometry that is not a sprite or text, use `RenderFrameContext.Device` directly. The renderer has already bound the layer target. Raw `GraphicsDevice` calls do not apply the layer's camera transform or batch state automatically, so the pass must apply the relevant `context.State` values itself. This pass allocates its effect and vertex array once, then draws one colored triangle per frame:
+
+```csharp
+public sealed class TrianglePass : RenderLayerPass
+{
+    private readonly VertexPositionColor[] _vertices =
+    [
+        new(new Vector3(80, 40, 0), Color.Cyan),
+        new(new Vector3(40, 120, 0), Color.Magenta),
+        new(new Vector3(120, 120, 0), Color.Yellow),
+    ];
+
+    private BasicEffect? _effect;
+
+    public override void Initialize(GraphicsDevice device)
+    {
+        _effect = new BasicEffect(device)
+        {
+            LightingEnabled = false,
+            VertexColorEnabled = true,
+        };
+    }
+
+    public override void Execute(in RenderFrameContext context)
+    {
+        var effect = _effect;
+        if (effect is null)
+        {
+            throw new InvalidOperationException("Initialize the pass before drawing.");
+        }
+
+        var device = context.Device;
+        var viewport = device.Viewport;
+        effect.World = Matrix.Identity;
+        effect.View = context.State.Transform;
+        effect.Projection = Matrix.CreateOrthographicOffCenter(
+            0, viewport.Width, viewport.Height, 0, 0, 1);
+
+        device.BlendState = context.State.BlendState ?? BlendState.AlphaBlend;
+        device.DepthStencilState = context.State.DepthStencilState ?? DepthStencilState.None;
+        device.RasterizerState = context.State.RasterizerState ?? RasterizerState.CullNone;
+
+        foreach (var pass in effect.CurrentTechnique.Passes)
+        {
+            pass.Apply();
+            device.DrawUserPrimitives(PrimitiveType.TriangleList, _vertices, 0, 1);
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) _effect?.Dispose();
+        base.Dispose(disposing);
+    }
+}
+
+options.AddLayer(Layers.Sprites, new RenderLayerOptions { Pass = new TrianglePass() });
+```
+
+`context.State.Transform` contains the layer camera/parallax transform. A custom pass replaces the default `DrawCommandPass`; it must handle every command kind it supports. `DrawUserPrimitives` is suitable for small, transient geometry; for larger or frequently changing meshes, create a `VertexBuffer` and submit it through the same `LayerWriter` as sprites and text.
+
+`DrawPrimitives` adds a primitive command to the layer's ordered `DrawList`. This ECS-style loop interleaves geometry and sprites using one depth convention:
+
+```csharp
+var writer = renderer.Context.Layer(Layers.World);
+foreach (var tileChunk in visibleTileChunks)
+{
+    writer.DrawPrimitives(
+        tileChunk.VertexBuffer,
+        PrimitiveType.TriangleList,
+        tileChunk.PrimitiveCount,
+        tileChunk.Position,
+        Vector2.One,
+        depth: tileChunk.Depth);
+}
+
+foreach (var entity in visibleEntities)
+{
+    writer.Draw(entity.Texture, entity.Position, Color.White, depth: entity.Depth);
+}
+```
+
+The renderer sorts both kinds together according to the layer's `SortMode`. `FrontToBack` and `BackToFront` use each command's `depth`; equal depths preserve submission order. Primitive commands require a layer `Effect` implementing `IEffectMatrices`; its `Projection` is caller-configured, while the command supplies `World` and the layer camera supplies `View`. Vertex buffers remain caller-owned and must stay valid through `Flush()`.
+
+To control every command field directly, construct a `DrawCommand` and submit it with the resource it references:
+
+```csharp
+var writer = renderer.Context.Layer(Layers.Mesh);
+var resourceIndex = renderer.Context.Resources.GetVertexBufferIndex(mesh.VertexBuffer);
+var command = new DrawCommand
+{
+    Kind = DrawCommandKind.Primitive,
+    ResourceIndex = resourceIndex,
+    Position = position,
+    Scale = Vector2.One,
+    Color = Color.White,
+    PrimitiveType = PrimitiveType.TriangleList,
+    PrimitiveCount = mesh.PrimitiveCount,
+};
+writer.Submit(in command);
+```
+
+`LayerWriter.Submit` only appends the command: it does not resolve resources, validate the command kind, or alter its fields. Use `renderer.Context.Resources` to obtain texture, font, or vertex-buffer indices. For text, append characters through `renderer.Context.TextBuffer` and set `TextOffset`/`TextLength` yourself. Direct commands must contain valid indices and frame text offsets; resources must remain alive until `Flush()`. The regular `Draw` and `DrawString` helpers continue to resolve these details for you.
 
 A processor receives an already-bound destination target and a source texture. The supplied effect is owned by its caller:
 

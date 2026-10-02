@@ -36,10 +36,14 @@ public readonly ref struct PostProcessContext
 
     public FrameTextBuffer Text { get; }
 
-    /// <summary>Image produced by the previous step, or by the layer or renderer being processed.</summary>
+    /// <summary>
+    /// Image produced by the previous step, or by the layer or renderer being processed.
+    /// </summary>
     public RenderTarget2D Source { get; }
 
-    /// <summary>Target the result must be written to. Null means the back buffer.</summary>
+    /// <summary>
+    /// Target the result must be written to. Null means the back buffer.
+    /// </summary>
     public RenderTarget2D? Destination { get; }
 }
 
@@ -49,9 +53,13 @@ public readonly ref struct PostProcessContext
 /// </summary>
 public interface IPostProcessor : IDisposable
 {
-    /// <summary>Creates GPU resources. Called once, never on the per-frame path.</summary>
+    /// <summary>
+    /// Creates GPU resources. Called once, never on the per-frame path.
+    /// </summary>
     void Initialize(GraphicsDevice device);
 
-    /// <summary>Reads <see cref="PostProcessContext.Source"/> and writes the processed image.</summary>
+    /// <summary>
+    /// Reads <see cref="PostProcessContext.Source"/> and writes the processed image.
+    /// </summary>
     void Process(in PostProcessContext context);
 }

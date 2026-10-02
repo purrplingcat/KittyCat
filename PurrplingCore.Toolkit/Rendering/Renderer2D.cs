@@ -78,7 +78,13 @@ public class Renderer2D : IRenderer
 
     public RenderContext Context { get; }
 
-    /// <summary>Optional rolling timing and command-count diagnostics configured at construction.</summary>
+    internal RenderResourceTable Resources => _resources;
+
+    internal FrameTextBuffer TextBuffer => _text;
+
+    /// <summary>
+    /// Optional rolling timing and command-count diagnostics configured at construction.
+    /// </summary>
     public RendererDiagnostics? Diagnostics { get; }
 
     /// <summary>
@@ -121,19 +127,27 @@ public class Renderer2D : IRenderer
 
         _device = device;
         _initialized = true;
+
+        SynchronizeCameraViewports();
     }
 
-    /// <summary>Creates the batcher used to replay commands. Override to supply a custom one.</summary>
+    /// <summary>
+    /// Creates the batcher used to replay commands. Override to supply a custom one.
+    /// </summary>
     protected virtual ISpriteBatcher CreateBatcher(GraphicsDevice device) => new SpriteBatchBatcher(new SpriteBatch(device));
 
     public void BeginFrame()
     {
+        var isNewFrame = _openFrame != _frameId;
         _openFrame = _frameId;
         _text.Clear();
+
+        if (isNewFrame) SynchronizeCameraViewports();
 
         foreach (var layer in _layers)
         {
             layer.Commands.Clear();
+            layer.FrameSubmissionPass?.ClearSubmissions();
         }
     }
 
@@ -146,11 +160,11 @@ public class Renderer2D : IRenderer
             throw new InvalidOperationException("Initialize the renderer before flushing it.");
         }
 
-        if (!Enabled || _openFrame != _frameId)
-        {
-            _frameId++;
-            return;
-        }
+        if (!Enabled) goto AdvanceFrame;
+
+        var hasQueuedFrame = _openFrame == _frameId;
+
+        if (!hasQueuedFrame) BeginFrame();
 
         var diagnostics = Diagnostics;
         var totalStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
@@ -158,9 +172,10 @@ public class Renderer2D : IRenderer
 
         // Resolve the output render target for this frame.
         var output = ResolveOutput();
-        _device.SetRenderTarget(output);
+        _device.SetRenderTarget(output); // Set the render target for this frame.
         if (_options.ClearColor is { } clearColor)
         {
+            // Clear the render target with the specified clear color.
             _device.Clear(clearColor);
         }
         else if (_output is not null)
@@ -205,6 +220,8 @@ public class Renderer2D : IRenderer
             composeMilliseconds
         );
 
+    AdvanceFrame:
+        // Keep frame advancement in one epilogue for skipped and rendered frames.
         _frameId++;
     }
 
@@ -257,18 +274,16 @@ public class Renderer2D : IRenderer
             var state = layer.CreateBatchState();
             var context = new RenderFrameContext(_device, layer, _batcher!, _resources, _text, state);
 
-            if (layer.Target is not { } spec)
+            var targetSpec = layer.Target;
+            if (targetSpec is null)
             {
                 layer.Pass.Execute(context);
-                if (diagnostics is not null)
-                {
-                    diagnostics.RecordLayerExecuted(index, Stopwatch.GetElapsedTime(executeStart).TotalMilliseconds);
-                }
+                diagnostics?.RecordLayerExecuted(index, Stopwatch.GetElapsedTime(executeStart).TotalMilliseconds);
 
                 continue;
             }
 
-            EnsureTarget(spec, ref _layerTargets[index]);
+            EnsureTarget(targetSpec.Value, ref _layerTargets[index]);
             var target = _layerTargets[index]!;
             _device.SetRenderTarget(target);
             _device.Clear(layer.ClearColor ?? Color.Transparent);
@@ -277,10 +292,7 @@ public class Renderer2D : IRenderer
             var image = ApplyChain(layer.PostProcessors, target, ref _layerScratch[index], output);
             _device.SetRenderTarget(output);
             Compose(image, output);
-            if (diagnostics is not null)
-            {
-                diagnostics.RecordLayerExecuted(index, Stopwatch.GetElapsedTime(executeStart).TotalMilliseconds);
-            }
+            diagnostics?.RecordLayerExecuted(index, Stopwatch.GetElapsedTime(executeStart).TotalMilliseconds);
         }
     }
 
@@ -397,23 +409,89 @@ public class Renderer2D : IRenderer
 
     internal LayerWriter OpenLayer(RenderLayerId id)
     {
-        if (!Enabled) return default;
+        var layer = GetActiveLayer(id);
+        if (layer is null) return default;
 
-        var slot = id.Value;
-        if (slot >= _layersById.Length) return default;
-
-        var layer = _layersById[slot];
-        if (layer is null || !layer.Enabled) return default;
-
-        if (_openFrame != _frameId)
-        {
-            BeginFrame();
-        }
+        OpenLayerFrame();
 
         return new LayerWriter(layer, _resources, _text);
     }
 
-    /// <summary>Drops cached resource registrations. Call after unloading content.</summary>
+    internal LayerSubmissionWriter<T> OpenSubmissions<T>(RenderLayerId id) where T : struct
+    {
+        var layer = GetActiveLayer(id);
+        if (layer is null) return default;
+
+        var submissionPass = layer.Pass as ILayerSubmissionPass<T>;
+        if (submissionPass is null)
+        {
+            throw new InvalidOperationException($"Layer '{layer.Id.Name}' does not accept {typeof(T).Name} submissions.");
+        }
+
+        OpenLayerFrame();
+        return new LayerSubmissionWriter<T>(submissionPass);
+    }
+
+    private RenderLayer? GetActiveLayer(RenderLayerId id)
+    {
+        if (!Enabled) return null;
+
+        var slot = id.Value;
+        if (slot >= _layersById.Length) return null;
+
+        var layer = _layersById[slot];
+        return layer is { Enabled: true } ? layer : null;
+    }
+
+    private void OpenLayerFrame()
+    {
+        if (_openFrame != _frameId) BeginFrame();
+    }
+
+    private void SynchronizeCameraViewports()
+    {
+        if (!_initialized) return;
+
+        foreach (var layer in _layers)
+        {
+            var camera = layer.ViewportCamera;
+            if (!layer.SyncCameraViewport || camera is null) continue;
+
+            var size = GetCameraViewportSize(layer);
+            camera.SetViewport(size.X, size.Y);
+            camera.CenterOrigin();
+        }
+    }
+
+    private Point GetCameraViewportSize(RenderLayer layer)
+    {
+        var layerTarget = layer.Target;
+        if (layerTarget.HasValue)
+        {
+            var size = ResolveSize(layerTarget.Value);
+            return new Point(size.Width, size.Height);
+        }
+
+        var rendererOutput = _options.Output;
+        if (rendererOutput.HasValue)
+        {
+            var size = ResolveSize(rendererOutput.Value);
+            return new Point(size.Width, size.Height);
+        }
+
+        var output = OutputOverride;
+        if (output is not null)
+        {
+            return new Point(output.Width, output.Height);
+        }
+
+        var parameters = _device.PresentationParameters;
+        return new Point(parameters.BackBufferWidth, parameters.BackBufferHeight);
+    }
+
+    /// <summary>
+    /// Drops cached resource registrations. Call after unloading content.
+    /// </summary>
     public void ResetResources() => _resources.Reset();
 
     public void Dispose()

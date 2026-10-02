@@ -9,10 +9,14 @@ namespace PurrplingCore.Toolkit.Rendering;
 /// </summary>
 public sealed class RendererDiagnosticsOptions
 {
-    /// <summary>Number of recent frames retained for inspection.</summary>
+    /// <summary>
+    /// Number of recent frames retained for inspection.
+    /// </summary>
     public int HistoryCapacity { get; set; } = 120;
 
-    /// <summary>Frame duration at or above which a sample is marked as slow.</summary>
+    /// <summary>
+    /// Frame duration at or above which a sample is marked as slow.
+    /// </summary>
     public TimeSpan SlowFrameThreshold { get; set; } = TimeSpan.FromMilliseconds(16.67);
 }
 
@@ -85,16 +89,24 @@ public sealed class RendererDiagnostics
         }
     }
 
-    /// <summary>The most recently recorded frame, or the default value before the first flush.</summary>
+    /// <summary>
+    /// The most recently recorded frame, or the default value before the first flush.
+    /// </summary>
     public RendererFrameSample LatestFrame { get; private set; }
 
-    /// <summary>Per-layer counters from the most recently recorded frame.</summary>
+    /// <summary>
+    /// Per-layer counters from the most recently recorded frame.
+    /// </summary>
     public ReadOnlySpan<RendererLayerSample> LatestLayers => _latestLayers;
 
-    /// <summary>Number of frame samples currently retained.</summary>
+    /// <summary>
+    /// Number of frame samples currently retained.
+    /// </summary>
     public int SampleCount => _historyCount;
 
-    /// <summary>Copies retained frame samples from oldest to newest into the destination.</summary>
+    /// <summary>
+    /// Copies retained frame samples from oldest to newest into the destination.
+    /// </summary>
     /// <remarks>If the destination is shorter than the history, it receives the newest samples.</remarks>
     public int CopyHistory(Span<RendererFrameSample> destination)
     {
@@ -110,7 +122,9 @@ public sealed class RendererDiagnostics
         return copyCount;
     }
 
-    /// <summary>Calculates rolling min, average, p95, max, and slow-frame values.</summary>
+    /// <summary>
+    /// Calculates rolling min, average, p95, max, and slow-frame values.
+    /// </summary>
     public RendererPerformanceSummary GetSummary()
     {
         if (_historyCount == 0) return default;
@@ -139,7 +153,9 @@ public sealed class RendererDiagnostics
             slowFrames);
     }
 
-    /// <summary>Builds a human-readable snapshot for logs and debugger output.</summary>
+    /// <summary>
+    /// Builds a human-readable snapshot for logs and debugger output.
+    /// </summary>
     public string CreateDebugReport()
     {
         var builder = new StringBuilder();
@@ -172,7 +188,9 @@ public sealed class RendererDiagnostics
         return builder.ToString();
     }
 
-    /// <summary>Clears retained samples and resets the latest snapshot.</summary>
+    /// <summary>
+    /// Clears retained samples and resets the latest snapshot.
+    /// </summary>
     public void Reset()
     {
         Array.Clear(_history);
@@ -250,7 +268,9 @@ public sealed class RendererDiagnostics
         => milliseconds.ToString("F2", CultureInfo.InvariantCulture);
 }
 
-/// <summary>Result of a warm-up and repeated renderer action benchmark.</summary>
+/// <summary>
+/// Result of a warm-up and repeated renderer action benchmark.
+/// </summary>
 public readonly record struct RendererBenchmarkResult(
     int WarmupFrames,
     int MeasuredFrames,
@@ -260,7 +280,9 @@ public readonly record struct RendererBenchmarkResult(
     double P95Milliseconds,
     double MaximumMilliseconds);
 
-/// <summary>Runs repeatable CPU-side measurements for a renderer frame action.</summary>
+/// <summary>
+/// Runs repeatable CPU-side measurements for a renderer frame action.
+/// </summary>
 public static class RendererBenchmark
 {
     /// <summary>

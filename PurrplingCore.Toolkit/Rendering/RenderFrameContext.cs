@@ -29,7 +29,9 @@ public readonly ref struct RenderFrameContext
 
     public GraphicsDevice Device { get; }
 
-    /// <summary>The layer currently being executed.</summary>
+    /// <summary>
+    /// The layer currently being executed.
+    /// </summary>
     public RenderLayer Layer { get; }
 
     public ISpriteBatcher Batcher { get; }
@@ -38,6 +40,8 @@ public readonly ref struct RenderFrameContext
 
     public FrameTextBuffer Text { get; }
 
-    /// <summary>Graphics state resolved for this layer, including camera and parallax transform.</summary>
+    /// <summary>
+    /// Graphics state resolved for this layer, including camera and parallax transform.
+    /// </summary>
     public BatchState State { get; }
 }

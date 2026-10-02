@@ -14,7 +14,9 @@ public static class Primitives2D
 {
     private static readonly Dictionary<GraphicsDevice, Texture2D> Pixels = [];
 
-    /// <summary>Returns the shared 1x1 white texture for <paramref name="device"/>.</summary>
+    /// <summary>
+    /// Returns the shared 1x1 white texture for <paramref name="device"/>.
+    /// </summary>
     public static Texture2D GetPixel(GraphicsDevice device)
     {
         ArgumentNullException.ThrowIfNull(device);
@@ -27,11 +29,15 @@ public static class Primitives2D
         return pixel;
     }
 
-    /// <summary>Fills <paramref name="bounds"/> with a solid colour.</summary>
+    /// <summary>
+    /// Fills <paramref name="bounds"/> with a solid colour.
+    /// </summary>
     public static void FillRect(this in LayerWriter writer, GraphicsDevice device, Rectangle bounds, Color color, float depth = 0f)
         => writer.Draw(GetPixel(device), bounds, color, depth);
 
-    /// <summary>Draws the outline of <paramref name="bounds"/>.</summary>
+    /// <summary>
+    /// Draws the outline of <paramref name="bounds"/>.
+    /// </summary>
     public static void DrawRect(
         this in LayerWriter writer,
         GraphicsDevice device,
@@ -47,7 +53,9 @@ public static class Primitives2D
         writer.Draw(pixel, new Rectangle(bounds.Right - thickness, bounds.Y + thickness, thickness, bounds.Height - thickness * 2), color, depth);
     }
 
-    /// <summary>Draws a straight line between two points.</summary>
+    /// <summary>
+    /// Draws a straight line between two points.
+    /// </summary>
     public static void DrawLine(
         this in LayerWriter writer,
         GraphicsDevice device,
@@ -73,7 +81,9 @@ public static class Primitives2D
             depth);
     }
 
-    /// <summary>Draws a filled circle using horizontal spans.</summary>
+    /// <summary>
+    /// Draws a filled circle using horizontal spans.
+    /// </summary>
     public static void FillCircle(
         this in LayerWriter writer,
         GraphicsDevice device,

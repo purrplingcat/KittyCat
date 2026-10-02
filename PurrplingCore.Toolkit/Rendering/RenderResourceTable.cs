@@ -24,12 +24,17 @@ public sealed class RenderResourceTable
 
     private readonly Dictionary<Texture2D, ushort> _textureIndices = new(64, ReferenceComparer<Texture2D>.Instance);
     private readonly Dictionary<SpriteFont, ushort> _fontIndices = new(8, ReferenceComparer<SpriteFont>.Instance);
+    private readonly Dictionary<VertexBuffer, ushort> _vertexBufferIndices = new(16, ReferenceComparer<VertexBuffer>.Instance);
     private Texture2D[] _textures = new Texture2D[64];
     private SpriteFont[] _fonts = new SpriteFont[8];
+    private VertexBuffer[] _vertexBuffers = new VertexBuffer[16];
     private int _textureCount;
     private int _fontCount;
+    private int _vertexBufferCount;
 
-    /// <summary>Returns the index of <paramref name="texture"/>, registering it on first use.</summary>
+    /// <summary>
+    /// Returns the index of <paramref name="texture"/>, registering it on first use.
+    /// </summary>
     public ushort GetTextureIndex(Texture2D texture)
     {
         ArgumentNullException.ThrowIfNull(texture);
@@ -39,7 +44,9 @@ public sealed class RenderResourceTable
         return Register(texture);
     }
 
-    /// <summary>Returns the index of <paramref name="font"/>, registering it on first use.</summary>
+    /// <summary>
+    /// Returns the index of <paramref name="font"/>, registering it on first use.
+    /// </summary>
     public ushort GetFontIndex(SpriteFont font)
     {
         ArgumentNullException.ThrowIfNull(font);
@@ -49,13 +56,35 @@ public sealed class RenderResourceTable
         return Register(font);
     }
 
-    /// <summary>Resolves a texture index produced by <see cref="GetTextureIndex"/>.</summary>
+    /// <summary>
+    /// Returns the index of <paramref name="vertexBuffer"/>, registering it on first use.
+    /// </summary>
+    public ushort GetVertexBufferIndex(VertexBuffer vertexBuffer)
+    {
+        ArgumentNullException.ThrowIfNull(vertexBuffer);
+
+        if (_vertexBufferIndices.TryGetValue(vertexBuffer, out var index)) return index;
+
+        return Register(vertexBuffer);
+    }
+
+    /// <summary>
+    /// Resolves a texture index produced by <see cref="GetTextureIndex"/>.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Texture2D GetTexture(ushort index) => _textures[index];
 
-    /// <summary>Resolves a font index produced by <see cref="GetFontIndex"/>.</summary>
+    /// <summary>
+    /// Resolves a font index produced by <see cref="GetFontIndex"/>.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public SpriteFont GetFont(ushort index) => _fonts[index];
+
+    /// <summary>
+    /// Resolves a vertex-buffer index produced by <see cref="GetVertexBufferIndex"/>.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public VertexBuffer GetVertexBuffer(ushort index) => _vertexBuffers[index];
 
     /// <summary>
     /// Drops all registrations. Call after unloading content so disposed resources are released.
@@ -64,10 +93,13 @@ public sealed class RenderResourceTable
     {
         Array.Clear(_textures, 0, _textureCount);
         Array.Clear(_fonts, 0, _fontCount);
+        Array.Clear(_vertexBuffers, 0, _vertexBufferCount);
         _textureIndices.Clear();
         _fontIndices.Clear();
+        _vertexBufferIndices.Clear();
         _textureCount = 0;
         _fontCount = 0;
+        _vertexBufferCount = 0;
     }
 
     private ushort Register(Texture2D texture)
@@ -93,6 +125,19 @@ public sealed class RenderResourceTable
         var index = Checked(_fontCount++);
         _fonts[index] = font;
         _fontIndices.Add(font, index);
+        return index;
+    }
+
+    private ushort Register(VertexBuffer vertexBuffer)
+    {
+        if (_vertexBufferCount == _vertexBuffers.Length)
+        {
+            Array.Resize(ref _vertexBuffers, _vertexBuffers.Length * 2);
+        }
+
+        var index = Checked(_vertexBufferCount++);
+        _vertexBuffers[index] = vertexBuffer;
+        _vertexBufferIndices.Add(vertexBuffer, index);
         return index;
     }
 

@@ -53,6 +53,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddSingleton<IRenderer>(provider => provider.GetRequiredKeyedService<IRenderer>(key));
+        services.AddKeyedSingleton<RenderContext>(key, (provider, _) => provider.GetRequiredKeyedService<IRenderer>(key).Context);
         return new RendererServicesBuilder(services, name, key, options);
     }
 
@@ -77,7 +78,9 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
-    /// <summary>Registers a DI-created configuration module for the renderer.</summary>
+    /// <summary>
+    /// Registers a DI-created configuration module for the renderer.
+    /// </summary>
     public static IRendererServicesBuilder AddModule<TModule>(this IRendererServicesBuilder builder)
         where TModule : class, IRendererConfiguration
     {
@@ -86,7 +89,9 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
-    /// <summary>Adds a screen-space or world-space layer to a named renderer.</summary>
+    /// <summary>
+    /// Adds a screen-space or world-space layer to a named renderer.
+    /// </summary>
     public static IRendererServicesBuilder AddLayer(
         this IRendererServicesBuilder builder,
         RenderLayerId layer,
@@ -138,7 +143,9 @@ public static class ServiceCollectionExtensions
     }
 }
 
-/// <summary>Fluent declaration of a named renderer and its layers.</summary>
+/// <summary>
+/// Fluent declaration of a named renderer and its layers.
+/// </summary>
 public interface IRendererServicesBuilder
 {
     IServiceCollection Services { get; }
@@ -147,7 +154,9 @@ public interface IRendererServicesBuilder
     RendererOptions Options { get; }
 }
 
-/// <summary>Configures renderer options from explicitly registered DI services.</summary>
+/// <summary>
+/// Configures renderer options from explicitly registered DI services.
+/// </summary>
 public interface IRendererConfiguration
 {
     void Configure(RendererOptions options);

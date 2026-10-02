@@ -28,7 +28,9 @@ public readonly struct BatchState
         Effect = effect;
     }
 
-    /// <summary>Combined camera, parallax, and resolution transform applied to the batch.</summary>
+    /// <summary>
+    /// Combined camera, parallax, and resolution transform applied to the batch.
+    /// </summary>
     public Matrix Transform { get; }
 
     public BlendState? BlendState { get; }
@@ -47,12 +49,18 @@ public readonly struct BatchState
 /// </remarks>
 public interface ISpriteBatcher
 {
-    /// <summary>Opens a batch using <paramref name="state"/>.</summary>
+    /// <summary>
+    /// Opens a batch using <paramref name="state"/>.
+    /// </summary>
     void Begin(in BatchState state);
 
-    /// <summary>Emits a single command into the open batch.</summary>
+    /// <summary>
+    /// Emits a single command into the open batch.
+    /// </summary>
     void Submit(in DrawCommand command, RenderResourceTable resources, FrameTextBuffer text);
 
-    /// <summary>Closes the batch and submits it to the device.</summary>
+    /// <summary>
+    /// Closes the batch and submits it to the device.
+    /// </summary>
     void End();
 }

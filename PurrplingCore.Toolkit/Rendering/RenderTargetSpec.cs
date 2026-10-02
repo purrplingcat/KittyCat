@@ -2,7 +2,9 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace PurrplingCore.Toolkit.Rendering;
 
-/// <summary>Determines how a render target follows window or resolution changes.</summary>
+/// <summary>
+/// Determines how a render target follows window or resolution changes.
+/// </summary>
 public enum RenderTargetResizeMode : byte
 {
     /// <summary>
@@ -46,17 +48,23 @@ public readonly struct RenderTargetSpec
 
     public RenderTargetResizeMode ResizeMode { get; }
 
-    /// <summary>Width used by <see cref="RenderTargetResizeMode.Fixed"/>.</summary>
+    /// <summary>
+    /// Width used by <see cref="RenderTargetResizeMode.Fixed"/>.
+    /// </summary>
     public int Width { get; }
 
-    /// <summary>Height used by <see cref="RenderTargetResizeMode.Fixed"/>.</summary>
+    /// <summary>
+    /// Height used by <see cref="RenderTargetResizeMode.Fixed"/>.
+    /// </summary>
     public int Height { get; }
 
     public SurfaceFormat Format { get; }
 
     public DepthFormat DepthFormat { get; }
 
-    /// <summary>Creates a target of a constant size, independent of the window.</summary>
+    /// <summary>
+    /// Creates a target of a constant size, independent of the window.
+    /// </summary>
     public static RenderTargetSpec OfSize(
         int width,
         int height,

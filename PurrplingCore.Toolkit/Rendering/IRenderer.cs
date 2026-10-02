@@ -3,7 +3,9 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace PurrplingCore.Toolkit.Rendering;
 
-/// <summary>Identifies a layer and its options in a renderer declaration.</summary>
+/// <summary>
+/// Identifies a layer and its options in a renderer declaration.
+/// </summary>
 public readonly record struct RenderLayerDefinition(RenderLayerId Id, RenderLayerOptions Options);
 
 /// <summary>
@@ -16,13 +18,19 @@ public readonly record struct RenderLayerDefinition(RenderLayerId Id, RenderLaye
 /// </remarks>
 public interface IRenderer : IDisposable
 {
-    /// <summary>Name used for diagnostics.</summary>
+    /// <summary>
+    /// Name used for diagnostics.
+    /// </summary>
     string Name { get; }
 
-    /// <summary>Skips both submission and flushing while false.</summary>
+    /// <summary>
+    /// Skips both submission and flushing while false.
+    /// </summary>
     bool Enabled { get; set; }
 
-    /// <summary>Entry point used by draw systems, scenes, and overlays to queue commands.</summary>
+    /// <summary>
+    /// Entry point used by draw systems, scenes, and overlays to queue commands.
+    /// </summary>
     RenderContext Context { get; }
 
     /// <summary>
@@ -31,7 +39,9 @@ public interface IRenderer : IDisposable
     /// </summary>
     void Initialize(GraphicsDevice device);
 
-    /// <summary>Discards queued commands and starts a new frame.</summary>
+    /// <summary>
+    /// Discards queued commands and starts a new frame.
+    /// </summary>
     void BeginFrame();
 
     /// <summary>
@@ -40,33 +50,51 @@ public interface IRenderer : IDisposable
     void Flush();
 }
 
-/// <summary>Configuration for a single renderer, applied once during composition.</summary>
+/// <summary>
+/// Configuration for a single renderer, applied once during composition.
+/// </summary>
 public sealed class RendererOptions
 {
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Sampler inherited by layers that do not override it.</summary>
+    /// <summary>
+    /// Sampler inherited by layers that do not override it.
+    /// </summary>
     public SamplerState DefaultSamplerState { get; set; } = SamplerState.PointClamp;
 
-    /// <summary>Enables bounded CPU timing and command-count diagnostics when non-null.</summary>
+    /// <summary>
+    /// Enables bounded CPU timing and command-count diagnostics when non-null.
+    /// </summary>
     public RendererDiagnosticsOptions? Diagnostics { get; set; }
 
-    /// <summary>Clears the renderer's own target before any layer draws.</summary>
+    /// <summary>
+    /// Clears the renderer's own target before any layer draws.
+    /// </summary>
     public Color? ClearColor { get; set; }
 
-    /// <summary>Draws into an offscreen target instead of straight into the bound output.</summary>
+    /// <summary>
+    /// Draws into an offscreen target instead of straight into the bound output.
+    /// </summary>
     public RenderTargetSpec? Output { get; set; }
 
-    /// <summary>How offscreen images are placed onto a target of a different size, such as the window.</summary>
+    /// <summary>
+    /// How offscreen images are placed onto a target of a different size, such as the window.
+    /// </summary>
     public RenderScaleMode ScaleMode { get; set; } = RenderScaleMode.Fit;
 
-    /// <summary>Processors applied to <see cref="Output"/> after all layers have drawn.</summary>
+    /// <summary>
+    /// Processors applied to <see cref="Output"/> after all layers have drawn.
+    /// </summary>
     public IList<IPostProcessor> PostProcessors { get; } = [];
 
-    /// <summary>Layers declared for this renderer. Collection initializers are supported.</summary>
+    /// <summary>
+    /// Layers declared for this renderer. Collection initializers are supported.
+    /// </summary>
     public IList<RenderLayerDefinition> Layers { get; } = [];
 
-    /// <summary>Declares a layer. Call order does not matter; <see cref="RenderLayerOptions.Order"/> does.</summary>
+    /// <summary>
+    /// Declares a layer. Call order does not matter; <see cref="RenderLayerOptions.Order"/> does.
+    /// </summary>
     public RendererOptions AddLayer(RenderLayerId id, RenderLayerOptions? options = null)
     {
         Layers.Add(new RenderLayerDefinition(id, options ?? new RenderLayerOptions()));

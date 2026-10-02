@@ -10,7 +10,7 @@ namespace PurrplingCore.Toolkit.Rendering;
 /// sharing the camera pay for the computation at most once per frame and parallax variants are
 /// derived from the cached base transform.
 /// </remarks>
-public sealed class Camera2D : ICamera2D
+public sealed class Camera2D : ICamera2D, IViewportCamera2D
 {
     private Vector2 _position;
     private Vector2 _origin;
@@ -20,35 +20,45 @@ public sealed class Camera2D : ICamera2D
     private Matrix _rotationScale;
     private bool _dirty = true;
 
-    /// <summary>Camera position in world space.</summary>
+    /// <summary>
+    /// Camera position in world space.
+    /// </summary>
     public Vector2 Position
     {
         get => _position;
         set => Set(ref _position, value);
     }
 
-    /// <summary>Screen-space point the camera is centred on. Usually half the viewport.</summary>
+    /// <summary>
+    /// Screen-space point the camera is centred on. Usually half the viewport.
+    /// </summary>
     public Vector2 Origin
     {
         get => _origin;
         set => Set(ref _origin, value);
     }
 
-    /// <summary>Uniform zoom factor. Values above one magnify the world.</summary>
+    /// <summary>
+    /// Uniform zoom factor. Values above one magnify the world.
+    /// </summary>
     public float Zoom
     {
         get => _zoom;
         set => Set(ref _zoom, value);
     }
 
-    /// <summary>Camera rotation in radians.</summary>
+    /// <summary>
+    /// Camera rotation in radians.
+    /// </summary>
     public float Rotation
     {
         get => _rotation;
         set => Set(ref _rotation, value);
     }
 
-    /// <summary>Updates the viewport size used to compute visible bounds and the default origin.</summary>
+    /// <summary>
+    /// Updates the viewport size used to compute visible bounds and the default origin.
+    /// </summary>
     public void SetViewport(int width, int height)
     {
         var size = new Vector2(width, height);
@@ -58,7 +68,9 @@ public sealed class Camera2D : ICamera2D
         _dirty = true;
     }
 
-    /// <summary>Centres the origin in the current viewport.</summary>
+    /// <summary>
+    /// Centres the origin in the current viewport.
+    /// </summary>
     public void CenterOrigin() => Origin = _viewportSize * 0.5f;
 
     public Matrix GetViewMatrix(Vector2 parallax)
@@ -92,6 +104,44 @@ public sealed class Camera2D : ICamera2D
             (int)MathF.Floor(minY),
             (int)MathF.Ceiling(maxX - minX),
             (int)MathF.Ceiling(maxY - minY));
+    }
+
+    /// <summary>
+    /// Keeps the visible world bounds inside <paramref name="bounds"/>. If the view is larger
+    /// than the supplied bounds on an axis, it is centered on that axis.
+    /// </summary>
+    public void ClampPosition(Rectangle bounds)
+    {
+        var visible = GetVisibleBounds(Vector2.One);
+        var position = _position;
+
+        if (visible.Width >= bounds.Width)
+        {
+            position.X = bounds.Left + bounds.Width * 0.5f;
+        }
+        else if (visible.Left < bounds.Left)
+        {
+            position.X += bounds.Left - visible.Left;
+        }
+        else if (visible.Right > bounds.Right)
+        {
+            position.X -= visible.Right - bounds.Right;
+        }
+
+        if (visible.Height >= bounds.Height)
+        {
+            position.Y = bounds.Top + bounds.Height * 0.5f;
+        }
+        else if (visible.Top < bounds.Top)
+        {
+            position.Y += bounds.Top - visible.Top;
+        }
+        else if (visible.Bottom > bounds.Bottom)
+        {
+            position.Y -= visible.Bottom - bounds.Bottom;
+        }
+
+        Position = position;
     }
 
     private void EnsureTransform()
