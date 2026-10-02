@@ -25,7 +25,7 @@ public sealed partial class PlayerMovementSystem : StoreSystem
         _difficulty = options.Value.Difficulty;
     }
 
-    protected override void OnUpdate(EntityStore store)
+    protected override void OnUpdate()
     {
         var keyboard = Keyboard.GetState();
         var direction = Vector2.Zero;
@@ -41,7 +41,7 @@ public sealed partial class PlayerMovementSystem : StoreSystem
         }
 
         MovePlayerQuery(
-            store,
+            Store,
             direction,
             _playfield.Width,
             _playfield.Height,
@@ -67,20 +67,22 @@ public sealed partial class PlayerMovementSystem : StoreSystem
         int hardScoreLimit,
         int maximumDifficultyScore)
     {
-        if (player.Lives <= 0) return;
+        if (player.Lives > 0)
+        {
+            // Hard difficulty raises the base; strike then scales that base up to its configured cap.
+            var strikeProgress = Math.Clamp((float)player.Strike / strikesForMaximumSpeed, 0, 1);
+            var difficulty = DifficultyOptions.GetProgress(
+                player.Score,
+                easyScoreLimit,
+                hardScoreLimit,
+                maximumDifficultyScore);
+            var hardProgress = difficulty.Stage == DifficultyStage.Hard ? difficulty.Progress : 0;
+            var baseSpeed = player.MoveSpeed * MathHelper.Lerp(1, hardSpeedMultiplier, hardProgress);
+            var moveSpeed = baseSpeed * MathHelper.Lerp(1, maximumStrikeSpeedMultiplier, strikeProgress);
+            transform.Position += direction * moveSpeed * Tick.deltaTime;
+            transform.Position.X = Math.Clamp(transform.Position.X, 0, playfieldWidth - transform.Size.X);
+            transform.Position.Y = Math.Clamp(transform.Position.Y, 0, playfieldHeight - transform.Size.Y);
+        }
 
-        // Hard difficulty raises the base; strike then scales that base up to its configured cap.
-        var strikeProgress = Math.Clamp((float)player.Strike / strikesForMaximumSpeed, 0, 1);
-        var difficulty = DifficultyOptions.GetProgress(
-            player.Score,
-            easyScoreLimit,
-            hardScoreLimit,
-            maximumDifficultyScore);
-        var hardProgress = difficulty.Stage == DifficultyStage.Hard ? difficulty.Progress : 0;
-        var baseSpeed = player.MoveSpeed * MathHelper.Lerp(1, hardSpeedMultiplier, hardProgress);
-        var moveSpeed = baseSpeed * MathHelper.Lerp(1, maximumStrikeSpeedMultiplier, strikeProgress);
-        transform.Position += direction * moveSpeed * Tick.deltaTime;
-        transform.Position.X = Math.Clamp(transform.Position.X, 0, playfieldWidth - transform.Size.X);
-        transform.Position.Y = Math.Clamp(transform.Position.Y, 0, playfieldHeight - transform.Size.Y);
     }
 }

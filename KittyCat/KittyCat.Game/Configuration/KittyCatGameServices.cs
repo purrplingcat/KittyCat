@@ -78,6 +78,7 @@ public class KittyCatGameServices : IServiceModule
         world.AddSystem<StarCollectionSystem>();
         world.AddSystem<HeartSystem>();
         world.AddSystem<RestartGameSystem>();
+        world.AddSystem<CameraStateRenderSyncSystem>();
         world.AddSystem<StarCatcherDebugInfoSystem>();
         world.AddSystem<StarCatcherInitializeSystem>();
         world.AddSystem<StarCatcherDrawSystem>();
@@ -90,10 +91,10 @@ public class KittyCatGameServices : IServiceModule
     private static void ConfigureScreenRenderer(RendererOptions options)
     {
         options.Output = RenderTargetSpec.MatchResolution();
+        options.ScaleMode = RenderScaleMode.IntegerFit;
         options.AddLayer(KittyCatLayers.Hud);
         options.AddLayer(KittyCatLayers.Modal, new RenderLayerOptions { Order = 100 });
     }
-
 }
 
 public sealed class WorldRendererConfiguration(Camera2D camera) : IRendererConfiguration
@@ -101,9 +102,10 @@ public sealed class WorldRendererConfiguration(Camera2D camera) : IRendererConfi
     public void Configure(RendererOptions options)
     {
         options.Diagnostics = new RendererDiagnosticsOptions();
-        options.Output = RenderTargetSpec.MatchResolution();
         options.ClearColor = new Color(14, 20, 31);
-        options.AddLayer(KittyCatLayers.Entities, new RenderLayerOptions { Camera = camera });
-        options.AddLayer(KittyCatLayers.Effects, new RenderLayerOptions { Order = 100, Camera = camera });
+        options.Output = RenderTargetSpec.MatchResolution();
+        options.ScaleMode = RenderScaleMode.IntegerFit;
+        options.AddLayer(KittyCatLayers.Entities, new RenderLayerOptions { Camera = camera, SyncCameraViewport = true });
+        options.AddLayer(KittyCatLayers.Effects, new RenderLayerOptions { Order = 100, Camera = camera, SyncCameraViewport = true });
     }
 }

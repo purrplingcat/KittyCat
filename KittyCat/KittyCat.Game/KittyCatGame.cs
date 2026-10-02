@@ -9,6 +9,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Graphics;
+using PurrplingCore.Toolkit.Rendering;
 using System;
 using System.Reflection;
 
@@ -62,15 +63,6 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
     private static void InitializeLocalization()
     {
         LocalizationManager.SetCulture(LocalizationManager.DEFAULT_CULTURE_CODE);
-    }
-
-    /// <summary>
-    /// Loads the HUD font through the game renderer.
-    /// </summary>
-    protected override void LoadContent()
-    {
-        base.LoadContent();
-        GetRequiredService<StarCatcherRenderer>().LoadContent();
     }
 
     /// <summary>

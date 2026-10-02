@@ -14,17 +14,21 @@ namespace PurrplingCore.Ecs.Systems;
 /// </remarks>
 public abstract class StoreSystem : BaseSystem
 {
+    private EntityStore? _store;
+    protected EntityStore Store => _store!;
+
     /// <summary>
     /// Updates the system for one attached store.
     /// </summary>
-    protected abstract void OnUpdate(EntityStore store);
+    protected abstract void OnUpdate();
 
     protected sealed override void OnUpdateGroup()
     {
         var stores = SystemRoot.Stores;
         for (var index = 0; index < stores.Count; index++)
         {
-            OnUpdate(stores[index]);
+            _store = stores[index];
+            OnUpdate();
         }
     }
 }

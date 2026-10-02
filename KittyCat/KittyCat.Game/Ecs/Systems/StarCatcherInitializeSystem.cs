@@ -21,12 +21,24 @@ public sealed class StarCatcherInitializeSystem : StoreSystem
         _options = options.Value;
     }
 
-    protected override void OnUpdate(EntityStore store)
+    protected override void OnUpdate()
     {
-        store.SetSingleton(StarSpawnState.EntityName, new StarSpawnState());
-        store.CreateEntity(
-            PlayerSetup.CreateTransform(_options),
+        Store.SetSingleton(StarSpawnState.EntityName, new StarSpawnState());
+        var playerTransform = PlayerSetup.CreateTransform(_options);
+        var player = Store.CreateEntity(
+            playerTransform,
             PlayerSetup.CreateState(_options.Paddle),
             new ArcadeVisual { Kind = ArcadeVisualKind.Player, IsVisible = true });
+        player.AddTag<CameraTarget>();
+
+        var camera = Store.CreateEntity(
+            new UniqueEntity(CameraState.EntityName),
+            new CameraState
+            {
+                Position = playerTransform.Position + playerTransform.Size * 0.5f,
+                Zoom = 1f,
+                FollowSpeed = 10f,
+            });
+        camera.AddTag<ActiveCamera>();
     }
 }

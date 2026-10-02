@@ -8,7 +8,9 @@ public enum KittyCatRendererKey
     Screen,
 }
 
-/// <summary>Layers declared by the game, grouped by the renderer that owns them.</summary>
+/// <summary>
+/// Layers declared by the game, grouped by the renderer that owns them.
+/// </summary>
 public static class KittyCatLayers
 {
     public static readonly RenderLayerId Entities = RenderLayerId.Of("World.Entities");
