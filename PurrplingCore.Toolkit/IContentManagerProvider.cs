@@ -7,9 +7,22 @@ using PurrplingCore.Toolkit.Content;
 
 namespace PurrplingCore.Toolkit;
 
+/// <summary>
+/// Provides access to the default content manager
+/// and allows creating new content managers with specified roots.
+/// </summary>
 public interface IContentManagerProvider
 {
+    /// <summary>
+    /// Gets the default content manager.
+    /// </summary>
     public ContentManager ContentManager { get; }
+
+    /// <summary>
+    /// Creates a new content manager with the specified root.
+    /// </summary>
+    /// <param name="root">The root directory for the content manager. If null, the default root is used.</param>
+    /// <returns>A new instance of <see cref="ContentManager"/>.</returns>
     public ContentManager CreateContentManager(string? root = null);
 }
 
