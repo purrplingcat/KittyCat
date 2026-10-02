@@ -46,11 +46,73 @@ public static class Primitives2D
         int thickness = 1,
         float depth = 0f)
     {
+        Span<Rectangle> edges = stackalloc Rectangle[4];
+        var count = GetOutlineEdges(bounds, thickness, edges);
+        if (count == 0) return;
+
         var pixel = GetPixel(device);
-        writer.Draw(pixel, new Rectangle(bounds.X, bounds.Y, bounds.Width, thickness), color, depth);
-        writer.Draw(pixel, new Rectangle(bounds.X, bounds.Bottom - thickness, bounds.Width, thickness), color, depth);
-        writer.Draw(pixel, new Rectangle(bounds.X, bounds.Y + thickness, thickness, bounds.Height - thickness * 2), color, depth);
-        writer.Draw(pixel, new Rectangle(bounds.Right - thickness, bounds.Y + thickness, thickness, bounds.Height - thickness * 2), color, depth);
+        for (var index = 0; index < count; index++)
+            writer.Draw(pixel, edges[index], color, depth);
+    }
+
+    /// <summary>
+    /// Draws an outline through an already open batch using its current transform and clipping.
+    /// The caller owns Begin and End; thickness is measured in batch coordinates.
+    /// </summary>
+    public static void DrawRect(
+        this ISpriteBatcher batcher,
+        GraphicsDevice device,
+        RenderResourceTable resources,
+        FrameTextBuffer text,
+        Rectangle bounds,
+        Color color,
+        int thickness = 1)
+    {
+        ArgumentNullException.ThrowIfNull(batcher);
+        ArgumentNullException.ThrowIfNull(resources);
+        ArgumentNullException.ThrowIfNull(text);
+
+        Span<Rectangle> edges = stackalloc Rectangle[4];
+        var count = GetOutlineEdges(bounds, thickness, edges);
+        if (count == 0) return;
+
+        var textureIndex = resources.GetTextureIndex(GetPixel(device));
+        for (var index = 0; index < count; index++)
+        {
+            var edge = edges[index];
+            var command = new DrawCommand
+            {
+                Source = new Rectangle(0, 0, 1, 1),
+                Position = new Vector2(edge.X, edge.Y),
+                Scale = new Vector2(edge.Width, edge.Height),
+                Color = color,
+                ResourceIndex = textureIndex,
+                Kind = DrawCommandKind.Sprite,
+            };
+            batcher.Submit(command, resources, text);
+        }
+    }
+
+    private static int GetOutlineEdges(Rectangle bounds, int thickness, Span<Rectangle> edges)
+    {
+        if (bounds.Width <= 0 || bounds.Height <= 0 || thickness <= 0) return 0;
+
+        var count = 0;
+        var topHeight = Math.Min(thickness, bounds.Height);
+        edges[count++] = new Rectangle(bounds.X, bounds.Y, bounds.Width, topHeight);
+        var bottomHeight = Math.Min(thickness, bounds.Height - topHeight);
+        if (bottomHeight > 0)
+            edges[count++] = new Rectangle(bounds.X, bounds.Bottom - bottomHeight, bounds.Width, bottomHeight);
+
+        var sideHeight = bounds.Height - topHeight - bottomHeight;
+        if (sideHeight <= 0) return count;
+
+        var leftWidth = Math.Min(thickness, bounds.Width);
+        edges[count++] = new Rectangle(bounds.X, bounds.Y + topHeight, leftWidth, sideHeight);
+        var rightWidth = Math.Min(thickness, bounds.Width - leftWidth);
+        if (rightWidth > 0)
+            edges[count++] = new Rectangle(bounds.Right - rightWidth, bounds.Y + topHeight, rightWidth, sideHeight);
+        return count;
     }
 
     /// <summary>
