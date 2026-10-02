@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Graphics;
+using PurrplingCore.Toolkit.Graphics;
 using PurrplingCore.Toolkit.Rendering;
 
 namespace PurrplingCore.Rendering;
@@ -14,13 +15,16 @@ public static class ServiceCollectionExtensions
     private sealed class RendererServicesBuilder(
         IServiceCollection services,
         string name,
-        object key,
-        RendererOptions options) : IRendererServicesBuilder
+        object key) : IRendererServicesBuilder
     {
         public IServiceCollection Services { get; } = services;
         public string Name { get; } = name;
         public object Key { get; } = key;
-        public RendererOptions Options { get; } = options;
+    }
+
+    private sealed class DelegateRendererModule(Action<RendererOptions> configure) : IRendererConfiguration
+    {
+        public void Configure(RendererOptions options) => configure(options);
     }
 
     /// <summary>
@@ -39,10 +43,10 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var options = new RendererOptions();
         var name = key as string ?? key.ToString() ?? key.GetType().Name;
         services.AddKeyedSingleton<IRenderer>(key, (provider, _) =>
         {
+            var options = new RendererOptions(provider.GetRequiredService<Screen>());
             var modules = provider.GetKeyedServices<IRendererConfiguration>(key);
             foreach (var module in modules)
             {
@@ -52,9 +56,9 @@ public static class ServiceCollectionExtensions
             return new Renderer2D(name, options);
         });
 
-        services.AddSingleton<IRenderer>(provider => provider.GetRequiredKeyedService<IRenderer>(key));
-        services.AddKeyedSingleton<RenderContext>(key, (provider, _) => provider.GetRequiredKeyedService<IRenderer>(key).Context);
-        return new RendererServicesBuilder(services, name, key, options);
+        services.AddSingleton(provider => provider.GetRequiredKeyedService<IRenderer>(key));
+        services.AddKeyedSingleton(key, (provider, _) => provider.GetRequiredKeyedService<IRenderer>(key).Context);
+        return new RendererServicesBuilder(services, name, key);
     }
 
     /// <summary>
@@ -73,8 +77,20 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(configure);
 
-        var builder = services.AddRenderer(key);
-        configure(builder.Options);
+        return services.AddRenderer(key).Configure(configure);
+    }
+
+    /// <summary>
+    /// Adds a callback module applied after options are created with the main screen during DI resolution.
+    /// </summary>
+    public static IRendererServicesBuilder Configure(
+        this IRendererServicesBuilder builder,
+        Action<RendererOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        builder.Services.AddKeyedSingleton<IRendererConfiguration>(builder.Key, new DelegateRendererModule(configure));
         return builder;
     }
 
@@ -98,8 +114,7 @@ public static class ServiceCollectionExtensions
         int order = 0)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        builder.Options.AddLayer(layer, new RenderLayerOptions { Order = order });
-        return builder;
+        return builder.Configure(options => options.AddLayer(layer, new RenderLayerOptions { Order = order }));
     }
 
     /// <summary>
@@ -151,7 +166,6 @@ public interface IRendererServicesBuilder
     IServiceCollection Services { get; }
     string Name { get; }
     object Key { get; }
-    RendererOptions Options { get; }
 }
 
 /// <summary>

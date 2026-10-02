@@ -28,12 +28,6 @@ public sealed class RendererGameComponent : DrawableGameComponent
     public override void Initialize()
     {
         base.Initialize();
-        if (_renderer is Renderer2D renderer)
-        {
-            renderer.VirtualResolution = _graphics.Resolution.Size;
-            _graphics.Resolution.ResolutionChanged += OnResolutionChanged;
-        }
-
         _renderer.Initialize(_graphics.GraphicsDevice);
     }
 
@@ -44,21 +38,4 @@ public sealed class RendererGameComponent : DrawableGameComponent
         base.Draw(gameTime);
     }
 
-    private void OnResolutionChanged()
-    {
-        if (_renderer is Renderer2D renderer)
-        {
-            renderer.VirtualResolution = _graphics.Resolution.Size;
-        }
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _graphics.Resolution.ResolutionChanged -= OnResolutionChanged;
-        }
-
-        base.Dispose(disposing);
-    }
 }

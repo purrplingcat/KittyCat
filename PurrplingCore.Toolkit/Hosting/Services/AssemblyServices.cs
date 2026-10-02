@@ -103,8 +103,6 @@ public class AssemblyServices(params Assembly[] assemblies) : IServiceModule
 
     public void ConfigureServices(IServiceCollection services)
     {
-        var watch = Stopwatch.StartNew();
-
         Parallel.ForEach(_assemblies, assembly =>
         {
             var types = assembly.GetTypes();

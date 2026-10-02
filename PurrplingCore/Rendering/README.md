@@ -21,6 +21,56 @@ RendererGameComponent.Draw() or your own Draw() -> renderer.Flush()
 
 Submission must happen before the relevant flush **in the same frame**. `Flush` never initializes GPU resources: call `Initialize` first. `Initialize` binds the renderer to that device; every subsequent call throws. A `RendererGameComponent` does this during its `Initialize` lifecycle; a manually driven renderer is your responsibility. Flushing before initialization throws `InvalidOperationException`.
 
+## Logical screens and split-screen
+
+`PurrplingCore.Toolkit.Graphics.Screen` describes a logical size and a presentation area, not a GPU target. A root screen can follow `GraphicsManager.Resolution` or use an independent fixed size. Regions inherit a fraction of their parent's size and are placed inside the parent's presented image, including letterboxing. A region can use a fixed logical size without changing its position:
+
+```csharp
+using var main = new Screen(graphics.Resolution);
+var left = main.CreateRegion(0f, 0f, 0.5f, 1f);
+var right = main.CreateRegion(0.5f, 0f, 0.5f, 1f);
+right.UseFixedSize(new Point(320, 360));
+
+var options = new RendererOptions(left);
+options.AddLayer(Layers.Sprites);
+var renderer = new Renderer2D("Left", options);
+```
+
+Regions may be nested. Adjacent regions round shared boundaries consistently, including odd output sizes. `RendererOptions.ScaleMode` controls parent-image placement, child-region mapping, internal layer composition, and final image scaling, defaulting to `Fit`. The same mode is used throughout the screen hierarchy so regions align with the parent image's letterboxing. Renderer configuration does not change the shared screen. `Screen.ScaleMode` is used for standalone `GetPresentationBounds` calculations.
+
+`CreateRegion` offsets are fractions of the parent's dimensions and may be negative or extend beyond the parent. Width and height remain positive fractions up to one, independent of position. For example, `CreateRegion(-0.25f, 0f, 1f, 1f)` keeps the full logical size and shifts the region left by a quarter of the parent image's width. Rendering outside the output or ancestor regions is clipped.
+
+`RendererOptions.Alignment` independently positions the scaled image, defaulting to `RenderAlignment.Center`. It supports the center, four edges, and four corners. Alignment also applies to ancestor-image placement when resolving regions; internal layer composition stays centered. For an integer-scaled HUD at the physical top edge and horizontal center, keep the root screen and configure:
+
+```csharp
+options.Output = RenderTargetSpec.MatchScreen();
+options.ScaleMode = RenderScaleMode.IntegerFit;
+options.Alignment = RenderAlignment.TopCenter;
+```
+
+The world renderer may independently use `Fit` and the default `Center`. A HUD using a region aligns within that region, not the entire window. `MatchBackBuffer` targets already match the backbuffer's pixel dimensions, so they do not gain integer enlargement when composed onto the same backbuffer.
+
+`UsePurrplingCore()` registers the shared main `Screen` as an engine game service, bound to the engine's `Resolution`, even when no renderer is registered. A pre-registered main screen is preserved. `Screen` is required on `RendererOptions`. `AddRenderer(key)` creates options with the main screen only when its keyed renderer is first resolved and an `IServiceProvider` is available. It then applies registered configuration modules before constructing the renderer. Select a custom screen directly in configuration:
+
+```csharp
+services.AddRenderer("Left", ConfigureLeftRenderer)
+    .AddDrawComponent();
+
+static void ConfigureLeftRenderer(RendererOptions options)
+{
+    options.Screen = options.Screen.CreateRegion(0f, 0f, 0.5f, 1f);
+    options.AddLayer(Layers.Sprites);
+}
+```
+
+`AddRenderer(key, callback)` registers the callback through `DelegateRendererModule`, just like world configuration callbacks. It does not invoke it during service registration. `.Configure(callback)`, `.AddLayer(...)`, and `.AddModule<T>()` all contribute to the same deferred pipeline in registration order. The builder deliberately has no `Options` property: options do not exist until the renderer is resolved. Both callbacks and DI-created `IRendererConfiguration` modules receive initialized options and may explicitly assign `options.Screen`; there is no separate keyed-screen lookup or screen-selection property on modules. Outside engine composition, register a main `Screen` service before resolving registered renderers.
+
+For direct construction, use `new RendererOptions(screen)` or an object initializer setting the required `Screen`, then `new Renderer2D(name, options)`. World and HUD renderers may share the same screen without sharing render targets. `RendererOptions.Output` defaults to `MatchScreen()`, so each renderer owns a screen-sized offscreen target; clears affect that private target and final presentation is clipped to the screen and its ancestors.
+
+`Screen` caches the logical size and updates it through `Resolution.ResolutionChanged`, raised by `ApplyChanges()`. `SetResolution()` alone stages the change; a normal window resize changes the physical backbuffer without changing the logical size. Child regions derive their size from their parent. `UseFixedSize()` unsubscribes from the source while retaining the screen's presentation area.
+
+Screen layout is sampled at initialization and at the start of each frame, before camera synchronization. Applied changes affect targets and cameras on the next frame. Use `renderer.Screen.Size` for the screen's current logical size; `MatchScreen()` uses the frame's sampled screen size, and `MatchBackBuffer()` always follows the physical backbuffer. The screen never changes global `Resolution` or allocates GPU resources. The renderer only reads the screen and output dimensions; it does not subscribe to device-reset events or manage the window. DI disposes its shared screen; callers dispose explicitly supplied screens. Automatic and scene-owned renderers use exactly the same sizing and presentation code.
+
 ## Automatic rendering with DI
 
 Define layer IDs once. A configuration class is only needed for renderer-specific DI dependencies; simple renderers use the same builder directly by name.
@@ -44,16 +94,16 @@ public enum RendererKey
 }
 ```
 
-Register them in an `IServiceModule` (for example, a module on your game class via `GameServicesAttribute`). The examples below assume the appropriate namespaces are imported: `Microsoft.Extensions.DependencyInjection`, `Microsoft.Xna.Framework`, `PurrplingCore.Rendering`, and `PurrplingCore.Toolkit.Rendering`. Renderer configuration is a DI-created class, not a service-configuration callback.
+Register them in an `IServiceModule` (for example, a module on your game class via `GameServicesAttribute`). The examples below assume the appropriate namespaces are imported: `Microsoft.Extensions.DependencyInjection`, `Microsoft.Xna.Framework`, `PurrplingCore.Graphics`, `PurrplingCore.Rendering`, `PurrplingCore.Toolkit.Graphics`, and `PurrplingCore.Toolkit.Rendering`. Renderer configuration is a DI-created class, not a service-configuration callback.
 
 ```csharp
-public sealed class WorldRendering : IRendererConfiguration
+public sealed class WorldRendering(Camera2D camera) : IRendererConfiguration
 {
     public void Configure(RendererOptions options)
     {
         options.ClearColor = new Color(14, 20, 31);
-        options.AddLayer(Layers.Sprites);
-        options.AddLayer(Layers.Effects, new RenderLayerOptions { Order = 100 });
+        options.AddLayer(Layers.Sprites, new RenderLayerOptions { Camera = camera, SyncCameraViewport = true });
+        options.AddLayer(Layers.Effects, new RenderLayerOptions { Order = 100, Camera = camera, SyncCameraViewport = true });
     }
 }
 
@@ -213,12 +263,13 @@ Use the Toolkit renderer directly when you control the draw loop. This example i
 public sealed class StandaloneGame : PurrplingCore.Toolkit.Game
 {
     private static readonly RenderLayerId World = RenderLayerId.Of("Standalone.World");
+    private readonly Screen _screen = new(new Point(320, 180));
     private readonly Renderer2D _renderer;
     private Texture2D _hero = null!;
 
     public StandaloneGame(IServiceProvider provider) : base(provider)
     {
-        var options = new RendererOptions { ClearColor = Color.CornflowerBlue };
+        var options = new RendererOptions(_screen) { ClearColor = Color.CornflowerBlue };
         options.AddLayer(World);
         _renderer = new Renderer2D("Standalone", options);
     }
@@ -244,7 +295,11 @@ public sealed class StandaloneGame : PurrplingCore.Toolkit.Game
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _renderer.Dispose();
+        if (disposing)
+        {
+            _renderer.Dispose();
+            _screen.Dispose();
+        }
         base.Dispose(disposing);
     }
 }
@@ -260,17 +315,18 @@ using var host = builder.Build();
 return host.Run();
 ```
 
-With this setup, nothing invokes `Initialize` or `Flush` for you. `Initialize` creates GPU resources; `Flush` requires it and must run on the graphics thread after submission. `Dispose` belongs to whoever constructed the renderer. Manual renderers do not receive the component-driven `VirtualResolution` update; set it yourself when using `RenderTargetSpec.MatchResolution`.
+With this setup, nothing invokes `Initialize` or `Flush` for you. `Initialize` creates GPU resources; `Flush` requires it and must run on the graphics thread after submission. This example owns a fixed 320-by-180 screen independently of the backbuffer. Pass a `Screen` bound to `Resolution` when logical size should follow that source instead. Dispose the renderer and caller-owned screen separately. No component is needed to synchronize screen size.
 
-### Manual virtual resolution and camera viewport
+### Manual screen size and camera viewport
 
-Set `VirtualResolution` before `Initialize` when using `RenderTargetSpec.MatchResolution`. Enable `SyncCameraViewport` on camera layers to size the camera viewport and center its origin from the resolved layer target. The renderer traverses configured layers to synchronize their cameras during initialization and when each new frame opens, before returning its first layer writer. Changing `VirtualResolution` therefore takes effect at the start of the next frame without reinitializing the renderer. A camera shared by several layers may receive the same viewport more than once; `Camera2D` skips unchanged viewport sizes:
+Use a fixed `Screen` for an independent logical resolution. Enable `SyncCameraViewport` on camera layers to size the camera viewport and center its origin from the resolved layer target. The renderer traverses configured layers to synchronize their cameras during initialization and when each new frame opens, before returning its first layer writer. Changing the screen size takes effect at the start of the next frame without reinitializing the renderer. A camera shared by several layers may receive the same viewport more than once; `Camera2D` skips unchanged viewport sizes:
 
 ```csharp
 var camera = new Camera2D();
-var options = new RendererOptions
+var screen = new Screen(new Point(320, 180));
+var options = new RendererOptions(screen)
 {
-    Output = RenderTargetSpec.MatchResolution(),
+    Output = RenderTargetSpec.MatchScreen(),
     ScaleMode = RenderScaleMode.IntegerFit,
 };
 options.AddLayer(World, new RenderLayerOptions
@@ -279,19 +335,16 @@ options.AddLayer(World, new RenderLayerOptions
     SyncCameraViewport = true,
 });
 
-var renderer = new Renderer2D("World", options)
-{
-    VirtualResolution = new Point(320, 180),
-};
+var renderer = new Renderer2D("World", options);
 renderer.Initialize(graphicsDevice);
 
 renderer.Context.Layer(World).Draw(texture, position, Color.White);
 renderer.Flush();
 
-renderer.VirtualResolution = new Point(640, 360);
+screen.UseFixedSize(new Point(640, 360));
 ```
 
-If the camera viewport should remain independent of the render target, leave `SyncCameraViewport` false and call `camera.SetViewport(width, height)` followed by `camera.CenterOrigin()` when your chosen viewport changes. `VirtualResolution` controls the `MatchResolution` render target; it does not automatically alter game-world coordinates or camera position.
+If the camera viewport should remain independent of the render target, leave `SyncCameraViewport` false and call `camera.SetViewport(width, height)` followed by `camera.CenterOrigin()` when your chosen viewport changes. Screen size controls the `MatchScreen` render target; it does not automatically alter game-world coordinates or camera position.
 
 ### Without the PurrplingCore host or game class
 
@@ -300,6 +353,7 @@ The Toolkit renderer also works with a plain MonoGame game. This version needs n
 ```csharp
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using PurrplingCore.Toolkit.Graphics;
 using PurrplingCore.Toolkit.Rendering;
 
 using var game = new RawMonoGame();
@@ -309,6 +363,7 @@ public sealed class RawMonoGame : Microsoft.Xna.Framework.Game
 {
     private static readonly RenderLayerId World = RenderLayerId.Of("Raw.World");
     private readonly GraphicsDeviceManager _graphics;
+    private readonly Screen _screen = new(new Point(320, 180));
     private readonly Renderer2D _renderer;
     private Texture2D _hero = null!;
 
@@ -316,7 +371,7 @@ public sealed class RawMonoGame : Microsoft.Xna.Framework.Game
     {
         _graphics = new GraphicsDeviceManager(this);
         Content.RootDirectory = "Content";
-        var options = new RendererOptions { ClearColor = Color.CornflowerBlue };
+        var options = new RendererOptions(_screen) { ClearColor = Color.CornflowerBlue };
         options.AddLayer(World);
         _renderer = new Renderer2D("Raw", options);
     }
@@ -336,7 +391,11 @@ public sealed class RawMonoGame : Microsoft.Xna.Framework.Game
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _renderer.Dispose();
+        if (disposing)
+        {
+            _renderer.Dispose();
+            _screen.Dispose();
+        }
         base.Dispose(disposing);
     }
 }
@@ -382,7 +441,7 @@ services.AddRenderer(RendererKey.World)
 
 Update `camera.Position` from your update code. With `SyncCameraViewport = true`, the renderer derives viewport dimensions from the layer target and centers the camera origin; omit it when the camera viewport is intentionally independent. `layer.Parallax` defaults to `Vector2.One` (follow the camera); zero keeps the layer fixed. Camera-less layers render in screen coordinates. Culling is performed **at submission**, using an axis-aligned visible rectangle; rotated sprites deliberately skip that culling test.
 
-For an offscreen layer or renderer, set `layer.Target` or `options.Output` to `RenderTargetSpec.MatchScreen()`, `MatchResolution()`, or `OfSize(width, height)`. Layer targets are composed onto the renderer output. `Renderer2D.OutputOverride` can direct the final composed image to an externally owned target; leave it null to use the back buffer. `IPostProcessor` chains can be added to a layer's `PostProcessors` or a renderer's `PostProcessors`; processors are initialized with the renderer and disposed with it. The renderer-level chain currently runs only when `options.Output` is set. A layer's chain requires `layer.Target`. Do not assume a global post-processing stage across multiple renderer groups exists.
+For an offscreen layer or renderer, set `layer.Target` or `options.Output` to `RenderTargetSpec.MatchScreen()`, `MatchBackBuffer()`, or `OfSize(width, height)`. Layer targets are composed onto the renderer output. `Renderer2D.OutputOverride` can direct the final composed image to an externally owned target; leave it null to use the back buffer. `IPostProcessor` chains can be added to a layer's `PostProcessors` or a renderer's `PostProcessors`; processors are initialized with the renderer and disposed with it. The renderer-level chain currently runs only when `options.Output` is set. A layer's chain requires `layer.Target`. Do not assume a global post-processing stage across multiple renderer groups exists.
 
 `RenderLayerOptions.Pass` replaces the default `DrawCommandPass` with your `IRenderLayerPass`; its `Initialize(GraphicsDevice)` is called before drawing and `Prepare/Execute` run during flush. A custom pass must explicitly replay `context.Layer.Commands` if it wants queued commands to appear. `Primitives2D` provides `FillRect`, `DrawRect`, `DrawLine`, and `FillCircle` extensions on `LayerWriter`; they currently take a `GraphicsDevice` to obtain the shared white pixel. That first pixel creation is a GPU operation, so warm it up after device initialization if draw systems must only enqueue during the frame.
 

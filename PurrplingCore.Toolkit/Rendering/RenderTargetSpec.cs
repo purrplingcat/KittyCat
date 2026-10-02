@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 namespace PurrplingCore.Toolkit.Rendering;
 
 /// <summary>
-/// Determines how a render target follows window or resolution changes.
+/// Determines how a render target follows screen or backbuffer size changes.
 /// </summary>
 public enum RenderTargetResizeMode : byte
 {
@@ -15,12 +15,12 @@ public enum RenderTargetResizeMode : byte
     /// <summary>
     /// Tracks the back buffer size.
     /// </summary>
-    MatchScreen,
+    MatchBackBuffer,
 
     /// <summary>
-    /// Tracks the virtual resolution, which may differ from the back buffer.
+    /// Tracks the renderer's logical screen size.
     /// </summary>
-    MatchResolution,
+    MatchScreen,
 }
 
 /// <summary>
@@ -80,15 +80,16 @@ public readonly struct RenderTargetSpec
     /// <summary>
     /// Creates a target that tracks the back buffer size.
     /// </summary>
+    public static RenderTargetSpec MatchBackBuffer(
+        SurfaceFormat format = SurfaceFormat.Color,
+        DepthFormat depthFormat = DepthFormat.None)
+        => new(RenderTargetResizeMode.MatchBackBuffer, 0, 0, format, depthFormat);
+
+    /// <summary>
+    /// Creates a target that tracks the renderer's logical screen size.
+    /// </summary>
     public static RenderTargetSpec MatchScreen(
         SurfaceFormat format = SurfaceFormat.Color,
         DepthFormat depthFormat = DepthFormat.None)
         => new(RenderTargetResizeMode.MatchScreen, 0, 0, format, depthFormat);
-
-    /// <summary>
-    /// Creates a target that tracks the virtual resolution.</summary>
-    public static RenderTargetSpec MatchResolution(
-        SurfaceFormat format = SurfaceFormat.Color,
-        DepthFormat depthFormat = DepthFormat.None)
-        => new(RenderTargetResizeMode.MatchResolution, 0, 0, format, depthFormat);
 }

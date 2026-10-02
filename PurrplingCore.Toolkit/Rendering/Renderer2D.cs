@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using PurrplingCore.Toolkit.Graphics;
 
 namespace PurrplingCore.Toolkit.Rendering;
 
@@ -23,6 +24,12 @@ public class Renderer2D : IRenderer
     private readonly IPostProcessor[] _postProcessors;
     private readonly RenderResourceTable _resources = new();
     private readonly FrameTextBuffer _text = new();
+    private readonly RasterizerState _presentationRasterizer = new()
+    {
+        CullMode = CullMode.None,
+        ScissorTestEnable = true,
+    };
+    private ScreenLayout _screenLayout;
     private ISpriteBatcher? _batcher;
     private GraphicsDevice _device = null!;
     private RenderTarget2D? _output;
@@ -39,6 +46,7 @@ public class Renderer2D : IRenderer
 
         Name = name;
         _options = options;
+        Screen = options.Screen ?? throw new ArgumentNullException(nameof(options.Screen));
         Enabled = options.Enabled;
         Context = new RenderContext(this);
         _postProcessors = [.. options.PostProcessors];
@@ -94,10 +102,9 @@ public class Renderer2D : IRenderer
     public RenderTarget2D? OutputOverride { get; set; }
 
     /// <summary>
-    /// Virtual resolution used by <see cref="RenderTargetResizeMode.MatchResolution"/>.
-    /// Falls back to the back buffer size while unset.
+    /// Logical screen that supplies this renderer's resolution and final presentation area.
     /// </summary>
-    public Point VirtualResolution { get; set; }
+    public Screen Screen { get; }
 
     public void Initialize(GraphicsDevice device)
     {
@@ -128,6 +135,7 @@ public class Renderer2D : IRenderer
         _device = device;
         _initialized = true;
 
+        ReadScreenLayout();
         SynchronizeCameraViewports();
     }
 
@@ -142,7 +150,11 @@ public class Renderer2D : IRenderer
         _openFrame = _frameId;
         _text.Clear();
 
-        if (isNewFrame) SynchronizeCameraViewports();
+        if (isNewFrame && _initialized)
+        {
+            ReadScreenLayout();
+            SynchronizeCameraViewports();
+        }
 
         foreach (var layer in _layers)
         {
@@ -178,7 +190,7 @@ public class Renderer2D : IRenderer
             // Clear the render target with the specified clear color.
             _device.Clear(clearColor);
         }
-        else if (_output is not null)
+        else if (output is not null)
         {
             // The private output is composed over other renderers, so stale pixels must not leak through.
             _device.Clear(Color.Transparent);
@@ -200,12 +212,12 @@ public class Renderer2D : IRenderer
 
         // Compose the final image for this frame.
         double composeMilliseconds = 0d;
-        if (_output is not null)
+        if (output is not null)
         {
             stageStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
-            var image = ApplyChain(_postProcessors, _output, ref _outputScratch, OutputOverride);
+            var image = ApplyChain(_postProcessors, output, ref _outputScratch, OutputOverride);
             _device.SetRenderTarget(OutputOverride);
-            Compose(image, OutputOverride);
+            Compose(image, _screenLayout.Bounds, _options.ScaleMode, _screenLayout.Clip, _options.Alignment);
             if (diagnostics is not null)
             {
                 composeMilliseconds = Stopwatch.GetElapsedTime(stageStart).TotalMilliseconds;
@@ -227,11 +239,17 @@ public class Renderer2D : IRenderer
 
     private RenderTarget2D? ResolveOutput()
     {
-        if (!_options.Output.HasValue) return OutputOverride;
 
-        var spec = _options.Output.Value;
-        EnsureTarget(spec, ref _output);
+        EnsureTarget(_options.Output, ref _output);
         return _output;
+    }
+
+    private void ReadScreenLayout()
+    {
+        var parameters = _device.PresentationParameters;
+        var outputBounds = OutputOverride?.Bounds
+            ?? new Rectangle(0, 0, parameters.BackBufferWidth, parameters.BackBufferHeight);
+        _screenLayout = Screen.GetLayout(outputBounds, _options.ScaleMode, _options.Alignment);
     }
 
     private void Prepare(RendererDiagnostics? diagnostics)
@@ -336,16 +354,22 @@ public class Renderer2D : IRenderer
     {
         var targetWidth = target?.Width ?? _device.PresentationParameters.BackBufferWidth;
         var targetHeight = target?.Height ?? _device.PresentationParameters.BackBufferHeight;
-        var scale = GetScale(_options.ScaleMode, targetWidth, targetHeight, image.Width, image.Height);
-        var position = new Vector2(
-            MathF.Floor((targetWidth - image.Width * scale.X) * 0.5f),
-            MathF.Floor((targetHeight - image.Height * scale.Y) * 0.5f));
+        Compose(image, new Rectangle(0, 0, targetWidth, targetHeight), _options.ScaleMode);
+    }
+
+    private void Compose(Texture2D image, Rectangle area, RenderScaleMode scaleMode, Rectangle? clip = null, RenderAlignment alignment = RenderAlignment.Center)
+    {
+        if (area.Width <= 0 || area.Height <= 0) return;
+        if (clip.HasValue && (clip.Value.Width <= 0 || clip.Value.Height <= 0)) return;
+
+        var imageBounds = Screen.GetImageBounds(area, new Point(image.Width, image.Height), scaleMode, alignment);
+        if (imageBounds.Width <= 0 || imageBounds.Height <= 0) return;
 
         var command = new DrawCommand
         {
             Source = new Rectangle(0, 0, image.Width, image.Height),
-            Position = position,
-            Scale = scale,
+            Position = new Vector2(imageBounds.X, imageBounds.Y),
+            Scale = new Vector2((float)imageBounds.Width / image.Width, (float)imageBounds.Height / image.Height),
             Origin = Vector2.Zero,
             Color = Color.White,
             ResourceIndex = _resources.GetTextureIndex(image),
@@ -353,26 +377,21 @@ public class Renderer2D : IRenderer
         };
 
         var batcher = _batcher!;
-        batcher.Begin(new BatchState(Matrix.Identity, BlendState.AlphaBlend, _options.DefaultSamplerState));
-        batcher.Submit(command, _resources, _text);
-        batcher.End();
-    }
-
-    private static Vector2 GetScale(RenderScaleMode mode, int targetWidth, int targetHeight, int imageWidth, int imageHeight)
-    {
-        var scaleX = (float)targetWidth / imageWidth;
-        var scaleY = (float)targetHeight / imageHeight;
-        var fit = MathF.Min(scaleX, scaleY);
-
-        return mode switch
+        var previousScissor = _device.ScissorRectangle;
+        var previousRasterizer = _device.RasterizerState;
+        try
         {
-            RenderScaleMode.Stretch => new Vector2(scaleX, scaleY),
-            RenderScaleMode.Fill => new Vector2(MathF.Max(scaleX, scaleY)),
-            RenderScaleMode.Center => Vector2.One,
-            // Below 1x there is no whole multiple, so shrink smoothly rather than overflow.
-            RenderScaleMode.IntegerFit => new Vector2(fit >= 1f ? MathF.Floor(fit) : fit),
-            _ => new Vector2(fit),
-        };
+            if (clip.HasValue) _device.ScissorRectangle = clip.Value;
+            batcher.Begin(new BatchState(Matrix.Identity, BlendState.AlphaBlend, _options.DefaultSamplerState,
+                rasterizerState: clip.HasValue ? _presentationRasterizer : null));
+            batcher.Submit(command, _resources, _text);
+            batcher.End();
+        }
+        finally
+        {
+            _device.ScissorRectangle = previousScissor;
+            _device.RasterizerState = previousRasterizer;
+        }
     }
 
     private void EnsureTarget(RenderTargetSpec spec, ref RenderTarget2D? target)
@@ -398,9 +417,9 @@ public class Renderer2D : IRenderer
     {
         if (spec.ResizeMode == RenderTargetResizeMode.Fixed) return (spec.Width, spec.Height);
 
-        if (spec.ResizeMode == RenderTargetResizeMode.MatchResolution && VirtualResolution.X > 0 && VirtualResolution.Y > 0)
+        if (spec.ResizeMode == RenderTargetResizeMode.MatchScreen)
         {
-            return (VirtualResolution.X, VirtualResolution.Y);
+            return (_screenLayout.Size.X, _screenLayout.Size.Y);
         }
 
         var parameters = _device.PresentationParameters;
@@ -472,21 +491,8 @@ public class Renderer2D : IRenderer
             return new Point(size.Width, size.Height);
         }
 
-        var rendererOutput = _options.Output;
-        if (rendererOutput.HasValue)
-        {
-            var size = ResolveSize(rendererOutput.Value);
-            return new Point(size.Width, size.Height);
-        }
-
-        var output = OutputOverride;
-        if (output is not null)
-        {
-            return new Point(output.Width, output.Height);
-        }
-
-        var parameters = _device.PresentationParameters;
-        return new Point(parameters.BackBufferWidth, parameters.BackBufferHeight);
+        var outputSize = ResolveSize(_options.Output);
+        return new Point(outputSize.Width, outputSize.Height);
     }
 
     /// <summary>
@@ -521,6 +527,7 @@ public class Renderer2D : IRenderer
         DisposeAll(_layerScratch);
         _output?.Dispose();
         _outputScratch?.Dispose();
+        _presentationRasterizer.Dispose();
     }
 
     private static void DisposeAll(RenderTarget2D?[] targets)

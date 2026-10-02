@@ -1,5 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using PurrplingCore.Toolkit.Graphics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace PurrplingCore.Toolkit.Rendering;
 
@@ -53,8 +55,23 @@ public interface IRenderer : IDisposable
 /// <summary>
 /// Configuration for a single renderer, applied once during composition.
 /// </summary>
-public sealed class RendererOptions
+public sealed class RendererOptions()
 {
+    /// <summary>
+    /// Creates options with the required logical screen.
+    /// </summary>
+    [SetsRequiredMembers]
+    public RendererOptions(Screen screen) : this()
+    {
+        ArgumentNullException.ThrowIfNull(screen);
+        Screen = screen;
+    }
+
+    /// <summary>
+    /// Required logical screen and final presentation area.
+    /// </summary>
+    public required Screen Screen { get; set; }
+
     public bool Enabled { get; set; } = true;
 
     /// <summary>
@@ -73,14 +90,20 @@ public sealed class RendererOptions
     public Color? ClearColor { get; set; }
 
     /// <summary>
-    /// Draws into an offscreen target instead of straight into the bound output.
+    /// Describes the renderer's private output target. Defaults to the screen's logical size.
     /// </summary>
-    public RenderTargetSpec? Output { get; set; }
+    public RenderTargetSpec Output { get; set; } = RenderTargetSpec.MatchScreen();
 
     /// <summary>
-    /// How offscreen images are placed onto a target of a different size, such as the window.
+    /// How offscreen images are scaled during layer composition and final presentation.
     /// </summary>
     public RenderScaleMode ScaleMode { get; set; } = RenderScaleMode.Fit;
+
+    /// <summary>
+    /// Aligns the final image and its screen hierarchy within the output area.
+    /// Internal layer composition remains centered.
+    /// </summary>
+    public RenderAlignment Alignment { get; set; } = RenderAlignment.Center;
 
     /// <summary>
     /// Processors applied to <see cref="Output"/> after all layers have drawn.
