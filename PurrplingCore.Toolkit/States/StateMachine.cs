@@ -1,6 +1,8 @@
 namespace PurrplingCore.Toolkit.States;
 
-/// <summary>Handles entry and exit of a particular state.</summary>
+/// <summary>
+/// Handles entry and exit of a particular state.
+/// </summary>
 public interface IStateHandler<TState>
 {
     TState HandledState { get; }
@@ -8,7 +10,9 @@ public interface IStateHandler<TState>
     void OnExitState();
 }
 
-/// <summary>Coordinates state transitions and invokes the registered state handlers.</summary>
+/// <summary>
+/// Coordinates state transitions and invokes the registered state handlers.
+/// </summary>
 public class StateMachine<TState> where TState : notnull
 {
     private readonly Dictionary<TState, List<IStateHandler<TState>>> _handlers = [];
@@ -31,7 +35,9 @@ public class StateMachine<TState> where TState : notnull
         }
     }
 
-    /// <summary>Leaves the old state, enters the new state, then notifies subscribers.</summary>
+    /// <summary>
+    /// Leaves the old state, enters the new state, then notifies subscribers.
+    /// </summary>
     public void ChangeState(TState newState)
     {
         if (EqualityComparer<TState>.Default.Equals(CurrentState, newState)) return;

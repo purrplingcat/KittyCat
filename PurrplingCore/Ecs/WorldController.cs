@@ -7,14 +7,18 @@ using PurrplingCore.Toolkit.Rendering;
 
 namespace PurrplingCore.Ecs;
 
-/// <summary>Configures the ECS world owned by a MonoGame game component.</summary>
+/// <summary>
+/// Configures the ECS world owned by a MonoGame game component.
+/// </summary>
 public sealed class WorldControllerOptions
 {
     public string Name { get; set; } = "MainWorld";
     public WorldSignature Signature { get; set; } = WorldSignature.Default;
 }
 
-/// <summary>Bridges the MonoGame update and draw loop to an ECS world.</summary>
+/// <summary>
+/// Bridges the MonoGame update and draw loop to an ECS world.
+/// </summary>
 public sealed class WorldController : DrawableGameComponent
 {
     private readonly World _world;
@@ -65,7 +69,9 @@ public sealed class WorldController : DrawableGameComponent
     }
 }
 
-/// <summary>Opt-in registration for running an ECS world as a MonoGame component.</summary>
+/// <summary>
+/// Opt-in registration for running an ECS world as a MonoGame component.
+/// </summary>
 public static class WorldControllerServiceCollectionExtensions
 {
     public static IServiceCollection AddWorldController(this IServiceCollection services)

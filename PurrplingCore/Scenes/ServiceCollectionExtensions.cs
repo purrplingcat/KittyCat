@@ -7,7 +7,9 @@ namespace PurrplingCore.Scenes;
 
 public static class ServiceCollectionExtensions
 {
-    /// <summary>Opts a game into scene management and registers its drawable game component.</summary>
+    /// <summary>
+    /// Opts a game into scene management and registers its drawable game component.
+    /// </summary>
     public static IServiceCollection AddSceneManager(this IServiceCollection services)
     {
         services.AddOptions<SceneManagerOptions>();

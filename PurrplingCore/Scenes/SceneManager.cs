@@ -7,7 +7,9 @@ using PurrplingCore.Toolkit.Graphics;
 
 namespace PurrplingCore.Scenes;
 
-/// <summary>Activates, updates, renders, and disposes scenes owned by a game.</summary>
+/// <summary>
+/// Activates, updates, renders, and disposes scenes owned by a game.
+/// </summary>
 public class SceneManager(
     PurrplingCore.Toolkit.Game game,
     SceneProvider sceneProvider,

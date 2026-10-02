@@ -8,10 +8,14 @@ using System;
 
 namespace PurrplingCore.Scenes;
 
-/// <summary>Determines how a scene's drawing reaches the screen.</summary>
+/// <summary>
+/// Determines how a scene's drawing reaches the screen.
+/// </summary>
 public enum SceneRenderMode
 {
-    /// <summary>The scene draws immediately into its own canvas, which the manager then blits.</summary>
+    /// <summary>
+    /// The scene draws immediately into its own canvas, which the manager then blits.
+    /// </summary>
     Canvas,
 
     /// <summary>

@@ -8,22 +8,34 @@ namespace PurrplingCore.Toolkit.Hosting;
 /// </summary>
 public interface IGameApplicationLifetime
 {
-    /// <summary>Signals entry into MonoGame initialization.</summary>
+    /// <summary>
+    /// Signals entry into MonoGame initialization.
+    /// </summary>
     CancellationToken GameInitializing { get; }
 
-    /// <summary>Signals that MonoGame initialization and its registered callbacks completed.</summary>
+    /// <summary>
+    /// Signals that MonoGame initialization and its registered callbacks completed.
+    /// </summary>
     CancellationToken GameInitialized { get; }
 
-    /// <summary>Signals that the game loop has started.</summary>
+    /// <summary>
+    /// Signals that the game loop has started.
+    /// </summary>
     CancellationToken GameStarted { get; }
 
-    /// <summary>Signals that application shutdown was requested.</summary>
+    /// <summary>
+    /// Signals that application shutdown was requested.
+    /// </summary>
     CancellationToken GameStopping { get; }
 
-    /// <summary>Signals that the game loop and shutdown work completed.</summary>
+    /// <summary>
+    /// Signals that the game loop and shutdown work completed.
+    /// </summary>
     CancellationToken GameStopped { get; }
 
-    /// <summary>Requests application shutdown. Repeated requests are ignored.</summary>
+    /// <summary>
+    /// Requests application shutdown. Repeated requests are ignored.
+    /// </summary>
     void StopApplication();
 }
 

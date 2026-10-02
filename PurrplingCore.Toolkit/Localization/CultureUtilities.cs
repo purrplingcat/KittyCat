@@ -3,10 +3,14 @@ using System.Resources;
 
 namespace PurrplingCore.Toolkit.Localization;
 
-/// <summary>Provides culture selection and resource availability checks independent of a game.</summary>
+/// <summary>
+/// Provides culture selection and resource availability checks independent of a game.
+/// </summary>
 public static class CultureUtilities
 {
-    /// <summary>Sets the current thread's formatting and resource lookup cultures.</summary>
+    /// <summary>
+    /// Sets the current thread's formatting and resource lookup cultures.
+    /// </summary>
     public static void SetCulture(string cultureCode)
     {
         ArgumentException.ThrowIfNullOrEmpty(cultureCode);
@@ -15,7 +19,9 @@ public static class CultureUtilities
         CultureInfo.CurrentUICulture = culture;
     }
 
-    /// <summary>Returns cultures with a resource set in the supplied manager, including invariant culture.</summary>
+    /// <summary>
+    /// Returns cultures with a resource set in the supplied manager, including invariant culture.
+    /// </summary>
     public static List<CultureInfo> GetSupportedCultures(ResourceManager resourceManager)
     {
         ArgumentNullException.ThrowIfNull(resourceManager);

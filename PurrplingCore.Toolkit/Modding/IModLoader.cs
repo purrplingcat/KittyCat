@@ -325,13 +325,21 @@ internal sealed class ModDependencyResolver(IModRegistry registry, ILogger logge
     /// </summary>
     enum ResolveState : byte
     {
-        /// <summary>Mod has not been visited yet.</summary>
+        /// <summary>
+        /// Mod has not been visited yet.
+        /// </summary>
         NotVisited = 0,
-        /// <summary>Mod is currently being visited (cycle detection).</summary>
+        /// <summary>
+        /// Mod is currently being visited (cycle detection).
+        /// </summary>
         Visiting = 1,
-        /// <summary>Mod and its dependencies have been successfully resolved.</summary>
+        /// <summary>
+        /// Mod and its dependencies have been successfully resolved.
+        /// </summary>
         Resolved = 2,
-        /// <summary>Mod failed to resolve due to missing or circular dependencies.</summary>
+        /// <summary>
+        /// Mod failed to resolve due to missing or circular dependencies.
+        /// </summary>
         Failed = 3
     }
 

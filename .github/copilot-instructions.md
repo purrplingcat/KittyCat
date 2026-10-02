@@ -25,6 +25,7 @@
 ## Engineering Style
 
 - Keep code simple, readable, universal, modular, and reusable.
+- Do not use negated capture patterns such as `value is not { } captured`; use an explicit local variable and `is null` check instead.
 - Do not use tuple types in generic collections or APIs. Prefer a named record/class/struct when values represent a domain concept; use tuples only for short-lived local groupings where the names and lifetime are obvious.
 - Avoid unnecessary object construction and repeated `new` expressions in setup APIs; prefer collection/object initializers and existing DI ownership. Keep allocations out of hot paths.
 - Avoid enterprise patterns, ceremony, and abstractions unless they are clearly necessary for the game, engine, or framework.
