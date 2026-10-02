@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 namespace PurrplingCore.Toolkit.Rendering;
 
 /// <summary>
-/// Determines how a render target follows screen or backbuffer size changes.
+/// Determines how a render target follows logical screen or presentation size changes.
 /// </summary>
 public enum RenderTargetResizeMode : byte
 {
@@ -13,9 +13,9 @@ public enum RenderTargetResizeMode : byte
     Fixed = 0,
 
     /// <summary>
-    /// Tracks the back buffer size.
+    /// Tracks the renderer's presentation area in output pixels.
     /// </summary>
-    MatchBackBuffer,
+    MatchPresentation,
 
     /// <summary>
     /// Tracks the renderer's logical screen size.
@@ -78,12 +78,12 @@ public readonly struct RenderTargetSpec
     }
 
     /// <summary>
-    /// Creates a target that tracks the back buffer size.
+    /// Creates a target that tracks the renderer's presentation area in output pixels.
     /// </summary>
-    public static RenderTargetSpec MatchBackBuffer(
+    public static RenderTargetSpec MatchPresentation(
         SurfaceFormat format = SurfaceFormat.Color,
         DepthFormat depthFormat = DepthFormat.None)
-        => new(RenderTargetResizeMode.MatchBackBuffer, 0, 0, format, depthFormat);
+        => new(RenderTargetResizeMode.MatchPresentation, 0, 0, format, depthFormat);
 
     /// <summary>
     /// Creates a target that tracks the renderer's logical screen size.

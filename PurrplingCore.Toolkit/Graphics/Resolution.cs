@@ -12,6 +12,7 @@ public class Resolution
 {
     private readonly GraphicsDeviceManager _manager;
     private readonly GameWindow _window;
+    private Point _referenceSize;
     private bool _applying;
 
     public int Width { get; private set; }
@@ -23,6 +24,12 @@ public class Resolution
     public float AspectRatio => Width / (float)Height;
     public PresentationParameters PresentationParameters => _manager.GraphicsDevice.PresentationParameters;
     public GraphicsDevice GraphicsDevice => _manager.GraphicsDevice;
+
+    /// <summary>
+    /// Controls whether the logical resolution stays fixed, expands with aspect ratio, or follows the client area.
+    /// Changes take effect when ApplyChanges is called.
+    /// </summary>
+    public VirtualResolutionMode VirtualMode { get; private set; }
 
     public Resolution(GraphicsDeviceManager manager, GameWindow window)
     {
@@ -56,13 +63,31 @@ public class Resolution
 
     public event Action? ResolutionChanged;
 
+    /// <summary>
+    /// Sets the requested windowed backbuffer size and the reference logical resolution.
+    /// Responsive mode treats this logical size as the minimum visible coordinate space.
+    /// </summary>
     public Resolution SetResolution(int width, int height)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(width, 1, nameof(width));
         ArgumentOutOfRangeException.ThrowIfLessThan(height, 1, nameof(height));
 
+        _referenceSize = new Point(width, height);
         Width = width;
         Height = height;
+        return this;
+    }
+
+    /// <summary>
+    /// Selects logical sizing independently of the window display mode.
+    /// Call ApplyChanges to apply the selected mode.
+    /// </summary>
+    public Resolution SetVirtualMode(VirtualResolutionMode mode)
+    {
+        if (!Enum.IsDefined(typeof(VirtualResolutionMode), mode))
+            throw new ArgumentOutOfRangeException(nameof(mode), mode, "Invalid virtual resolution mode.");
+
+        VirtualMode = mode;
         return this;
     }
 
@@ -110,11 +135,13 @@ public class Resolution
             for (int i = 0; i < 2; i++)
             {
                 _manager.ApplyChanges(); // Preapply changes to calculate presentation resolution
-                _manager.PreferredBackBufferWidth = Mode == ResolutionMode.BorderlessWindowed ? _window.ClientBounds.Width : Width;
-                _manager.PreferredBackBufferHeight = Mode == ResolutionMode.BorderlessWindowed ? _window.ClientBounds.Height : Height;
+                _manager.PreferredBackBufferWidth = Mode == ResolutionMode.BorderlessWindowed ? _window.ClientBounds.Width : _referenceSize.X;
+                _manager.PreferredBackBufferHeight = Mode == ResolutionMode.BorderlessWindowed ? _window.ClientBounds.Height : _referenceSize.Y;
                 _manager.GraphicsProfile = GraphicsProfile.HiDef;
                 _manager.ApplyChanges();
             }
+
+            UpdateVirtualSize();
         }
         finally
         {
@@ -125,18 +152,28 @@ public class Resolution
     }
 
     /// <summary>
-    /// Resizes the back buffer to a user-resized window. The virtual resolution is kept, so
-    /// renderers rescale their output instead of changing the game's coordinate space.
+    /// Updates logical size after client changes and resizes the backbuffer only in windowed mode.
     /// </summary>
     private void OnClientSizeChanged(object? sender, EventArgs args)
     {
-        if (_applying || Mode != ResolutionMode.Windowed) return;
+        if (_applying) return;
 
         var size = _window.ClientBounds.Size;
 
         // Minimizing reports an empty client area on some platforms.
         if (size.X <= 0 || size.Y <= 0) return;
-        if (size.X == _manager.PreferredBackBufferWidth && size.Y == _manager.PreferredBackBufferHeight) return;
+
+        if (Mode != ResolutionMode.Windowed)
+        {
+            if (VirtualMode != VirtualResolutionMode.MatchClient || Size == size) return;
+
+            UpdateVirtualSize();
+            ResolutionChanged?.Invoke();
+            return;
+        }
+
+        if (size.X == _manager.PreferredBackBufferWidth && size.Y == _manager.PreferredBackBufferHeight
+            && Size == CalculateVirtualSize(size)) return;
 
         _applying = true;
         try
@@ -144,6 +181,7 @@ public class Resolution
             _manager.PreferredBackBufferWidth = size.X;
             _manager.PreferredBackBufferHeight = size.Y;
             _manager.ApplyChanges();
+            UpdateVirtualSize();
         }
         finally
         {
@@ -151,6 +189,42 @@ public class Resolution
         }
 
         ResolutionChanged?.Invoke();
+    }
+
+    private void UpdateVirtualSize()
+    {
+        Point outputSize;
+        if (VirtualMode == VirtualResolutionMode.MatchClient)
+        {
+            outputSize = _window.ClientBounds.Size;
+            if (outputSize.X <= 0 || outputSize.Y <= 0) return;
+        }
+        else
+        {
+            var parameters = PresentationParameters;
+            outputSize = new Point(parameters.BackBufferWidth, parameters.BackBufferHeight);
+        }
+
+        var size = CalculateVirtualSize(outputSize);
+        Width = size.X;
+        Height = size.Y;
+    }
+
+    private Point CalculateVirtualSize(Point outputSize)
+    {
+        if (VirtualMode == VirtualResolutionMode.Fixed || outputSize.X <= 0 || outputSize.Y <= 0)
+            return _referenceSize;
+
+        if (VirtualMode == VirtualResolutionMode.MatchClient) return outputSize;
+
+        if ((long)outputSize.X * _referenceSize.Y >= (long)outputSize.Y * _referenceSize.X)
+        {
+            var width = (int)Math.Round((double)_referenceSize.Y * outputSize.X / outputSize.Y);
+            return new Point(Math.Max(_referenceSize.X, width), _referenceSize.Y);
+        }
+
+        var height = (int)Math.Round((double)_referenceSize.X * outputSize.Y / outputSize.X);
+        return new Point(_referenceSize.X, Math.Max(_referenceSize.Y, height));
     }
 
     public Resolution SetResolution(Point resolution) => SetResolution(resolution.X, resolution.Y);
@@ -163,5 +237,26 @@ public enum ResolutionMode
     FullScreen,
     Windowed,
     BorderlessWindowed
+}
+
+/// <summary>
+/// Determines how the logical resolution follows the physical output or client area.
+/// </summary>
+public enum VirtualResolutionMode
+{
+    /// <summary>
+    /// Keeps the configured reference size regardless of output dimensions.
+    /// </summary>
+    Fixed = 0,
+
+    /// <summary>
+    /// Keeps the reference size as a minimum and expands one axis to match the output aspect ratio.
+    /// </summary>
+    Responsive,
+
+    /// <summary>
+    /// Copies client-area dimensions in windowed, borderless, and exclusive-fullscreen modes.
+    /// </summary>
+    MatchClient,
 }
 

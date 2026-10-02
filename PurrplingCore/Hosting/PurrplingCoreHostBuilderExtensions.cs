@@ -41,7 +41,7 @@ internal sealed class EngineGameServices : IServiceModule
 {
     public void ConfigureServices(IServiceCollection services)
     {
-        services.TryAddSingleton<Screen>();
+        services.TryAddSingleton<Screen, ResolutionScreen>();
         services.AddAssetRegistry();
         services.AddWorld();
         services.TryAddSingleton<ContentPackageManager>();

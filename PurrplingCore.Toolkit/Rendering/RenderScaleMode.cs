@@ -26,7 +26,7 @@ public enum RenderScaleMode : byte
     Stretch,
 
     /// <summary>
-    /// Keeps the native size and centres the image.
+    /// Keeps the native size
     /// </summary>
-    Center,
+    Native,
 }

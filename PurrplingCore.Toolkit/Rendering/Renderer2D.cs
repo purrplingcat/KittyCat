@@ -249,7 +249,7 @@ public class Renderer2D : IRenderer
         var parameters = _device.PresentationParameters;
         var outputBounds = OutputOverride?.Bounds
             ?? new Rectangle(0, 0, parameters.BackBufferWidth, parameters.BackBufferHeight);
-        _screenLayout = Screen.GetLayout(outputBounds, _options.ScaleMode, _options.Alignment);
+        _screenLayout = ScreenLayout.Calculate(Screen, outputBounds, _options.ScaleMode, _options.Alignment);
     }
 
     private void Prepare(RendererDiagnostics? diagnostics)
@@ -362,7 +362,7 @@ public class Renderer2D : IRenderer
         if (area.Width <= 0 || area.Height <= 0) return;
         if (clip.HasValue && (clip.Value.Width <= 0 || clip.Value.Height <= 0)) return;
 
-        var imageBounds = Screen.GetImageBounds(area, new Point(image.Width, image.Height), scaleMode, alignment);
+        var imageBounds = ScreenLayout.GetImageBounds(area, new Point(image.Width, image.Height), scaleMode, alignment);
         if (imageBounds.Width <= 0 || imageBounds.Height <= 0) return;
 
         var command = new DrawCommand
@@ -422,8 +422,8 @@ public class Renderer2D : IRenderer
             return (_screenLayout.Size.X, _screenLayout.Size.Y);
         }
 
-        var parameters = _device.PresentationParameters;
-        return (parameters.BackBufferWidth, parameters.BackBufferHeight);
+        var bounds = _screenLayout.Bounds;
+        return (Math.Max(1, bounds.Width), Math.Max(1, bounds.Height));
     }
 
     internal LayerWriter OpenLayer(RenderLayerId id)

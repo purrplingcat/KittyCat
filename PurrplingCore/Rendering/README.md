@@ -23,22 +23,27 @@ Submission must happen before the relevant flush **in the same frame**. `Flush` 
 
 ## Logical screens and split-screen
 
-`PurrplingCore.Toolkit.Graphics.Screen` describes a logical size and a presentation area, not a GPU target. A root screen can follow `GraphicsManager.Resolution` or use an independent fixed size. Regions inherit a fraction of their parent's size and are placed inside the parent's presented image, including letterboxing. A region can use a fixed logical size without changing its position:
+`PurrplingCore.Toolkit.Graphics.Screen` describes a logical size and relative regions, not a GPU target. Use `Screen(Point)` for an independent fixed size or `ResolutionScreen(Resolution)` to follow an applied logical resolution. Only `ResolutionScreen` owns a resolution-event subscription and needs disposal. Regions inherit a fraction of their parent's size and are placed inside the parent's presented image, including letterboxing:
 
 ```csharp
-using var main = new Screen(graphics.Resolution);
+using var main = new ResolutionScreen(graphics.Resolution);
 var left = main.CreateRegion(0f, 0f, 0.5f, 1f);
 var right = main.CreateRegion(0.5f, 0f, 0.5f, 1f);
-right.UseFixedSize(new Point(320, 360));
 
 var options = new RendererOptions(left);
 options.AddLayer(Layers.Sprites);
 var renderer = new Renderer2D("Left", options);
 ```
 
-Regions may be nested. Adjacent regions round shared boundaries consistently, including odd output sizes. `RendererOptions.ScaleMode` controls parent-image placement, child-region mapping, internal layer composition, and final image scaling, defaulting to `Fit`. The same mode is used throughout the screen hierarchy so regions align with the parent image's letterboxing. Renderer configuration does not change the shared screen. `Screen.ScaleMode` is used for standalone `GetPresentationBounds` calculations.
+Regions may be nested. Adjacent regions round shared boundaries consistently, including odd output sizes. `RendererOptions.ScaleMode` controls parent-image placement, child-region mapping, internal layer composition, and final image scaling, defaulting to `Fit`. The same mode is used throughout the screen hierarchy so regions align with the parent image's letterboxing. Renderer configuration does not change the shared screen. Presentation math lives in `PurrplingCore.Toolkit.Rendering.ScreenLayout`, not in `Screen`:
 
-`CreateRegion` offsets are fractions of the parent's dimensions and may be negative or extend beyond the parent. Width and height remain positive fractions up to one, independent of position. For example, `CreateRegion(-0.25f, 0f, 1f, 1f)` keeps the full logical size and shifts the region left by a quarter of the parent image's width. Rendering outside the output or ancestor regions is clipped.
+```csharp
+var layout = ScreenLayout.Calculate(screen, outputBounds, options.ScaleMode, options.Alignment);
+```
+
+`layout.Size` is logical. `layout.Bounds` is the available presentation area, not necessarily the scaled image rectangle; `layout.Clip` is the output-pixel clip inherited from ancestors. For a root screen, bounds and clip equal `outputBounds`, even when those bounds are larger than the logical size. Scaling changes presentation, not the logical coordinate space.
+
+`CreateRegion` offsets are fractions of the parent's dimensions and may be negative or extend beyond the parent. Width and height must be finite positive fractions and may exceed one. For example, `CreateRegion(-0.25f, 0f, 1f, 1f)` keeps the full logical size and shifts the region left by a quarter of the parent image's width. Rendering outside the output or ancestor regions is clipped.
 
 `RendererOptions.Alignment` independently positions the scaled image, defaulting to `RenderAlignment.Center`. It supports the center, four edges, and four corners. Alignment also applies to ancestor-image placement when resolving regions; internal layer composition stays centered. For an integer-scaled HUD at the physical top edge and horizontal center, keep the root screen and configure:
 
@@ -48,9 +53,9 @@ options.ScaleMode = RenderScaleMode.IntegerFit;
 options.Alignment = RenderAlignment.TopCenter;
 ```
 
-The world renderer may independently use `Fit` and the default `Center`. A HUD using a region aligns within that region, not the entire window. `MatchBackBuffer` targets already match the backbuffer's pixel dimensions, so they do not gain integer enlargement when composed onto the same backbuffer.
+The world renderer may independently use `Fit` and the default `Center`. A HUD using a region aligns within that region, not the entire window. When `RendererOptions.Output` is `MatchPresentation()`, the renderer's output already matches its presentation bounds, so final composition does not enlarge it. A layer's `Target = MatchPresentation()` does not guarantee 1:1 presentation: that layer is composed into the renderer output first, which may have a different resolution.
 
-`UsePurrplingCore()` registers the shared main `Screen` as an engine game service, bound to the engine's `Resolution`, even when no renderer is registered. A pre-registered main screen is preserved. `Screen` is required on `RendererOptions`. `AddRenderer(key)` creates options with the main screen only when its keyed renderer is first resolved and an `IServiceProvider` is available. It then applies registered configuration modules before constructing the renderer. Select a custom screen directly in configuration:
+`UsePurrplingCore()` registers `Screen` with the `ResolutionScreen` implementation as an engine game service, bound to the engine's `Resolution`, even when no renderer is registered. A pre-registered main screen is preserved. `Screen` is required on `RendererOptions`, including when the output target uses `MatchPresentation()`. `AddRenderer(key)` creates options with the main screen only when its keyed renderer is first resolved and an `IServiceProvider` is available. It then applies registered configuration modules before constructing the renderer. Select a custom screen directly in configuration:
 
 ```csharp
 services.AddRenderer("Left", ConfigureLeftRenderer)
@@ -67,9 +72,241 @@ static void ConfigureLeftRenderer(RendererOptions options)
 
 For direct construction, use `new RendererOptions(screen)` or an object initializer setting the required `Screen`, then `new Renderer2D(name, options)`. World and HUD renderers may share the same screen without sharing render targets. `RendererOptions.Output` defaults to `MatchScreen()`, so each renderer owns a screen-sized offscreen target; clears affect that private target and final presentation is clipped to the screen and its ancestors.
 
-`Screen` caches the logical size and updates it through `Resolution.ResolutionChanged`, raised by `ApplyChanges()`. `SetResolution()` alone stages the change; a normal window resize changes the physical backbuffer without changing the logical size. Child regions derive their size from their parent. `UseFixedSize()` unsubscribes from the source while retaining the screen's presentation area.
+`ResolutionScreen` caches the logical size and updates it through `Resolution.ResolutionChanged`, raised after `ApplyChanges()` and handled client-size changes. `SetResolution()` alone stages the change. In the default fixed virtual mode, a window resize changes the physical backbuffer without changing the logical size. In responsive virtual mode, a changed output aspect ratio also changes the logical size. In `MatchClient` mode, logical size copies the current client dimensions in every display mode. A fixed `Screen` has no resolution binding, and child regions derive their size from their parent. Choose the screen source during configuration; there is no method that switches an existing screen between fixed and resolution-bound modes.
 
-Screen layout is sampled at initialization and at the start of each frame, before camera synchronization. Applied changes affect targets and cameras on the next frame. Use `renderer.Screen.Size` for the screen's current logical size; `MatchScreen()` uses the frame's sampled screen size, and `MatchBackBuffer()` always follows the physical backbuffer. The screen never changes global `Resolution` or allocates GPU resources. The renderer only reads the screen and output dimensions; it does not subscribe to device-reset events or manage the window. DI disposes its shared screen; callers dispose explicitly supplied screens. Automatic and scene-owned renderers use exactly the same sizing and presentation code.
+Screen layout is sampled at initialization and at the start of each frame, before camera synchronization. Applied changes affect targets and cameras on the next frame. Use `renderer.Screen.Size` for the screen's current logical size; `MatchScreen()` uses the frame's sampled logical size, and `MatchPresentation()` uses its sampled presentation bounds. The screen never changes global `Resolution` or allocates GPU resources. The renderer only reads the screen and output dimensions; it does not subscribe to device-reset events or manage the window. DI disposes its shared `ResolutionScreen`; callers dispose manually owned `ResolutionScreen` instances. Fixed screens and regions require no disposal, and the renderer never owns their lifetime. Automatic and scene-owned renderers use exactly the same sizing and presentation code.
+
+### Virtual resolution modes
+
+`Resolution.Mode` selects windowed, fullscreen, or borderless display behavior. `Resolution.VirtualMode` independently selects how the logical coordinate space follows the physical output or window client area:
+
+| Virtual mode | Logical sizing |
+| --- | --- |
+| `VirtualResolutionMode.Fixed` | Keeps the configured reference width and height. This is the default. |
+| `VirtualResolutionMode.Responsive` | Keeps the reference size as a minimum and expands one axis to follow the backbuffer aspect ratio. |
+| `VirtualResolutionMode.MatchClient` | Copies `GameWindow.ClientBounds.Size`, including in exclusive fullscreen. |
+
+Configure the reference size and mode through the existing fluent setup, before rendering starts:
+
+```csharp
+resolution
+    .SetResolution(640, 480)
+    .SetVirtualMode(VirtualResolutionMode.Responsive)
+    .ApplyChanges();
+```
+
+The reference is stored independently of the calculated logical size. A resize is always calculated from the reference, not the previous responsive result. `SetResolution` retains its existing role in requesting the windowed or exclusive-fullscreen backbuffer dimensions; `ApplyChanges` uses the configured reference dimensions, not the expanded logical dimensions. Borderless mode uses the window bounds. The responsive calculation runs after applying the graphics settings and after a handled windowed resize, using the actual backbuffer dimensions. Minimized windows reporting an empty client area are ignored.
+
+For a 640-by-480 reference:
+
+| Backbuffer | Responsive logical size | Fixed logical size |
+| --- | --- | --- |
+| 640 by 480 | 640 by 480 | 640 by 480 |
+| 1280 by 720 | 853 by 480 | 640 by 480 |
+| 1920 by 1080 | 853 by 480 | 640 by 480 |
+| 800 by 1000 | 640 by 800 | 640 by 480 |
+| 320 by 240 | 640 by 480 | 640 by 480 |
+
+The expanded axis is rounded to the nearest logical pixel. A larger output with the same aspect ratio does not add logical coordinates; a wider or taller aspect ratio does. This is not native-pixel sizing and not a fixed-height policy: portrait outputs can expand the logical height. Renderer scaling remains controlled separately by `ScaleMode`; use `Fit` for proportional fractional scaling or `IntegerFit` when integer enlargement and possible borders are desired. Very extreme aspect ratios can produce large logical targets, which remain subject to GPU target-size limits.
+
+`ResolutionScreen`, its child regions, `MatchScreen()` targets, and synchronized camera viewports follow the responsive logical size on the next frame. An independent `Screen(Point)` does not. In particular, constructing a new fixed screen from the main screen's current dimensions creates a snapshot, not a responsive binding. UI anchors and gameplay bounds must adapt explicitly to changing logical size; this mode does not modify entities, positions, or camera zoom.
+
+For logical coordinates that follow client dimensions directly, use:
+
+```csharp
+resolution.SetVirtualMode(VirtualResolutionMode.MatchClient).ApplyChanges();
+```
+
+This mode has no reference-size minimum or aspect-ratio calculation. A client area of 1280 by 720 produces a logical size of 1280 by 720, while 320 by 240 produces 320 by 240. The source is specifically `GameWindow.ClientBounds.Size`, not `PresentationParameters` or a renderer's presentation bounds. If the platform reports client and backbuffer sizes differently, this mode follows the client size.
+
+To select exclusive fullscreen explicitly:
+
+```csharp
+resolution
+    .SetVirtualMode(VirtualResolutionMode.MatchClient)
+    .SetMode(ResolutionMode.FullScreen)
+    .ApplyChanges();
+```
+
+`ApplyChanges()` copies the client dimensions after applying the display mode. Later positive client-size events also update logical size in fullscreen and borderless modes without calling `GraphicsDeviceManager.ApplyChanges()` again. In windowed mode, the handler continues resizing the backbuffer as before. Events during an ongoing apply are ignored, and zero-sized minimized client areas keep the last valid logical size. `SetResolution` still controls the requested display size and fixed/responsive reference; `MatchClient` does not select a monitor display resolution itself. The standard `GraphicsManager.ToggleFullScreen()` switches to borderless, not exclusive fullscreen.
+
+Keep the main `ResolutionScreen` for renderers that should follow these updates; independently constructed fixed screens remain unchanged. `MatchClient` changes logical coordinate dimensions. `RenderTargetSpec.MatchPresentation()` is a separate target-sizing choice that follows each renderer's presentation region, which can differ from the window client area.
+
+Return to the configured reference size with:
+
+```csharp
+resolution.SetVirtualMode(VirtualResolutionMode.Fixed).ApplyChanges();
+```
+
+## Configuration recipes
+
+These are alternative configurations, not blocks to apply one after another. Each options block belongs in `Configure(RendererOptions options)` of an `IRendererConfiguration` module. Unless reassigned, `options.Screen` is the main resolution-backed screen supplied by DI, and the examples assume the default fixed virtual mode. Enable responsive mode as described above when the logical space should adapt to the output aspect ratio. The `Layers` IDs are defined in [Automatic rendering with DI](#automatic-rendering-with-di); import `Microsoft.Xna.Framework.Graphics` for sampler settings. Where a camera is used, inject a `Camera2D` into the configuration module, as in `WorldRendering` below. Register and schedule each renderer using the execution modes above.
+
+### Settings at a glance
+
+| Setting | Responsibility |
+| --- | --- |
+| `Screen` | Logical size and relative regions; it does not allocate a render target. |
+| `Output` | Resolution of the renderer's private render target. |
+| Layer `Target` | Optional private target for that layer; `null` draws directly into the renderer output. |
+| `ScaleMode` | Scaling during layer composition and final presentation. |
+| `Alignment` | Placement of the final image and ancestor images; layer-target composition remains centered. |
+| Layer `Camera` | World-to-target transform; omit it for UI coordinates. |
+
+`MatchScreen()` and `MatchPresentation()` select target dimensions, not scaling behavior. They have the same sizing rule whether assigned to `RendererOptions.Output` or a layer's `Target`:
+
+| Target specification | Dimensions |
+| --- | --- |
+| `MatchScreen()` | The renderer's sampled logical `ScreenLayout.Size`. |
+| `MatchPresentation()` | The renderer's sampled `ScreenLayout.Bounds` width and height. |
+| `OfSize(width, height)` | The supplied constant width and height. |
+
+Layers do not have independent screens or presentation areas. In particular, a layer's `MatchPresentation()` follows the renderer's presentation bounds, not the dimensions of `RendererOptions.Output`. It does not position the layer inside those bounds; layer composition still happens inside the renderer output first.
+
+The root output area comes from `OutputOverride.Bounds` when set, otherwise from the backbuffer dimensions. `ScreenLayout.Calculate` then resolves the screen hierarchy inside that area. A root screen uses the whole area; a child uses its mapped region. `OutputOverride` therefore changes the root output, but does not bypass child regions. `MatchPresentation()` uses these resulting bounds, not their visible `Clip` or the scaled rectangle of a logical image. Target dimensions are clamped to at least one pixel; an empty presentation area is not displayed.
+
+For example, with a logical root screen of 320 by 180, `Stretch`, and an 800-by-600 backbuffer:
+
+| Screen and final destination | `MatchScreen()` target | `MatchPresentation()` target |
+| --- | --- | --- |
+| Root screen, backbuffer | 320 by 180 | 800 by 600 |
+| Left-half region, backbuffer | 160 by 180 | 400 by 600 |
+| Left-half region, 400-by-300 `OutputOverride` | 160 by 180 | 200 by 300 |
+
+Target coordinates start at `(0, 0)` even when the presentation bounds have a nonzero position. The renderer applies that position during final composition. `OfSize` changes resolution, not placement. `SyncCameraViewport` follows the resolved layer target, or the renderer output when the layer has no target, and always centers the camera origin. It does not adjust camera position or zoom.
+
+### 1. Fixed-resolution pixel art
+
+Keep a 320-by-180 coordinate space regardless of engine resolution or window size:
+
+```csharp
+options.Screen = new Screen(new Point(320, 180));
+options.Output = RenderTargetSpec.MatchScreen();
+options.ScaleMode = RenderScaleMode.IntegerFit;
+options.Alignment = RenderAlignment.Center;
+options.DefaultSamplerState = SamplerState.PointClamp;
+options.AddLayer(Layers.Sprites, new RenderLayerOptions
+{
+    Camera = camera,
+    SyncCameraViewport = true
+});
+```
+
+A larger window enlarges the image by whole-number factors and leaves unused borders. If the output is smaller than the logical image, `IntegerFit` falls back to fractional downscaling. A `Resolution.SetResolution(...).ApplyChanges()` call does not change this fixed screen's logical size. The camera position remains a game-owned choice; viewport synchronization centers its origin, not its world position.
+
+For the engine's configured logical resolution instead, retain the DI-supplied screen. `Fit` enlarges proportionally, `Fill` enlarges proportionally and clips overflow, and `Stretch` fills the area but may distort the aspect ratio. `LinearClamp` can smooth fractional scaling for non-pixel-art content, but cannot add detail to a small source image.
+
+### 2. Logical-resolution UI with MatchScreen
+
+Use this for a pixel-art HUD, health bars, inventory, or pause menu that should scale with the playfield rather than stay a fixed physical-pixel size. This is a separate UI renderer sharing the main logical screen with the world renderer:
+
+```csharp
+options.Output = RenderTargetSpec.MatchScreen();
+options.ScaleMode = RenderScaleMode.IntegerFit;
+options.Alignment = RenderAlignment.Center;
+options.DefaultSamplerState = SamplerState.PointClamp;
+options.AddLayer(Layers.Hud);
+options.AddLayer(Layers.Menu, new RenderLayerOptions { Order = 100 });
+```
+
+Submit UI without a camera, using logical coordinates:
+
+```csharp
+renderer.Context.Layer(Layers.Hud)
+    .Draw(badge, new Vector2(12, 12), Color.White);
+```
+
+Load `badge` once and submit before the UI renderer flushes. A badge at logical `(12, 12)` has a 24-pixel inset relative to the presented image when it is enlarged 2x. The submitted coordinates remain unchanged; in fixed virtual mode, resizing changes presentation rather than logical size. In responsive mode, resizing can also expand the logical UI area, so recompute anchors based on the current screen size. Applied logical resolution changes update the target size because the default screen is a `ResolutionScreen`.
+
+For a HUD aligned with the playfield, both renderers must use the same screen, scale mode, and alignment. Flush the UI after the world, for example with `AddDrawComponent(DrawStage.Screen)` after the world stage. Do not assign a world camera to the HUD: panning and zooming the world should not move interface elements. A transparent private output allows the UI to overlay the world; avoid an opaque full-target clear. Pointer input must be mapped from window pixels back to the UI's presented logical coordinates; the renderer does not perform that conversion.
+
+### 3. Native-resolution UI with MatchPresentation
+
+Use this when interface elements should be drawn at their native pixel size rather than enlarged with the game:
+
+```csharp
+options.Output = RenderTargetSpec.MatchPresentation();
+options.ScaleMode = RenderScaleMode.Stretch;
+options.AddLayer(Layers.Hud);
+options.AddLayer(Layers.Menu, new RenderLayerOptions { Order = 100 });
+```
+
+Keep the root screen and omit cameras for full-window UI. The renderer output follows its presentation area: the whole final destination for a root screen, or the mapped bounds for a child region. `OutputOverride` selects the final destination instead of the backbuffer; a child still occupies its region inside that destination. A larger presentation area offers more space but does not enlarge widgets. The UI must recalculate its own anchors from the presentation dimensions, using coordinates local to its target. The logical `Screen.Size` is not the size of this target. Because this example sets the renderer output to `MatchPresentation()`, final composition is 1:1 and clipped to ancestors.
+
+`MatchPresentation()` is also useful for postprocessing at the presentation resolution. It is not a request to stretch logical game coordinates: a camera layer synchronized to this target gets a larger viewport, not automatic zoom. With unchanged zoom, the enlarged viewport can show more world around the camera.
+
+### 4. Logical world layer with native UI
+
+Use one renderer when the world should render at logical resolution but the HUD should draw in physical pixels:
+
+```csharp
+options.Output = RenderTargetSpec.MatchPresentation();
+options.ScaleMode = RenderScaleMode.Fit;
+options.AddLayer(Layers.Sprites, new RenderLayerOptions
+{
+    Target = RenderTargetSpec.MatchScreen(),
+    Camera = camera,
+    SyncCameraViewport = true
+});
+options.AddLayer(Layers.Hud, new RenderLayerOptions { Order = 100 });
+```
+
+The world layer renders into its own screen-sized target and is then fitted into the renderer's presentation-sized output. Its camera viewport follows the layer target. The HUD has no target or camera, so it draws directly into the presentation-pixel output after world composition. In fixed virtual mode, window resizing scales the world image, not the HUD. In responsive mode, an aspect-ratio change can also resize the world target and its camera viewport. Applied logical resolution changes resize the world target; changes to the presentation bounds resize the renderer output, including region and output-target changes.
+
+Internal layer composition is always centered and uses the renderer's `ScaleMode`; there is no per-layer scaling or alignment option. `RendererOptions.Alignment` only changes final presentation and ancestor-image placement. A small layer target does not automatically become a minimap in a corner. Conversely, setting a layer target to `MatchPresentation()` while keeping the renderer output at `MatchScreen()` first scales that presentation-sized layer into the logical output, then scales the output for presentation. That round trip can lose detail; use a presentation-sized renderer output for native-resolution UI.
+
+### 5. Two-player split-screen
+
+Give each player a separate renderer and camera. Configure the left renderer with:
+
+```csharp
+options.Screen = options.Screen.CreateRegion(0f, 0f, 0.5f, 1f);
+options.Output = RenderTargetSpec.MatchScreen();
+options.ScaleMode = RenderScaleMode.Stretch;
+options.AddLayer(Layers.Sprites, new RenderLayerOptions
+{
+    Camera = camera,
+    SyncCameraViewport = true
+});
+```
+
+Configure the right renderer independently, starting from the shared main screen, with `CreateRegion(0.5f, 0f, 0.5f, 1f)` and the same target and scaling settings. Use distinct camera instances for distinct player views. Each region has half the parent's logical width; with `Stretch`, it fills half the physical output. In fixed virtual mode, resizing changes those physical halves, not the parent logical resolution. In responsive mode, a changed aspect ratio also updates the parent and both regions' logical sizes. Applied logical resolution changes update both regions in either mode.
+
+`Stretch` can distort the image. With `Fit`, the regions instead follow the parent's proportionally fitted image, including its letterboxing. Do not assume these regions are fractions of the entire physical window in every scale mode. Final presentation is clipped to the region and its ancestors, so renderer clears stay inside their private targets.
+
+### 6. Fixed-size minimap in a corner
+
+Use a separate renderer and camera for a 128-by-128-pixel minimap at the top-right corner:
+
+```csharp
+options.Screen = new Screen(new Point(128, 128));
+options.Output = RenderTargetSpec.MatchScreen();
+options.ScaleMode = RenderScaleMode.Native;
+options.Alignment = RenderAlignment.TopRight;
+options.AddLayer(Layers.Sprites, new RenderLayerOptions
+{
+    Camera = camera,
+    SyncCameraViewport = true
+});
+```
+
+`Center` means no image scaling; `TopRight` controls its placement. A larger window moves the minimap with the top-right corner without enlarging it. It remains independent of the engine's logical resolution. Give its camera the desired world position and zoom; target dimensions alone do not make the whole map visible. Schedule its renderer after the world and any UI it should cover. On an output smaller than the minimap, clipping removes the overflow.
+
+For a minimap that scales with the main presentation instead, use a main-screen region such as `CreateRegion(0.75f, 0f, 0.25f, 0.25f)`, `MatchScreen()`, and the desired scale mode. That region inherits its logical dimensions from the parent; it is not an independent fixed 128-by-128 screen. A root fixed screen plus corner alignment needs no extra viewport API, but the current renderer has no direct arbitrary pixel-position or margin option.
+
+### Larger output example
+
+For a root screen of 320 by 180 presented into an 800-by-600 output with centered alignment:
+
+| Scale mode | Presented image | Result |
+| --- | --- | --- |
+| `Fit` | 800 by 450 | Unused space above and below. |
+| `Fill` | About 1067 by 600 | Horizontal overflow is clipped. |
+| `Stretch` | 800 by 600 | Full coverage with aspect-ratio distortion. |
+| `Center` | 320 by 180 | Original size, centered. |
+| `IntegerFit` | 640 by 360 | Whole-number 2x enlargement. |
+
+These image dimensions assume `RendererOptions.Output = MatchScreen()` and the root screen above. With `RendererOptions.Output = MatchPresentation()`, the output target is instead 800 by 600 and final composition has a scale factor of one in every listed mode. This does not enlarge logical drawing coordinates: without a camera transform, an item drawn at `(12, 12)` stays 12 presentation pixels from the output origin. A layer's own target can still be scaled during composition into that output.
 
 ## Automatic rendering with DI
 
@@ -217,7 +454,7 @@ public sealed class MenuScene(
 
 Register `services.AddSceneManager(); services.AddScene<MenuScene>();` and register `RendererKey.Screen` as above. The scene submits; the renderer component presents later. A `RendererScene` must **not** use `SpriteBatch` in its `Draw`: no canvas or batch has been opened for it.
 
-Canvas and deferred scenes can coexist, but they have different draw timing. If `SceneManager` blits a canvas before a later renderer clears the back buffer (`RendererOptions.ClearColor`), the canvas disappears. Place the canvas scene's draw after that renderer, or remove/relocate the clear when combining those paths. `RenderMode` is per scene, not a global switch.
+Canvas and deferred scenes can coexist, but they have different draw timing. `RendererOptions.ClearColor` clears the renderer's private output, not the backbuffer. If `SceneManager` blits a canvas before a later renderer presents an opaque image over that area, the canvas is covered. Draw the canvas scene later or use a transparent renderer output where appropriate. `RenderMode` is per scene, not a global switch.
 
 ## Manual renderer, including a scene
 
@@ -298,7 +535,6 @@ public sealed class StandaloneGame : PurrplingCore.Toolkit.Game
         if (disposing)
         {
             _renderer.Dispose();
-            _screen.Dispose();
         }
         base.Dispose(disposing);
     }
@@ -315,11 +551,11 @@ using var host = builder.Build();
 return host.Run();
 ```
 
-With this setup, nothing invokes `Initialize` or `Flush` for you. `Initialize` creates GPU resources; `Flush` requires it and must run on the graphics thread after submission. This example owns a fixed 320-by-180 screen independently of the backbuffer. Pass a `Screen` bound to `Resolution` when logical size should follow that source instead. Dispose the renderer and caller-owned screen separately. No component is needed to synchronize screen size.
+With this setup, nothing invokes `Initialize` or `Flush` for you. `Initialize` creates GPU resources; `Flush` requires it and must run on the graphics thread after submission. This example owns a fixed 320-by-180 screen independently of the backbuffer. Pass a `ResolutionScreen` when logical size should follow that source instead. Dispose the renderer and any caller-owned `ResolutionScreen` separately; a fixed `Screen` requires no disposal. No component is needed to synchronize screen size.
 
 ### Manual screen size and camera viewport
 
-Use a fixed `Screen` for an independent logical resolution. Enable `SyncCameraViewport` on camera layers to size the camera viewport and center its origin from the resolved layer target. The renderer traverses configured layers to synchronize their cameras during initialization and when each new frame opens, before returning its first layer writer. Changing the screen size takes effect at the start of the next frame without reinitializing the renderer. A camera shared by several layers may receive the same viewport more than once; `Camera2D` skips unchanged viewport sizes:
+Use a fixed `Screen` for an independent logical resolution. Enable `SyncCameraViewport` on camera layers to size the camera viewport and center its origin from the resolved layer target. The renderer traverses configured layers to synchronize their cameras during initialization and when each new frame opens, before returning its first layer writer. Applied changes to a `ResolutionScreen` take effect at the start of the next frame without reinitializing the renderer. A camera shared by several layers may receive the same viewport more than once; `Camera2D` skips unchanged viewport sizes. Sharing a camera between layers with different target dimensions makes the last synchronized viewport win; use separate cameras instead:
 
 ```csharp
 var camera = new Camera2D();
@@ -340,11 +576,9 @@ renderer.Initialize(graphicsDevice);
 
 renderer.Context.Layer(World).Draw(texture, position, Color.White);
 renderer.Flush();
-
-screen.UseFixedSize(new Point(640, 360));
 ```
 
-If the camera viewport should remain independent of the render target, leave `SyncCameraViewport` false and call `camera.SetViewport(width, height)` followed by `camera.CenterOrigin()` when your chosen viewport changes. Screen size controls the `MatchScreen` render target; it does not automatically alter game-world coordinates or camera position.
+Choose the size of a fixed screen before constructing the renderer. For changing logical resolution, use a `ResolutionScreen` and call `resolution.SetResolution(width, height).ApplyChanges()`. Reassigning `RendererOptions.Screen` after construction does not replace the renderer's captured screen. If the camera viewport should remain independent of the render target, leave `SyncCameraViewport` false and call `camera.SetViewport(width, height)` followed by `camera.CenterOrigin()` when your chosen viewport changes. Screen size controls the `MatchScreen` render target; it does not automatically alter game-world coordinates or camera position.
 
 ### Without the PurrplingCore host or game class
 
@@ -394,7 +628,6 @@ public sealed class RawMonoGame : Microsoft.Xna.Framework.Game
         if (disposing)
         {
             _renderer.Dispose();
-            _screen.Dispose();
         }
         base.Dispose(disposing);
     }
@@ -441,7 +674,7 @@ services.AddRenderer(RendererKey.World)
 
 Update `camera.Position` from your update code. With `SyncCameraViewport = true`, the renderer derives viewport dimensions from the layer target and centers the camera origin; omit it when the camera viewport is intentionally independent. `layer.Parallax` defaults to `Vector2.One` (follow the camera); zero keeps the layer fixed. Camera-less layers render in screen coordinates. Culling is performed **at submission**, using an axis-aligned visible rectangle; rotated sprites deliberately skip that culling test.
 
-For an offscreen layer or renderer, set `layer.Target` or `options.Output` to `RenderTargetSpec.MatchScreen()`, `MatchBackBuffer()`, or `OfSize(width, height)`. Layer targets are composed onto the renderer output. `Renderer2D.OutputOverride` can direct the final composed image to an externally owned target; leave it null to use the back buffer. `IPostProcessor` chains can be added to a layer's `PostProcessors` or a renderer's `PostProcessors`; processors are initialized with the renderer and disposed with it. The renderer-level chain currently runs only when `options.Output` is set. A layer's chain requires `layer.Target`. Do not assume a global post-processing stage across multiple renderer groups exists.
+For an offscreen layer or renderer, set `layer.Target` or `options.Output` to `RenderTargetSpec.MatchScreen()`, `MatchPresentation()`, or `OfSize(width, height)`. Layer targets are composed onto the renderer output. `Renderer2D.OutputOverride` can direct the final composed image to an externally owned target; leave it null to use the backbuffer. It does not replace the renderer's private output target or bypass its screen layout. `IPostProcessor` chains can be added to a layer's `PostProcessors` or a renderer's `PostProcessors`; processors are initialized with the renderer and disposed with it. The renderer-level chain processes the private output before final presentation; `options.Output` is non-nullable and defaults to `MatchScreen()`. A layer's chain requires `layer.Target`. Renderers do not share a global post-processing stage.
 
 `RenderLayerOptions.Pass` replaces the default `DrawCommandPass` with your `IRenderLayerPass`; its `Initialize(GraphicsDevice)` is called before drawing and `Prepare/Execute` run during flush. A custom pass must explicitly replay `context.Layer.Commands` if it wants queued commands to appear. `Primitives2D` provides `FillRect`, `DrawRect`, `DrawLine`, and `FillCircle` extensions on `LayerWriter`; they currently take a `GraphicsDevice` to obtain the shared white pixel. That first pixel creation is a GPU operation, so warm it up after device initialization if draw systems must only enqueue during the frame.
 
