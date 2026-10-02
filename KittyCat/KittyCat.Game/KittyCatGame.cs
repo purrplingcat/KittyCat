@@ -12,6 +12,7 @@ using PurrplingCore.Toolkit.Graphics;
 using PurrplingCore.Toolkit.Rendering;
 using System;
 using System.Reflection;
+using Microsoft.Extensions.Logging;
 
 namespace KittyCat;
 /// <summary>
@@ -21,6 +22,7 @@ namespace KittyCat;
 public class KittyCatGame : PurrplingCore.Toolkit.Game
 {
     private KeyboardState _previousKeyboardState;
+    private Resolution? _resolution;
 
     public static Version Version { get; }
     public static string VersionInfo { get; }
@@ -53,11 +55,32 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
         var resolution = GetRequiredService<Resolution>();
         var playfield = GetRequiredService<IOptions<StarCatcherOptions>>().Value.Playfield;
 
-        resolution.SetResolution(playfield.Width, playfield.Height).ApplyChanges();
+        _resolution = resolution;
+        resolution.ResolutionChanged += OnResolutionChanged;
+        resolution
+            .SetResolution(playfield.Width, playfield.Height)
+            .SetVirtualMode(VirtualResolutionMode.Fixed)
+            .ApplyChanges();
         Window.AllowUserResizing = true;
 
         InitializeLocalization();
         base.Initialize();
+    }
+
+    private void OnResolutionChanged()
+    {
+        if (_resolution is null) return;
+
+        var clientBounds = _resolution.WindowBounds;
+        var presentation = _resolution.PresentationParameters;
+        Logger.LogInformation(
+            "Resolution changed: virtual {VirtualWidth}x{VirtualHeight}"
+            + " | window {ClientWidth}x{ClientHeight}"
+            + " | backbuffer {BackBufferWidth}x{BackBufferHeight} {Depth}",
+            _resolution.Width, _resolution.Height,
+            clientBounds.Width, clientBounds.Height,
+            presentation.BackBufferWidth, presentation.BackBufferHeight,
+            presentation.DepthStencilFormat);
     }
 
     private static void InitializeLocalization()
@@ -99,5 +122,16 @@ public class KittyCatGame : PurrplingCore.Toolkit.Game
         GraphicsDevice.Clear(Color.Black);
 
         base.Draw(gameTime);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing && _resolution is not null)
+        {
+            _resolution.ResolutionChanged -= OnResolutionChanged;
+            _resolution = null;
+        }
+
+        base.Dispose(disposing);
     }
 }

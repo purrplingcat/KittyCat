@@ -14,6 +14,7 @@ using PurrplingCore.Toolkit.Hosting;
 using PurrplingCore.Toolkit.Rendering;
 using System;
 using System.Reflection;
+using PurrplingCore.Toolkit.Graphics;
 
 namespace KittyCat.Configuration;
 
@@ -91,7 +92,7 @@ public class KittyCatGameServices : IServiceModule
     private static void ConfigureScreenRenderer(RendererOptions options)
     {
         options.Output = RenderTargetSpec.MatchScreen();
-        options.ScaleMode = RenderScaleMode.IntegerFit;
+        options.ScaleMode = RenderScaleMode.Native;
         options.AddLayer(KittyCatLayers.Hud);
         options.AddLayer(KittyCatLayers.Modal, new RenderLayerOptions { Order = 100 });
     }
@@ -101,12 +102,13 @@ public sealed class WorldRendererConfiguration(Camera2D camera) : IRendererConfi
 {
     public void Configure(RendererOptions options)
     {
+        //options.Alignment = RenderAlignment.TopLeft;
         options.Diagnostics = new RendererDiagnosticsOptions();
         options.ClearColor = new Color(14, 20, 31);
         options.Output = RenderTargetSpec.MatchScreen();
-        options.ScaleMode = RenderScaleMode.IntegerFit;
+        options.ScaleMode = RenderScaleMode.Native;
         //options.Screen = options.Screen.CreateRegion(-0.25f, 0f, 1f, 1f);
-        options.AddLayer(KittyCatLayers.Entities, new RenderLayerOptions { Camera = camera, SyncCameraViewport = true });
+        options.AddLayer(KittyCatLayers.Entities, new RenderLayerOptions { Camera = camera, SyncCameraViewport = true, CullingEnabled = true, });
         options.AddLayer(KittyCatLayers.Effects, new RenderLayerOptions { Order = 100, Camera = camera, SyncCameraViewport = true });
     }
 }
