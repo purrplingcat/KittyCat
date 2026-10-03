@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Xna.Framework.Input;
 using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.Components;
+using PurrplingCore.Ecs.Particles;
 
 namespace KittyCat.Ecs.Systems;
 
@@ -42,9 +43,16 @@ public sealed partial class RestartGameSystem : QuerySystem<ArcadeTransform, Pla
         }
 
         if (!restarted) return;
+        ResetParticlesQuery(Query.Store);
         // Reset collected bonuses only after restoring the player, and defer star deletion.
         ResetStarsQuery(Query.Store);
         ResetHeartsQuery(Query.Store);
+    }
+
+    [Query]
+    private static void ResetParticles(ref Particle particle)
+    {
+        particle.State.Age = particle.State.Lifetime;
     }
 
     [Query]

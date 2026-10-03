@@ -4,6 +4,7 @@ using Friflo.Engine.ECS;
 using Friflo.Engine.ECS.Systems;
 using KittyCat.Configuration;
 using KittyCat.Ecs.Components;
+using KittyCat.Services;
 using Microsoft.Extensions.Options;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Ecs.Attributes;
@@ -21,17 +22,19 @@ public sealed partial class HeartSystem : QuerySystem<ArcadeTransform, BonusHear
     private readonly HeartOptions _options;
     private readonly PlayfieldOptions _playfield;
     private readonly int _scoreForMaximumDifficulty;
+    private readonly StarCatcherParticleEffects _particles;
     private readonly Dictionary<EntityStore, StoreState> _storeStates = [];
     private int _score;
     private bool _gameIsActive;
     private ArcadeTransform _collectingHeart;
     private bool _heartCollected;
 
-    public HeartSystem(IOptions<StarCatcherOptions> options)
+    public HeartSystem(IOptions<StarCatcherOptions> options, StarCatcherParticleEffects particles)
     {
         _options = options.Value.Hearts;
         _playfield = options.Value.Playfield;
         _scoreForMaximumDifficulty = options.Value.Difficulty.ScoreForMaximumDifficulty;
+        _particles = particles;
     }
 
     protected override void OnAddStore(EntityStore store)
@@ -140,6 +143,7 @@ public sealed partial class HeartSystem : QuerySystem<ArcadeTransform, BonusHear
                 MoveAndBounce(ref transform, ref heart, deltaTime);
                 if (TryCollect(transform))
                 {
+                    _particles.Burst(CommandBuffer, transform.Position + transform.Size * 0.5f, new Color(255, 90, 145), 36);
                     heart.State = BonusHeartState.Inactive;
                     visual.IsVisible = false;
                     MarkForDestruction(entities.EntityAt(index).Id);
@@ -149,6 +153,7 @@ public sealed partial class HeartSystem : QuerySystem<ArcadeTransform, BonusHear
                 heart.RemainingSeconds -= deltaTime;
                 if (heart.RemainingSeconds <= 0)
                 {
+                    _particles.Burst(CommandBuffer, transform.Position + transform.Size * 0.5f, new Color(255, 150, 190), 16);
                     heart.State = BonusHeartState.Popping;
                     heart.PopRemainingSeconds = _options.PopDurationSeconds;
                     visual.Kind = ArcadeVisualKind.HeartPop;

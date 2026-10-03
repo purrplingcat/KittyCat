@@ -3,7 +3,9 @@ using Friflo.Engine.ECS;
 using Friflo.Engine.ECS.Systems;
 using KittyCat.Configuration;
 using KittyCat.Ecs.Components;
+using KittyCat.Services;
 using Microsoft.Extensions.Options;
+using Microsoft.Xna.Framework;
 using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.Components;
 
@@ -15,13 +17,15 @@ namespace KittyCat.Ecs.Systems;
 public sealed partial class StarCollectionSystem : QuerySystem<ArcadeTransform, PlayerState>
 {
     private readonly PaddleOptions _paddleOptions;
+    private readonly StarCatcherParticleEffects _particles;
     private ArcadeTransform _collectingPlayerTransform;
     private PlayerState _collectingPlayer;
     private int _collectedStars;
 
-    public StarCollectionSystem(IOptions<StarCatcherOptions> options)
+    public StarCollectionSystem(IOptions<StarCatcherOptions> options, StarCatcherParticleEffects particles)
     {
         _paddleOptions = options.Value.Paddle;
+        _particles = particles;
     }
 
     protected override void OnUpdate()
@@ -54,6 +58,13 @@ public sealed partial class StarCollectionSystem : QuerySystem<ArcadeTransform, 
     {
         if (!star.IsActive || !_collectingPlayerTransform.Intersects(in transform)) return;
 
+        var color = star.PaddleEffect switch
+        {
+            PaddleSizeEffect.Expand => new Color(80, 235, 125),
+            PaddleSizeEffect.Shrink => new Color(245, 75, 85),
+            _ => Color.Gold,
+        };
+        _particles.Burst(CommandBuffer, transform.Position + transform.Size * 0.5f, color);
         _collectedStars++;
         ApplyPaddleEffect(ref _collectingPlayerTransform, ref _collectingPlayer, star.PaddleEffect);
         star.IsActive = false;

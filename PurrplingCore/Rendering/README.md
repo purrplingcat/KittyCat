@@ -2,6 +2,8 @@
 
 The 2D renderer is optional. Draw systems, scenes, and ordinary objects submit commands to a renderer; the renderer sends them to MonoGame only when it is flushed. The core types live in `PurrplingCore.Toolkit.Rendering`; DI integration and the optional game component live in `PurrplingCore.Rendering`. Neither ECS nor `SceneManager` is required to use the renderer.
 
+The [particle system](../Ecs/Particles/README.md) can use this renderer through a small game-owned draw wrapper. Particle simulation itself does not require a renderer; the low-level Toolkit sprite helper can also draw particle states without ECS.
+
 ## Choose an execution mode
 
 | Mode | Register | Who calls `Initialize` and `Flush`? |

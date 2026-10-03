@@ -13,6 +13,7 @@ public enum KittyCatRendererKey
 /// </summary>
 public static class KittyCatLayers
 {
+    public static readonly RenderLayerId Background = RenderLayerId.Of("World.Background");
     public static readonly RenderLayerId Entities = RenderLayerId.Of("World.Entities");
     public static readonly RenderLayerId Effects = RenderLayerId.Of("World.Effects");
     public static readonly RenderLayerId Hud = RenderLayerId.Of("Screen.Hud");

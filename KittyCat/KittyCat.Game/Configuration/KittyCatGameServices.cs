@@ -1,5 +1,6 @@
 ﻿using KittyCat.Ecs;
 using KittyCat.Ecs.Systems;
+using KittyCat.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.Options;
 using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.DI;
 using PurrplingCore.Ecs.Modules;
+using PurrplingCore.Ecs.Particles;
 using PurrplingCore.Rendering;
 using PurrplingCore.Scenes;
 using PurrplingCore.Toolkit;
@@ -40,6 +42,7 @@ public class KittyCatGameServices : IServiceModule
     {
         // Register shared services consumed by world and renderer modules here.
         services.AddSingleton<Camera2D>();
+        services.AddSingleton<StarCatcherParticleEffects>();
 
         // Bind and validate game-wide options before registering systems that consume them.
         services
@@ -51,6 +54,7 @@ public class KittyCatGameServices : IServiceModule
         // Declare the world's systems and world-specific modules here.
         services
             .AddWorld(ConfigureWorld)
+            .AddParticleModule()
             .AddModule<EntityCleanupModule>();
 
         // Declare renderer keys, layers, and renderer-specific configuration modules here.
@@ -79,9 +83,12 @@ public class KittyCatGameServices : IServiceModule
         world.AddSystem<StarCollectionSystem>();
         world.AddSystem<HeartSystem>();
         world.AddSystem<RestartGameSystem>();
+        world.AddSystem<StarCatcherParticleSystem>();
+        world.AddSystem<StarCatcherParticleDrawSystem>();
         world.AddSystem<CameraStateRenderSyncSystem>();
         world.AddSystem<StarCatcherDebugInfoSystem>();
         world.AddSystem<StarCatcherInitializeSystem>();
+        world.AddSystem<StarCatcherBackgroundSystem>();
         world.AddSystem<StarCatcherDrawSystem>();
         world.AddSystem<StarCatcherHudSystem>();
     }
@@ -108,6 +115,7 @@ public sealed class WorldRendererConfiguration(Camera2D camera) : IRendererConfi
         options.Output = RenderTargetSpec.MatchScreen();
         options.ScaleMode = RenderScaleMode.Native;
         //options.Screen = options.Screen.CreateRegion(-0.25f, 0f, 1f, 1f);
+        options.AddLayer(KittyCatLayers.Background, new RenderLayerOptions { Order = -100, Camera = camera, SyncCameraViewport = true });
         options.AddLayer(KittyCatLayers.Entities, new RenderLayerOptions { Camera = camera, SyncCameraViewport = true, CullingEnabled = true, });
         options.AddLayer(KittyCatLayers.Effects, new RenderLayerOptions { Order = 100, Camera = camera, SyncCameraViewport = true });
     }
