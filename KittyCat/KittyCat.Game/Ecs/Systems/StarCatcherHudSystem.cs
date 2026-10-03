@@ -40,7 +40,7 @@ public sealed class StarCatcherHudSystem(
     protected override void OnUpdate()
     {
         var device = graphics.GraphicsDevice;
-        var hud = render.Layer(KittyCatLayers.Hud);
+        var hud = render.Batch(KittyCatLayers.Hud);
         LayerWriter modal = default;
         var modalOpened = false;
 
@@ -55,7 +55,7 @@ public sealed class StarCatcherHudSystem(
                 {
                     if (!modalOpened)
                     {
-                        modal = render.Layer(KittyCatLayers.Modal);
+                        modal = render.Batch(KittyCatLayers.Modal);
                         modalOpened = true;
                     }
 

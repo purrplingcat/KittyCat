@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using PurrplingCore.Toolkit.Graphics;
@@ -296,6 +297,7 @@ public class Renderer2D : IRenderer
             if (targetSpec is null)
             {
                 layer.Pass.Execute(context);
+                EnsureBatchClosed(layer);
                 diagnostics?.RecordLayerExecuted(index, Stopwatch.GetElapsedTime(executeStart).TotalMilliseconds);
 
                 continue;
@@ -306,12 +308,22 @@ public class Renderer2D : IRenderer
             _device.SetRenderTarget(target);
             _device.Clear(layer.ClearColor ?? Color.Transparent);
             layer.Pass.Execute(context);
+            EnsureBatchClosed(layer);
 
             var image = ApplyChain(layer.PostProcessors, target, ref _layerScratch[index], output);
             _device.SetRenderTarget(output);
             Compose(image, output);
             diagnostics?.RecordLayerExecuted(index, Stopwatch.GetElapsedTime(executeStart).TotalMilliseconds);
         }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void EnsureBatchClosed(RenderLayer layer)
+    {
+        Debug.Assert(
+            _batcher != null &&_batcher.IsBatchOpen, 
+            $"Render pass for layer '{layer.Id.Name}' returned with an open sprite batch."
+        );
     }
 
     /// <summary>
@@ -436,19 +448,30 @@ public class Renderer2D : IRenderer
         return new LayerWriter(layer, _resources, _text);
     }
 
+    internal bool IsActiveLayer(RenderLayerId id)
+    {
+        var layer = GetActiveLayer(id);
+        return layer != null;
+    }
+
     internal LayerSubmissionWriter<T> OpenSubmissions<T>(RenderLayerId id) where T : struct
     {
         var layer = GetActiveLayer(id);
         if (layer is null) return default;
 
-        var submissionPass = layer.Pass as ILayerSubmissionPass<T>;
-        if (submissionPass is null)
-        {
-            throw new InvalidOperationException($"Layer '{layer.Id.Name}' does not accept {typeof(T).Name} submissions.");
-        }
-
+        if (layer.Pass is not ILayerSubmissionPass<T> submissionPass) 
+            return default;
+            
         OpenLayerFrame();
         return new LayerSubmissionWriter<T>(submissionPass);
+    }
+
+    internal bool Supports<T>(RenderLayerId id) where T : struct
+    {
+        var layer = GetActiveLayer(id);
+        if (layer == null) return false;
+        
+        return layer.Pass is ILayerSubmissionPass<T>;
     }
 
     private RenderLayer? GetActiveLayer(RenderLayerId id)

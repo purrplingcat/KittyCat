@@ -294,12 +294,19 @@ public sealed class RenderContext
     /// Returns a writer for <paramref name="id"/>. The writer is inactive when the layer is not
     /// declared on this renderer or is currently disabled.
     /// </summary>
-    public LayerWriter Layer(RenderLayerId id) => _renderer.OpenLayer(id);
+    public LayerWriter Batch(RenderLayerId id) => _renderer.OpenLayer(id);
+
+    /// <summary>
+    /// Determines whether the specified render layer is currently active.
+    /// </summary>
+    /// <param name="id">The ID of the render layer to check.</param>
+    /// <returns><c>true</c> if the render layer is active; otherwise, <c>false</c>.</returns>
+    public bool IsActive(RenderLayerId id) => _renderer.IsActiveLayer(id);
 
     /// <summary>
     /// Returns a writer for submissions accepted by the layer's <see cref="ILayerSubmissionPass{T}"/>.
     /// </summary>
-    public LayerSubmissionWriter<T> Submissions<T>(RenderLayerId id) where T : struct
+    public LayerSubmissionWriter<T> Submission<T>(RenderLayerId id) where T : struct
         => _renderer.OpenSubmissions<T>(id);
 }
 

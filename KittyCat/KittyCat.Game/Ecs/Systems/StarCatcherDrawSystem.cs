@@ -30,8 +30,8 @@ public sealed class StarCatcherDrawSystem(
     protected override void OnUpdate()
     {
         var device = graphics.GraphicsDevice;
-        var entities = renderer.Layer(KittyCatLayers.Entities);
-        var effects = renderer.Layer(KittyCatLayers.Effects);
+        var entities = renderer.Batch(KittyCatLayers.Entities);
+        var effects = renderer.Batch(KittyCatLayers.Effects);
 
         foreach (var (transforms, visuals, chunkEntities) in Query.Chunks)
         {
