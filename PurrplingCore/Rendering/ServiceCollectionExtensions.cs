@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Graphics;
 using PurrplingCore.Toolkit.Graphics;
@@ -56,6 +57,7 @@ public static class ServiceCollectionExtensions
             return new Renderer2D(name, options);
         });
 
+        services.TryAddSingleton<RenderContextManager>();
         services.AddSingleton(provider => provider.GetRequiredKeyedService<IRenderer>(key));
         services.AddKeyedSingleton(key, (provider, _) => provider.GetRequiredKeyedService<IRenderer>(key).Context);
         return new RendererServicesBuilder(services, name, key);
