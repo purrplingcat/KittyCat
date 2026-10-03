@@ -320,8 +320,9 @@ public class Renderer2D : IRenderer
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void EnsureBatchClosed(RenderLayer layer)
     {
+        if (_batcher == null) return;
         Debug.Assert(
-            _batcher != null &&_batcher.IsBatchOpen, 
+            !_batcher.IsBatchOpen, 
             $"Render pass for layer '{layer.Id.Name}' returned with an open sprite batch."
         );
     }
