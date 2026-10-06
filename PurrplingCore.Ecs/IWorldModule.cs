@@ -1,8 +1,9 @@
-﻿using Friflo.Engine.ECS.Systems;
+﻿using System.Collections.Concurrent;
+using System.Reflection;
+using Friflo.Engine.ECS.Systems;
+using Microsoft.Extensions.DependencyInjection;
 using PurrplingCore.Ecs.Attributes;
 using PurrplingCore.Ecs.Systems;
-using System.Collections.Concurrent;
-using System.Reflection;
 
 namespace PurrplingCore.Ecs;
 
@@ -10,6 +11,24 @@ public interface IWorldModule
 {
     int Order { get; }
     public void Setup(IWorldBlueprint world);
+}
+
+internal sealed class DeriveWorldModule(
+    IServiceProvider provider, 
+    WorldSignature signature, 
+    int order = 0) : IWorldModule
+{
+    private readonly IServiceProvider _provider = provider ?? throw new ArgumentNullException(nameof(provider));
+    private readonly WorldSignature _signature = signature;
+
+    public int Order { get; } = order;
+
+    public void Setup(IWorldBlueprint world)
+    {
+        var modules = _provider.GetKeyedServices<IWorldModule>(_signature.MarkerType);
+
+        DefaultWorldFactory.ApplyModules(world, modules);
+    }
 }
 
 public enum SystemOrder

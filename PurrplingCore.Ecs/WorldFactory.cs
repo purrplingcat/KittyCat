@@ -61,8 +61,9 @@ public sealed class DefaultWorldFactory(IServiceScopeFactory scopeFactory) : IWo
             ConfigureDefaults(blueprint);
             ApplyModules(blueprint, modules);
 
-            blueprint.CreateComposer(world, world.Services)
-                     .Compose();
+            blueprint
+                .CreateComposer(world, world.Services)
+                .Compose();
 
             return world;
         }
@@ -82,7 +83,7 @@ public sealed class DefaultWorldFactory(IServiceScopeFactory scopeFactory) : IWo
             .AddRootGroup<DrawSystemGroup>();
     }
 
-    private static void ApplyModules(IWorldBlueprint blueprint, IEnumerable<IWorldModule> modules)
+    internal static void ApplyModules(IWorldBlueprint blueprint, IEnumerable<IWorldModule> modules)
     {
         foreach (var module in modules.OrderBy(module => module.Order))
         {

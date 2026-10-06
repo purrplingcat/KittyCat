@@ -99,6 +99,20 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
+    public static IWorldServicesBuilder DeriveWorld(this IWorldServicesBuilder builder, WorldSignature signature, int order = 0)
+    {
+        if (signature == WorldSignature.None)
+            throw new ArgumentException("World signature cannot be None.", nameof(signature));
+
+        return builder.AddModule(provider => new DeriveWorldModule(provider, signature, order));
+    }
+
+    public static IWorldServicesBuilder DeriveWorld<TMarker>(this IWorldServicesBuilder builder, int order = 0) where TMarker : IWorldMarker
+    {
+        var signature = WorldSignature.For<TMarker>();
+        return builder.DeriveWorld(signature, order);
+    }
+
     public static IWorldServicesBuilder Configure(this IWorldServicesBuilder builder, Action<IWorldBlueprint> setupAction, int order = 0)
     {
         builder.Services.AddKeyedSingleton<IWorldModule>(builder.Key, new DelegateWorldModule(order, setupAction));
