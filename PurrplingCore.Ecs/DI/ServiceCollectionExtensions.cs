@@ -2,9 +2,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using PurrplingCore.Toolkit.DI;
+using PurrplingCore.Ecs.WorldBuilding;
 
 namespace PurrplingCore.Ecs.DI;
 
+/// <summary>
+/// Registers ECS world services and configures world factories and modules.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     private sealed class WorldServicesBuilder(IServiceCollection services, WorldSignature signature) : IWorldServicesBuilder
@@ -24,6 +28,9 @@ public static class ServiceCollectionExtensions
         }
     }
 
+    /// <summary>
+    /// Registers the core scoped context and world factory services.
+    /// </summary>
     public static IServiceCollection AddEcsCoreServices(this IServiceCollection services)
     {
         services.TryAddScoped<WorldContext>();
@@ -33,6 +40,9 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Registers a world identified by the specified marker type.
+    /// </summary>
     public static IWorldServicesBuilder AddWorld<T>(this IServiceCollection services)
         where T : IWorldMarker
     {
@@ -43,6 +53,9 @@ public static class ServiceCollectionExtensions
         return new WorldServicesBuilder(services, signature);
     }
 
+    /// <summary>
+    /// Registers the default world.
+    /// </summary>
     public static IWorldServicesBuilder AddWorld(this IServiceCollection services)
     {
         var signature = WorldSignature.Default;
@@ -52,11 +65,17 @@ public static class ServiceCollectionExtensions
         return new WorldServicesBuilder(services, signature);
     }
 
+    /// <summary>
+    /// Registers the default world and applies the specified blueprint configuration.
+    /// </summary>
     public static IWorldServicesBuilder AddWorld(this IServiceCollection services, Action<IWorldBlueprint> setupAction)
     {
         return services.AddWorld().Configure(setupAction);
     }
 
+    /// <summary>
+    /// Replaces the factory registered for the configured world.
+    /// </summary>
     public static IWorldServicesBuilder UseFactory<TFactory>(this IWorldServicesBuilder builder)
         where TFactory : class, IWorldFactory
     {
@@ -65,6 +84,9 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Adds an instance of a world module to the configured world.
+    /// </summary>
     public static IWorldServicesBuilder AddModule<TModule>(this IWorldServicesBuilder builder, TModule module)
         where TModule : class, IWorldModule
     {
@@ -75,6 +97,9 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Registers a world module type for the configured world.
+    /// </summary>
     public static IWorldServicesBuilder AddModule<TModule>(this IWorldServicesBuilder builder)
         where TModule : class, IWorldModule
     {
@@ -84,6 +109,9 @@ public static class ServiceCollectionExtensions
         return builder;
     }  
 
+    /// <summary>
+    /// Registers a factory that creates a world module for the configured world.
+    /// </summary>
     public static IWorldServicesBuilder AddModule<TModule>(
         this IWorldServicesBuilder builder,
         Func<IServiceProvider, TModule> factory)
@@ -99,6 +127,9 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Applies modules registered for another world signature to the configured world.
+    /// </summary>
     public static IWorldServicesBuilder DeriveWorld(this IWorldServicesBuilder builder, WorldSignature signature, int order = 0)
     {
         if (signature == WorldSignature.None)
@@ -107,18 +138,27 @@ public static class ServiceCollectionExtensions
         return builder.AddModule(provider => new DeriveWorldModule(provider, signature, order));
     }
 
+    /// <summary>
+    /// Applies modules registered for the specified marker type to the configured world.
+    /// </summary>
     public static IWorldServicesBuilder DeriveWorld<TMarker>(this IWorldServicesBuilder builder, int order = 0) where TMarker : IWorldMarker
     {
         var signature = WorldSignature.For<TMarker>();
         return builder.DeriveWorld(signature, order);
     }
 
+    /// <summary>
+    /// Registers an ordered callback that configures the world's blueprint.
+    /// </summary>
     public static IWorldServicesBuilder Configure(this IWorldServicesBuilder builder, Action<IWorldBlueprint> setupAction, int order = 0)
     {
         builder.Services.AddKeyedSingleton<IWorldModule>(builder.Key, new DelegateWorldModule(order, setupAction));
         return builder;
     }
 
+    /// <summary>
+    /// Registers a keyed transient factory for a system type in the configured world.
+    /// </summary>
     public static IWorldServicesBuilder AddSystemFactory<TSystem>(this IWorldServicesBuilder builder, Func<IServiceProvider, object?, TSystem> factory) where TSystem : BaseSystem
     {
         builder.Services.AddKeyedTransient(builder.Key, factory);

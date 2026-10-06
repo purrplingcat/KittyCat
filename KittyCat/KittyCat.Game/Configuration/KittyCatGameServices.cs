@@ -9,6 +9,7 @@ using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.DI;
 using PurrplingCore.Ecs.Modules;
 using PurrplingCore.Ecs.Particles;
+using PurrplingCore.Ecs.WorldBuilding;
 using PurrplingCore.Rendering;
 using PurrplingCore.Scenes;
 using PurrplingCore.Toolkit;

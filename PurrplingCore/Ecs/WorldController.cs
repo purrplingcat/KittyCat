@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Toolkit.Rendering;
+using PurrplingCore.Ecs.WorldBuilding;
 
 namespace PurrplingCore.Ecs;
 

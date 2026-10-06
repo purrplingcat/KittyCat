@@ -26,30 +26,66 @@ public class World : IWorld, IDisposable
     private bool _disposed;
     private bool _doFixedUpdate;
 
+    /// <summary>
+    /// Gets or sets the world's display name.
+    /// </summary>
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets the signature that identifies this world.
+    /// </summary>
     public WorldSignature Signature { get; }
 
+    /// <summary>
+    /// Gets the entity store owned by this world.
+    /// </summary>
     public EntityStore Store => _store;
     internal UpdateSystemGroup UpdateSystems => _updateSystems;
     internal DrawSystemGroup DrawSystems => _drawSystems;
     internal InitializeSystemGroup InitializeSystems => _initializeSystems;
     internal FixedUpdateSystemGroup FixedUpdateSystems => _fixedUpdateSystems;
 
+    /// <summary>
+    /// Gets the current update tick.
+    /// </summary>
     public ref UpdateTick Time => ref _time;
 
     internal SystemRoot SystemRoot => _systemRoot;
     internal ILogger Logger => _logger;
 
+    /// <summary>
+    /// Gets the systems attached to the world.
+    /// </summary>
     public IReadOnlyCollection<BaseSystem> Systems => _systemRoot.ChildSystems;
 
+    /// <summary>
+    /// Occurs when the world is disposed.
+    /// </summary>
     public event EventHandler? Disposed;
+
+    /// <summary>
+    /// Occurs when the world is initialized.
+    /// </summary>
     public event EventHandler? Initialized;
+
+    /// <summary>
+    /// Occurs after the world's systems have been updated.
+    /// </summary>
     public event Action<IWorld, UpdateTick>? Updated;
+
+    /// <summary>
+    /// Occurs after the world's systems have been drawn.
+    /// </summary>
     public event Action<IWorld, UpdateTick>? Drawn;
 
+    /// <summary>
+    /// Initializes a world without a marker signature.
+    /// </summary>
     public World() : this(PidType.UsePidAsId, WorldSignature.None) { }
 
+    /// <summary>
+    /// Initializes a world with the specified entity ID strategy and signature.
+    /// </summary>
     public World(PidType pidType, WorldSignature signature, ILogger? logger = null)
     {
         _store = new EntityStore(pidType);
@@ -60,14 +96,23 @@ public class World : IWorld, IDisposable
         _store.EventRecorder.Enabled = true;
     }
 
+    /// <summary>
+    /// Runs custom initialization after the world's core system groups are created.
+    /// </summary>
     protected virtual void OnInitialize()
     {
     }
 
+    /// <summary>
+    /// Runs custom cleanup while the world is being disposed.
+    /// </summary>
     protected virtual void OnDispose()
     {
     }
 
+    /// <summary>
+    /// Initializes the world and its initialization systems once.
+    /// </summary>
     public void Initialize()
     {
         if (_initialized) return;
@@ -109,12 +154,18 @@ public class World : IWorld, IDisposable
         _drawSystems = _systemRoot.GetOrAddGroup<DrawSystemGroup>();
     }
 
+    /// <summary>
+    /// Throws if this world has already been disposed.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected void EnsureNotDisposed()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
     }
 
+    /// <summary>
+    /// Advances the world's fixed-update and update systems for the specified tick.
+    /// </summary>
     [Hot]
     public void Update(UpdateTick tick)
     {
@@ -131,6 +182,9 @@ public class World : IWorld, IDisposable
         Updated?.Invoke(this, tick);
     }
 
+    /// <summary>
+    /// Runs the world's draw systems for the specified tick.
+    /// </summary>
     [Hot]
     public void Draw(UpdateTick tick)
     {
@@ -147,12 +201,18 @@ public class World : IWorld, IDisposable
         Drawn?.Invoke(this, tick);
     }
 
+    /// <summary>
+    /// Finds a system group by name.
+    /// </summary>
     public SystemGroup? FindGroup(string name, bool recursive = true)
     {
         EnsureNotDisposed();
         return _systemRoot.FindGroup(name, recursive);
     }
 
+    /// <summary>
+    /// Finds a system by its type.
+    /// </summary>
     public T? FindSystem<T>(bool recursive = true) where T : BaseSystem
     {
         EnsureNotDisposed();
@@ -176,6 +236,9 @@ public class World : IWorld, IDisposable
         }
     }
 
+    /// <summary>
+    /// Releases managed resources owned by the world.
+    /// </summary>
     protected virtual void Dispose(bool disposing)
     {
         if (!_disposed)
@@ -195,11 +258,17 @@ public class World : IWorld, IDisposable
         }
     }
 
+    /// <summary>
+    /// Releases the world when it is finalized.
+    /// </summary>
     ~World()
     {
         Dispose(disposing: false);
     }
 
+    /// <summary>
+    /// Releases the world and its owned resources.
+    /// </summary>
     public void Dispose()
     {
         Dispose(disposing: true);

@@ -3,13 +3,34 @@ using Friflo.Engine.ECS.Systems;
 
 namespace PurrplingCore.Ecs;
 
+/// <summary>
+/// Exposes the current world and its update state to scoped services.
+/// </summary>
 public interface IWorldContext
 {
+    /// <summary>
+    /// Gets the current world's display name.
+    /// </summary>
     string Name { get; }
+
+    /// <summary>
+    /// Gets the entity store owned by the current world.
+    /// </summary>
     EntityStore Store { get; }
+
+    /// <summary>
+    /// Gets the signature that identifies the current world.
+    /// </summary>
     WorldSignature Signature { get; }
+
+    /// <summary>
+    /// Gets the current update tick.
+    /// </summary>
     UpdateTick Time { get; }
 
+    /// <summary>
+    /// Gets the current world as an <see cref="IWorld"/> instance.
+    /// </summary>
     IWorld GetActualWorld();
 }
 

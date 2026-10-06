@@ -1,4 +1,5 @@
 using PurrplingCore.Ecs.Systems;
+using PurrplingCore.Ecs.WorldBuilding;
 
 namespace PurrplingCore.Ecs.Modules;
 
@@ -7,8 +8,14 @@ namespace PurrplingCore.Ecs.Modules;
 /// </summary>
 public sealed class EntityCleanupModule : IWorldModule
 {
+    /// <summary>
+    /// Gets the module's application order.
+    /// </summary>
     public int Order => 0;
 
+    /// <summary>
+    /// Adds the entity cleanup system to the world's update group.
+    /// </summary>
     public void Setup(IWorldBlueprint world)
     {
         world.Systems

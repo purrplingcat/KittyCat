@@ -6,13 +6,22 @@ using System.Runtime.CompilerServices;
 
 namespace PurrplingCore.Ecs;
 
+/// <summary>
+/// A world that owns a dependency-injection scope for its services and systems.
+/// </summary>
 public class ManagedWorld : World
 {
     private readonly IServiceScope _scope;
     private bool _disposed;
 
+    /// <summary>
+    /// Gets the service provider scoped to this world.
+    /// </summary>
     public IServiceProvider Services => _scope.ServiceProvider;
 
+    /// <summary>
+    /// Initializes a managed world with its owning service scope.
+    /// </summary>
     protected ManagedWorld(IServiceScope scope, ILogger? logger, string? name = null, WorldSignature? signature = null)
         : base(PidType.RandomPids, signature ?? WorldSignature.Default, logger)
     {
@@ -22,6 +31,9 @@ public class ManagedWorld : World
         Name = name ?? string.Empty;
     }
 
+    /// <summary>
+    /// Disposes the world and releases its service scope when requested.
+    /// </summary>
     protected override void Dispose(bool disposing)
     {
         try
@@ -38,6 +50,9 @@ public class ManagedWorld : World
         }
     }
 
+    /// <summary>
+    /// Creates a world with a new dependency-injection scope.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ManagedWorld Create(IServiceScopeFactory scopeFactory, string? name = null, WorldSignature? signature = null)
     {

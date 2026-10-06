@@ -6,6 +6,9 @@ using System.Runtime.CompilerServices;
 
 namespace PurrplingCore.Ecs.Systems;
 
+/// <summary>
+/// Base for systems that maintain per-store command buffers, queries, and message subscriptions.
+/// </summary>
 public abstract class ManagedSystem : BaseSystem, IDisposable
 {
     private readonly List<IAutoQuery> _autoQueries = [];
@@ -14,10 +17,24 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
     private readonly BufferedSubscriber? _subscriber;
     private bool _disposed;
 
+    /// <summary>
+    /// Gets the entity store currently being processed.
+    /// </summary>
     protected EntityStore ContextStore { get; private set; } = null!;
+
+    /// <summary>
+    /// Gets the command buffer for the current store.
+    /// </summary>
     protected CommandBuffer ContextBuffer { get; private set; } = null!;
+
+    /// <summary>
+    /// Gets the world that owns this system.
+    /// </summary>
     protected World World { get; }
 
+    /// <summary>
+    /// Initializes the system with its owning world and an optional message bus.
+    /// </summary>
     protected ManagedSystem(World world, IMessageBus? bus = null)
     {
         World = world;
@@ -28,6 +45,9 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
         }
     }
 
+    /// <summary>
+    /// Gets or creates a reusable command buffer for the specified store.
+    /// </summary>
     protected CommandBuffer GetBufferFor(EntityStore store)
     {
         if (!_commandBuffers.TryGetValue(store, out var buffer))
@@ -40,6 +60,9 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
         return buffer;
     }
 
+    /// <summary>
+    /// Returns and removes the cached command buffer for the specified store.
+    /// </summary>
     protected void ReturnBufferFor(EntityStore store)
     {
         if (_commandBuffers.TryGetValue(store, out var buffer))
@@ -49,6 +72,9 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
         }
     }
 
+    /// <summary>
+    /// Sets the current store and updates registered automatic queries for it.
+    /// </summary>
     protected void UpdateContext(EntityStore store)
     {
         if (store != ContextStore && store != null)
@@ -63,6 +89,9 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
         }
     }
 
+    /// <summary>
+    /// Subscribes to messages and buffers them for replay during system updates.
+    /// </summary>
     protected ISubscription Subscribe<T>(Action<T> handler) where T : notnull
     {
         if (_subscriber != null)
@@ -75,6 +104,9 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
         return new VoidSubscription();
     }
 
+    /// <summary>
+    /// Replays collected messages to this system's active subscribers.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected void ProcessMessages()
     {
@@ -84,6 +116,9 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
         }
     }
 
+    /// <summary>
+    /// Clears replayed messages and removes completed subscriptions.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected void ClearMessages()
     {
@@ -98,12 +133,18 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
         }
     }
 
+    /// <summary>
+    /// Processes buffered messages before the update group begins.
+    /// </summary>
     protected override void OnUpdateGroupBegin()
     {
         _subscriber?.Process();
         base.OnUpdateGroupBegin();
     }
 
+    /// <summary>
+    /// Clears buffered messages after the update group ends.
+    /// </summary>
     protected override void OnUpdateGroupEnd()
     {
         ClearMessages();
@@ -120,6 +161,9 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
         _commandBuffers.Clear();
     }
 
+    /// <summary>
+    /// Releases managed resources when disposing the system.
+    /// </summary>
     protected virtual void Dispose(bool disposing)
     {
         if (!_disposed)
@@ -144,6 +188,9 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
         }
     }
 
+    /// <summary>
+    /// Releases the system's cached buffers, queries, and message subscriptions.
+    /// </summary>
     public void Dispose()
     {
         Dispose(disposing: true);
@@ -152,6 +199,9 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
 
     #region Auto query registration
 
+    /// <summary>
+    /// Creates and registers an automatic query for one component type.
+    /// </summary>
     protected AutoQuery<T1> CreateQuery<T1>()
         where T1 : struct, IComponent
     {
@@ -160,6 +210,9 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
         return q;
     }
 
+    /// <summary>
+    /// Creates and registers an automatic query for two component types.
+    /// </summary>
     protected AutoQuery<T1, T2> CreateQuery<T1, T2>()
         where T1 : struct, IComponent
         where T2 : struct, IComponent
@@ -169,6 +222,9 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
         return q;
     }
 
+    /// <summary>
+    /// Creates and registers an automatic query for three component types.
+    /// </summary>
     protected AutoQuery<T1, T2, T3> CreateQuery<T1, T2, T3>()
         where T1 : struct, IComponent
         where T2 : struct, IComponent
@@ -179,6 +235,9 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
         return q;
     }
 
+    /// <summary>
+    /// Creates and registers an automatic query for four component types.
+    /// </summary>
     protected AutoQuery<T1, T2, T3, T4> CreateQuery<T1, T2, T3, T4>()
         where T1 : struct, IComponent
         where T2 : struct, IComponent
@@ -190,6 +249,9 @@ public abstract class ManagedSystem : BaseSystem, IDisposable
         return q;
     }
 
+    /// <summary>
+    /// Creates and registers an automatic query for five component types.
+    /// </summary>
     protected AutoQuery<T1, T2, T3, T4, T5> CreateQuery<T1, T2, T3, T4, T5>()
         where T1 : struct, IComponent
         where T2 : struct, IComponent

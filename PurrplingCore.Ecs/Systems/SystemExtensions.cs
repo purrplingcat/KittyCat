@@ -2,8 +2,14 @@
 
 namespace PurrplingCore.Ecs.Systems;
 
+/// <summary>
+/// Provides lifecycle operations for Friflo system groups and roots.
+/// </summary>
 public static class SystemExtensions
 {
+    /// <summary>
+    /// Initializes child groups and systems that implement <see cref="IInitializableSystem"/>.
+    /// </summary>
     public static void Initialize(this SystemGroup root)
     {
         foreach (var child in root.ChildSystems)
@@ -20,6 +26,9 @@ public static class SystemExtensions
         }
     }
 
+    /// <summary>
+    /// Disposes and removes all child systems recursively.
+    /// </summary>
     public static void Cleanup(this SystemGroup root)
     {
         // Convert child systems to array for safe removal
@@ -38,6 +47,9 @@ public static class SystemExtensions
         }
     }
 
+    /// <summary>
+    /// Removes all child systems without disposing them.
+    /// </summary>
     public static void Clear(this SystemGroup root)
     {
         // Convert child systems to array for safe removal
@@ -47,6 +59,9 @@ public static class SystemExtensions
         }
     }
 
+    /// <summary>
+    /// Removes all entity stores from a system root.
+    /// </summary>
     public static void RemoveAllStores(this SystemRoot systemRoot)
     {
         ArgumentNullException.ThrowIfNull(systemRoot, nameof(systemRoot));
@@ -58,6 +73,9 @@ public static class SystemExtensions
         }
     }
 
+    /// <summary>
+    /// Cleans up a system root, removes its stores, and disposes the root when supported.
+    /// </summary>
     public static void Destroy(this SystemRoot root)
     {
         root.Cleanup();

@@ -3,8 +3,14 @@ using Microsoft.Extensions.Logging;
 
 namespace PurrplingCore.Ecs.Diagnostics;
 
+/// <summary>
+/// Provides diagnostic helpers for ECS worlds.
+/// </summary>
 public static class DiagnosticExtensions
 {
+    /// <summary>
+    /// Logs the system hierarchy of a world at debug level.
+    /// </summary>
     public static void LogWorldTopology(this ILogger logger, World world)
     {
         if (!logger.IsEnabled(LogLevel.Debug)) return;

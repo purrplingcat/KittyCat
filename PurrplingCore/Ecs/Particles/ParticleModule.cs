@@ -1,5 +1,6 @@
 using PurrplingCore.Ecs.DI;
 using PurrplingCore.Ecs.Systems;
+using PurrplingCore.Ecs.WorldBuilding;
 
 namespace PurrplingCore.Ecs.Particles;
 
