@@ -13,7 +13,6 @@ internal sealed class GameApplicationRunner : IHostedApplication, IDisposable
     private readonly IHostEnvironment _env;
     private readonly ILogger _logger;
     private IGame? _game;
-    private CancellationTokenRegistration _stoppingRegistration;
     private bool _disposed;
 
     public GameApplicationRunner(
@@ -48,6 +47,10 @@ internal sealed class GameApplicationRunner : IHostedApplication, IDisposable
             Subscribe(_game);
             _logger.LogDebug("Executing {GameType}::Run() ThreadId: {ThreadId}", _game.GetType(), _env.ThreadId);
             _game.Run();
+        }
+        catch (Exception ex) {
+            _logger.LogError(ex, "Error while running the game application.");
+            throw;
         }
         finally
         {
