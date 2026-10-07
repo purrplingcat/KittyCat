@@ -40,8 +40,8 @@ internal sealed class GameApplicationRunner : IHostedApplication, IDisposable
             throw new InvalidOperationException("The game application has already been started.");
         }
 
+        using var registration = token.Register(RequestGameExit);
         _game = _services.GetRequiredService<IGame>();
-        _stoppingRegistration = token.Register(RequestGameExit);
 
         try
         {
@@ -49,16 +49,12 @@ internal sealed class GameApplicationRunner : IHostedApplication, IDisposable
             _logger.LogDebug("Executing {GameType}::Run() ThreadId: {ThreadId}", _game.GetType(), _env.ThreadId);
             _game.Run();
         }
-        catch (Exception ex)
+        finally
         {
-            _logger.LogError(ex, "Error while running the game application.");
-            FinishRun();
-            throw;
-        }
-
-        if (!OperatingSystem.IsAndroid())
-        {
-            FinishRun();
+            Unsubscribe(_game);
+            _gameLifecycle.NotifyStopped();
+            _game = null;
+            _logger.LogInformation("Game application has exited.");
         }
 
         return _gameLifecycle.Error is null ? 0 : 1;
@@ -72,22 +68,12 @@ internal sealed class GameApplicationRunner : IHostedApplication, IDisposable
         }
 
         _disposed = true;
-        FinishRun();
-    }
 
-    private void FinishRun()
-    {
-        var game = _game;
-        if (game is null)
+        if (_game != null)
         {
-            return;
+            Unsubscribe(_game);
+            _game = null;
         }
-
-        _game = null;
-        _stoppingRegistration.Dispose();
-        Unsubscribe(game);
-        _gameLifecycle.NotifyStopped();
-        _logger.LogInformation("Game application has exited.");
     }
 
     private void Subscribe(IGame game)
@@ -126,9 +112,9 @@ internal sealed class GameApplicationRunner : IHostedApplication, IDisposable
 
     private void OnGameDisposed(object? sender, EventArgs e)
     {
-        if (ReferenceEquals(sender, _game))
+        if (sender is IGame game)
         {
-            FinishRun();
+            Unsubscribe(game);
         }
     }
 }
