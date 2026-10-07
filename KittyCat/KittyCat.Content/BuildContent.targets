@@ -11,16 +11,10 @@
 	<Exec Command="$(ContentCommand) $(ContentArgs)" WorkingDirectory="$(MSBuildThisFileDirectory)..\" CustomErrorRegularExpression="\[E\] .+" CustomWarningRegularExpression="\[W\] .+" />
    </Target>
   <Target Name="AddGeneratedContentAssets"
-    AfterTargets="BuildContent" BeforeTargets="AssignTargetPaths">
+    AfterTargets="BuildContent" BeforeTargets="_CreateBaseApk">
     <ItemGroup>
       <!-- Include generated PAKs in APK assets or Apple bundled resources. -->
       <GeneratedAsset Include="$(ContentOutput)Content\**\*" />
-
-      <AndroidAsset Include="@(GeneratedAsset)"
-        Condition="'$(MonoGamePlatform)' == 'Android'">
-        <Link>Content\%(GeneratedAsset.RecursiveDir)%(GeneratedAsset.Filename)%(GeneratedAsset.Extension)</Link>
-      </AndroidAsset>
-
       <BundledResource Include="@(GeneratedAsset)"
         Condition="'$(MonoGamePlatform)' == 'MacOSX' Or '$(MonoGamePlatform)' == 'iOS'">
         <Link>Content\%(GeneratedAsset.RecursiveDir)%(GeneratedAsset.Filename)%(GeneratedAsset.Extension)</Link>

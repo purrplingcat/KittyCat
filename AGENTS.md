@@ -10,7 +10,7 @@ problem.
 ## Stack
 
 - C# with nullable reference types and implicit usings enabled.
-- Runtime projects target `.NET 8`; `KittyCat.Content` targets `.NET 9`.
+- Runtime projects and `KittyCat.Content` target `.NET 10`.
 - MonoGame `3.8.5` provides the game loop, graphics, platform backends, and content pipeline.
 - `Microsoft.Extensions` provides dependency injection, configuration, and logging.
 - `Friflo.Engine.ECS` provides the ECS implementation in `PurrplingCore.Ecs`.
@@ -26,15 +26,14 @@ KittyCat.slnx
 |-- PurrplingCore/                 Reusable engine built on Toolkit and ECS
 |-- KittyCat/
         |-- KittyCat.Game/             Game code, services, scenes, ECS content, and localization
-        |-- KittyCat.Content/          .NET 9 content compiler and PAK/catalog builder
+        |-- KittyCat.Content/          .NET 10 content compiler and PAK/catalog builder
         |-- KittyCat.DesktopGL/        DesktopGL entry point
         |-- KittyCat.WindowsDX/        WindowsDX entry point
-        |-- KittyCat.Android/          Android entry point and asset provider
         `-- KittyCat.iOS/              iOS entry point
 ```
 
 The root solution includes Toolkit, ECS, PurrplingCore, Game, Content, DesktopGL, and
-WindowsDX. Android and iOS projects are present but are not included in the root solution.
+WindowsDX. The iOS project is present but is not included in the root solution.
 `KittyCat/KittyCat.slnx` is the smaller runtime-focused solution and excludes Content.
 `PurrplingCore.Toolkit.Analyzers/` currently contains directory scaffolding only.
 
@@ -130,5 +129,4 @@ dotnet build .\KittyCat\KittyCat.DesktopGL\KittyCat.DesktopGL.csproj --configura
 dotnet build .\KittyCat\KittyCat.WindowsDX\KittyCat.WindowsDX.csproj --configuration Debug
 ```
 
-Android and iOS builds require their corresponding .NET workloads; iOS also requires Apple
-signing and build infrastructure.
+iOS builds require the iOS .NET workload, Apple signing, and build infrastructure.
