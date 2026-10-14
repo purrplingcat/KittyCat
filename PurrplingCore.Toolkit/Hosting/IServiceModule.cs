@@ -13,6 +13,11 @@ public interface IServiceModule
     public void ConfigureServices(IServiceCollection services);
 }
 
+public interface IGameHostModule
+{
+    public void ConfigureGameHost(IGameHostBuilder builder);
+}
+
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
 public sealed class GameModuleAttribute : Attribute
 {

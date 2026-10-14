@@ -1,7 +1,7 @@
 using PurrplingCore.Toolkit.Content;
 using System.Text.Json;
 
-namespace KittyCat.Content.Tools;
+namespace PurrplingCore.ContentBuilder;
 
 /// <summary>
 /// Builds semantic asset catalogs from source metadata after MonoGame has compiled the content.
@@ -17,8 +17,8 @@ public static class AssetCatalogBuilder
     /// <param name="compiledDirectory">Root containing compiled XNB files.</param>
     /// <param name="packageId">Logical package name stored in the catalog.</param>
     /// <param name="outputPath">Optional catalog destination; defaults to the compiled root.</param>
-    /// <param name="contentPathPrefix">
-    /// Optional top-level content path used to select entries for one package.
+    /// <param name="contentPathPrefixes">
+    /// Optional content-relative paths ("." = all) used to select entries for one package.
     /// </param>
     /// <returns>The number of asset entries written, or zero when no matching XNB exists.</returns>
     public static int Generate(
@@ -26,7 +26,7 @@ public static class AssetCatalogBuilder
         string compiledDirectory,
         string? packageId = null,
         string? outputPath = null,
-        string? contentPathPrefix = null)
+        IReadOnlyCollection<string>? contentPathPrefixes = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(sourceDirectory);
         ArgumentException.ThrowIfNullOrEmpty(compiledDirectory);
@@ -40,8 +40,7 @@ public static class AssetCatalogBuilder
 
             var contentPath = AssetCatalogSerializer.NormalizeContentPath(entry.ContentPath);
             // Per-package catalogs contain only assets physically packed into that package.
-            if (contentPathPrefix is not null &&
-                !contentPath.StartsWith(contentPathPrefix + "/", StringComparison.OrdinalIgnoreCase))
+            if (contentPathPrefixes is not null && !IsUnderAny(contentPath, contentPathPrefixes))
             {
                 continue;
             }
@@ -71,5 +70,21 @@ public static class AssetCatalogBuilder
         using var catalogStream = File.Create(catalogPath);
         AssetCatalogSerializer.Save(catalogStream, catalog);
         return assets.Count;
+    }
+
+    private static bool IsUnderAny(string contentPath, IReadOnlyCollection<string> prefixes)
+    {
+        foreach (var rawPrefix in prefixes)
+        {
+            var prefix = rawPrefix.Replace('\\', '/').Trim('/');
+            if (prefix.Length == 0 || prefix == "." ||
+                contentPath.Equals(prefix, StringComparison.OrdinalIgnoreCase) ||
+                contentPath.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

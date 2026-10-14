@@ -29,6 +29,38 @@
       ],
       "problemMatcher": "$msCompile",
       "group": "build"
+    },
+    {
+      "label": "build KittyCat Content",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "${workspaceFolder}/KittyCat/KittyCat.Content/KittyCat.Content.csproj",
+        "--configuration",
+        "Debug",
+        "--",
+        "--ContentBuilder:CreatePak=true"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    },
+    {
+      "label": "build KittyCat Content (loose)",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "${workspaceFolder}/KittyCat/KittyCat.Content/KittyCat.Content.csproj",
+        "--configuration",
+        "Debug",
+        "--",
+        "--ContentBuilder:CreatePak=false"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "build"
     }
   ]
 }

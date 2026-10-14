@@ -26,18 +26,11 @@ internal sealed class PurrplingCoreHostServices : IServiceModule
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddServiceModule<EngineGameServices>();
-        services.AddServiceModule<EngineAssemblyServices>();
-        services.TryAddKeyedSingleton<IFileProvider>(
-            ContentPackageManager.FileProviderKey,
-            new PhysicalFileProvider(AppContext.BaseDirectory));
-        services.AddVfs();
-        services.TryExpose<ContentManager, IContentManagerProvider>(provider => provider.ContentManager);
-        services.TryExpose<Resolution, GraphicsManager>(source => source.Resolution);
+        
     }
 }
 
-internal sealed class EngineGameServices : IServiceModule
+internal sealed class EngineGameServices(IHostEnvironment env) : IServiceModule
 {
     public void ConfigureServices(IServiceCollection services)
     {
@@ -47,6 +40,9 @@ internal sealed class EngineGameServices : IServiceModule
         services.TryAddSingleton<ContentPackageManager>();
         services.AddStartup(GetServiceOrCreateInstance<VirtualFileSystemStartup>);
         services.AddStartup(provider => provider.GetRequiredService<ContentPackageManager>());
+        services.TryAddKeyedSingleton<IFileProvider>(
+            ContentPackageManager.FileProviderKey,
+            new PhysicalFileProvider(env.BaseDirectory));
     }
 }
 
@@ -79,7 +75,11 @@ public static class PurrplingCoreHostBuilderExtensions
             builder.Services.AddKeyedSingleton(ContentPackageManager.FileProviderKey, packageFiles);
         }
 
-        builder.ConfigureHostServices<PurrplingCoreHostServices>();
+        builder.Services.AddServiceModule<EngineGameServices>();
+        builder.Services.AddServiceModule<EngineAssemblyServices>();
+        builder.Services.AddVfs();
+        builder.Services.TryExpose<ContentManager, IContentManagerProvider>(provider => provider.ContentManager);
+        builder.Services.TryExpose<Resolution, GraphicsManager>(source => source.Resolution);
 
         return builder;
     }

@@ -8,7 +8,7 @@ namespace PurrplingCore.Toolkit.Content;
 /// </summary>
 public sealed record AssetCatalog
 {
-    public const string DirectoryName = "AssetCatalogs";
+    public const string DirectoryName = ".cat";
     public const string BinaryFileName = "asset-catalog.bin";
     public const string JsonFileName = "asset-catalog.json";
     public const string DefaultFileName = BinaryFileName;

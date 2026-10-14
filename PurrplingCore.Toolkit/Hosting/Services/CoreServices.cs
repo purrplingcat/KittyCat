@@ -18,6 +18,7 @@ public static class CoreServices
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddOptions<ContentManagerOptions>();
+            services.TryAddSingleton<ContentPathResolver>();
             services.TryAddSingleton<IContentManagerProvider, DefaultContentManagerProvider>();
         }
     }

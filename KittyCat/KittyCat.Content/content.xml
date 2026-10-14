@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Content src="Assets" dest="Content">
+    <Bundle source="Base" type="pak" dest="Paks/Base.pak" />
+        <Compile asset="Fonts/*.spritefont" importer="FontImporter" processor="FontProcessor" />
+        <Compile asset="Textures/*.png" />
+        <Compile asset="Sounds/*.wav" />
+        <Copy asset="test.txt" rule="file" dest="TheTest.txt" />
+    </Bundle>
+    <Bundle type="directory" src="Engine" dest="Engine">
+        <Compile asset="Fonts/BaseFont.spritefont" importer="FontImporter" processor="FontProcessor" />
+    </Bundle>
+</Content>

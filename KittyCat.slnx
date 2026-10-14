@@ -6,6 +6,7 @@
   </Configurations>
   <Folder Name="/PurrplingCore/">
     <Project Path="PurrplingCore/PurrplingCore.csproj" />
+    <Project Path="PurrplingCore.ContentBuilder/PurrplingCore.ContentBuilder.csproj" />
     <Project Path="PurrplingCore.Ecs/PurrplingCore.Ecs.csproj" />
     <Project Path="PurrplingCore.Toolkit/PurrplingCore.Toolkit.csproj" />
   </Folder>

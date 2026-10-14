@@ -76,9 +76,20 @@ public static class GameHostBuilderExtensions
     /// <typeparam name="TModule">The service module type to apply.</typeparam>
     /// <param name="builder">The game host builder.</param>
     /// <returns>The current builder instance for fluent configuration.</returns>
-    public static IGameHostBuilder ConfigureHostServices<TModule>(this IGameHostBuilder builder)
-        where TModule : class, IServiceModule, new()
-        => builder.ConfigureHostServices(typeof(TModule));
+    public static IGameHostBuilder AddGameHostModule<TModule>(this IGameHostBuilder builder)
+        where TModule : class, IGameHostModule, new()
+        => builder.AddGameHostModule(Activator.CreateInstance<TModule>());
+
+    /// <summary>
+    /// Applies a specific instance of a service module immediately to the bootstrap service collection.
+    /// </summary>
+    /// <typeparam name="TModule">The service module type.</typeparam>
+    /// <param name="builder">The game host builder.</param>
+    /// <param name="module">The service module instance to apply.</param>
+    /// <returns>The current builder instance for fluent configuration.</returns>
+    public static IGameHostBuilder AddGameHostModule<TModule>(this IGameHostBuilder builder, TModule module)
+        where TModule : class, IGameHostModule
+        => builder.AddGameHostModule(typeof(TModule), module);
 
     /// <summary>
     /// Applies a service module immediately to the bootstrap service collection.
@@ -87,9 +98,10 @@ public static class GameHostBuilderExtensions
     /// This internal method handles duplicate prevention using a HashSet of already-configured types.
     /// If initialization fails, the module type is removed from the configured set to allow retrying.
     /// </remarks>
-    internal static IGameHostBuilder ConfigureHostServices(
+    internal static IGameHostBuilder AddGameHostModule(
         this IGameHostBuilder builder,
-        Type moduleType)
+        Type moduleType,
+        IGameHostModule module)
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(moduleType);
@@ -103,20 +115,20 @@ public static class GameHostBuilderExtensions
 
         if (!configuredModules.Add(moduleType))
         {
-            return builder;
+            throw new InvalidOperationException($"The module of type {moduleType.FullName} has already been registered.");
         }
-
-        try
+        
+        try 
         {
-            var module = (IServiceModule)Activator.CreateInstance(moduleType)!;
-            module.ConfigureServices(builder.Services);
-            return builder;
+            module.ConfigureGameHost(builder);
         }
         catch
         {
             configuredModules.Remove(moduleType);
             throw;
         }
+
+        return builder;
     }
 
     /// <summary>

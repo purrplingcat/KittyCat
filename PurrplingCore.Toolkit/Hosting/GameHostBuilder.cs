@@ -72,7 +72,7 @@ public class GameHostBuilder : ApplicationHostBuilder, IGameHostBuilder
         // Add game-specific service modules
         Services.AddServiceModule<GameServices<TGame>>();
 
-        ConfigureGameHostServices<TGame>();
+        ConfigureGameHost<TGame>();
         this.SetProperty(GameTypePropertyKey, typeof(TGame));
 
         return this;
@@ -85,12 +85,12 @@ public class GameHostBuilder : ApplicationHostBuilder, IGameHostBuilder
     /// This method discovers and applies any GameHostServicesAttribute attributes on the game class,
     /// allowing the game to define its own hosting configuration.
     /// </remarks>
-    private void ConfigureGameHostServices<TGame>() where TGame : class, IGame
+    private void ConfigureGameHost<TGame>() where TGame : class, IGame
     {
         // Apply all GameHostServicesAttribute configurations from the game type
         foreach (var attribute in typeof(TGame).GetCustomAttributes<GameHostServicesAttribute>())
         {
-            this.ConfigureHostServices(attribute.ConfigurationType);
+            this.AddGameHostModule(attribute.ConfigurationType, (IGameHostModule)Activator.CreateInstance(attribute.ConfigurationType)!);
         }
     }
 

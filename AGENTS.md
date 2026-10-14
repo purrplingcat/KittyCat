@@ -24,15 +24,16 @@ KittyCat.slnx
 |-- PurrplingCore.Toolkit/        Shared hosting, DI, content, VFS, messaging, and rendering
 |-- PurrplingCore.Ecs/             ECS integration and world composition
 |-- PurrplingCore/                 Reusable engine built on Toolkit and ECS
+|-- PurrplingCore.ContentBuilder/  Reusable content compiler, catalog builder, and PAK/loose publisher
 |-- KittyCat/
         |-- KittyCat.Game/             Game code, services, scenes, ECS content, and localization
-        |-- KittyCat.Content/          .NET 10 content compiler and PAK/catalog builder
+        |-- KittyCat.Content/          KittyCat content tool: entry point, assets, and appsettings.json
         |-- KittyCat.DesktopGL/        DesktopGL entry point
         |-- KittyCat.WindowsDX/        WindowsDX entry point
         `-- KittyCat.iOS/              iOS entry point
 ```
 
-The root solution includes Toolkit, ECS, PurrplingCore, Game, Content, DesktopGL, and
+The root solution includes Toolkit, ECS, PurrplingCore, ContentBuilder, Game, Content, DesktopGL, and
 WindowsDX. The iOS project is present but is not included in the root solution.
 `KittyCat/KittyCat.slnx` is the smaller runtime-focused solution and excludes Content.
 `PurrplingCore.Toolkit.Analyzers/` currently contains directory scaffolding only.
@@ -44,6 +45,8 @@ PurrplingCore.Toolkit <- PurrplingCore.Ecs <- PurrplingCore <- KittyCat.Game
                     ^                    ^                 ^              ^
                     |                    |                 |              +-- platform projects
                     +--------------------+-----------------+-- KittyCat.Content
+
+PurrplingCore.Toolkit <- PurrplingCore.ContentBuilder <- KittyCat.Content
 ```
 
 The arrows mean "is referenced by". Keep dependencies flowing from lower-level reusable
@@ -98,8 +101,11 @@ an isolated `ModAssemblyLoadContext`. `ModRegistry` owns loaded-mod identity and
 
 ### Content pipeline
 
-`KittyCat.Content` wraps the MonoGame content builder, compiles source assets to XNB, copies
-metadata, and optionally creates directory-grouped PAKs with asset catalogs. Its build-time
+`PurrplingCore.ContentBuilder` wraps the MonoGame content builder, compiles source assets to XNB,
+copies metadata, and publishes directory-grouped PAKs with asset catalogs or loose XNB files.
+`UseContentBuilder()` binds `ContentBuilderOptions` from the host `ContentBuilder` configuration
+section; pass args only to `ApplicationHost.CreateBuilder(args)`. `KittyCat.Content` is the thin
+game tool that supplies assets and game-specific settings in `appsettings.json`. Build-time
 File I/O is intentional; runtime asset access must use the VFS rules above.
 
 ## Coding Rules

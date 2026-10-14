@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -26,17 +27,32 @@ public interface IContentManagerProvider
     public ContentManager CreateContentManager(string? root = null);
 }
 
+public class ContentPathResolver
+{
+    private readonly Dictionary<string, string> _roots = new(StringComparer.OrdinalIgnoreCase);
+
+    public void Map(string packageName, string path) => _roots[packageName] = path;
+
+    public bool Unmap(string packageName) => _roots.Remove(packageName);
+
+    public string? Resolve(string packageName) => _roots.TryGetValue(packageName, out var path) ? path : null;
+    
+    public bool TryResolve(string packageName, [MaybeNullWhen(false)] out string path) => _roots.TryGetValue(packageName, out path);
+}
+
 public sealed class DefaultContentManagerProvider : IContentManagerProvider
 {
     private readonly IServiceProvider _services;
+    private readonly ContentPathResolver _resolver;
     private readonly ContentManagerOptions _options;
 
     public ContentManager ContentManager { get; }
 
-    public DefaultContentManagerProvider(IServiceProvider services, IOptions<ContentManagerOptions> options)
+    public DefaultContentManagerProvider(IServiceProvider services, ContentPathResolver resolver, IOptions<ContentManagerOptions> options)
     {
         _services = services;
         _options = options.Value;
+        _resolver = resolver;
         ContentManager = CreateContentManager();
     }
 
@@ -44,7 +60,13 @@ public sealed class DefaultContentManagerProvider : IContentManagerProvider
     {
         var loggerFactory = _services.GetService<ILoggerFactory>();
         var logger = loggerFactory?.CreateLogger("ContentManager") ?? NullLogger.Instance;
+        root ??= _options.ContentRoot;
 
-        return new DefaultContentManager(_services, root ?? _options.ContentRoot, logger);
+        if (_resolver.TryResolve(root, out var resolvedRoot))
+        {
+            root = resolvedRoot;
+        }
+
+        return new DefaultContentManager(_services, root, logger);
     }
 }

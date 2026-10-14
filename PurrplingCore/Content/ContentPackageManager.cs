@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Zio;
 using Zio.FileSystems;
+using PurrplingCore.Toolkit;
 
 namespace PurrplingCore.Content;
 
@@ -28,15 +29,17 @@ namespace PurrplingCore.Content;
 public sealed class ContentPackageManager : IStartupService
 {
     public const string FileProviderKey = "ContentPackages";
-    private const string PackagesPath = "Content/Paks";
+    private const string PackagesPath = "Paks";
 
     private readonly IGameApplicationLifetime _lifetime;
     private readonly IFileProvider _packageFiles;
     private readonly IVirtualFileSystemManager _vfs;
     private readonly ILogger _logger;
+    private readonly ContentPathResolver _resolver;
 
     public ContentPackageManager(
         IGameApplicationLifetime lifetime,
+        ContentPathResolver resolver,
         [FromKeyedServices(FileProviderKey)] IFileProvider packageFiles,
         IVirtualFileSystemManager vfs,
         ILoggerFactory loggerFactory)
@@ -45,12 +48,16 @@ public sealed class ContentPackageManager : IStartupService
         _packageFiles = packageFiles;
         _vfs = vfs;
         _logger = loggerFactory.CreateLogger<ContentPackageManager>();
+        _resolver = resolver;
     }
 
     public int Order => -90;
 
     public void Startup()
     {
+        _resolver.Map("game", "Content");
+        _resolver.Map("engine", "Content/Engine");
+
         // Package mounting belongs to game initialization, not host service registration.
         _lifetime.GameInitializing.Register(Initialize);
     }
