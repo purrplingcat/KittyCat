@@ -41,8 +41,8 @@ public record ContentBuilderOptions
 /// Compiles MonoGame content and publishes it either as loose files or declared PAKs.
 /// </summary>
 /// <remarks>
-/// PAK mode also creates one semantic asset catalog per package. Runtime catalog discovery can
-/// therefore identify assets without understanding the PAK container format.
+/// Bundles can publish a semantic asset catalog from their source metadata. Overlay bundles can
+/// omit the catalog while still publishing files that override an existing virtual path.
 /// </remarks>
 public class ContentBuilder
 {
@@ -118,8 +118,47 @@ public class ContentBuilder
         
         foreach (var bundle in Build(parameters))
         {
+            GenerateCatalog(parameters, bundle);
             Publish(parameters, bundle);
         }
+    }
+
+    /// <summary>
+    /// Generates or removes the bundle's catalog before the bundle is published.
+    /// </summary>
+    public void GenerateCatalog(ContentBuilderOptions parameters, IAssetBundle bundle)
+    {
+        var compiledDirectory = Path.Combine(parameters.RootedIntermediateDirectory, bundle.Name);
+        var sourceDirectory = Path.Combine(parameters.RootedSourceDirectory, bundle.Source);
+        var catalogPath = Path.Combine(
+            compiledDirectory,
+            "Content",
+            AssetCatalog.DirectoryName,
+            $"{bundle.Name}.bin");
+
+        if (!bundle.GenerateAssetCatalog)
+        {
+            if (File.Exists(catalogPath))
+            {
+                File.Delete(catalogPath);
+            }
+
+            return;
+        }
+
+        var contentRoots = BundleContentRootResolver.Resolve(bundle.GetContent(), sourceDirectory);
+        var assetCount = AssetCatalogBuilder.Generate(
+            sourceDirectory,
+            compiledDirectory,
+            bundle.PackageName,
+            bundle.Name,
+            catalogPath,
+            contentRoots: contentRoots);
+        _logger.LogInformation(
+            "Generated asset catalog {CatalogPath} for bundle {BundleName} with {AssetCount} assets.",
+            catalogPath,
+            bundle.Name,
+            assetCount);
     }
 
     /// <summary>
@@ -159,9 +198,9 @@ public class ContentBuilder
     {
         ArgumentException.ThrowIfNullOrEmpty(bundle.Destination);
         
-        var compiledDirectory = Path.Combine(parameters.IntermediateDirectory, bundle.Name);
+        var compiledDirectory = Path.Combine(parameters.RootedIntermediateDirectory, bundle.Name);
 
-        //AssetCatalogBuilder.Generate(parameters.RootedSourceDirectory, compiledDirectory);
+
         switch (bundle.Type)
         {
             case AssetBundleType.Loose:

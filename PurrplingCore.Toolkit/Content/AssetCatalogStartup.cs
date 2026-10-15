@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Toolkit.DI;
 using PurrplingCore.Toolkit.Hosting;
+using System.Diagnostics;
 
 namespace PurrplingCore.Toolkit.Content;
 
@@ -19,10 +20,10 @@ namespace PurrplingCore.Toolkit.Content;
 public sealed partial class AssetCatalogIndexer
 {
     private readonly AssetRegistry _registry;
+    private readonly ContentPathResolver? _pathResolver;
     private readonly ILogger<AssetCatalogIndexer> _logger;
     private readonly IFileProvider? _contentFiles;
     private readonly string _binaryCatalogPath;
-    private readonly string _jsonCatalogPath;
     private readonly string _catalogDirectoryPath;
     private readonly HashSet<string> _indexedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _syncRoot = new();
@@ -31,17 +32,18 @@ public sealed partial class AssetCatalogIndexer
         AssetRegistry registry,
         ILogger<AssetCatalogIndexer> logger,
         IOptions<ContentManagerOptions> contentOptions,
-        IFileProvider? contentFiles = null)
+        IFileProvider? contentFiles = null,
+        ContentPathResolver? pathResolver = null)
     {
         ArgumentNullException.ThrowIfNull(contentOptions);
 
         _registry = registry;
+        _pathResolver = pathResolver;
         _logger = logger;
         _contentFiles = contentFiles;
 
         var contentRoot = contentOptions.Value.ContentRoot.Replace('\\', '/').Trim('/');
         _binaryCatalogPath = $"{contentRoot}/{AssetCatalog.BinaryFileName}";
-        _jsonCatalogPath = $"{contentRoot}/{AssetCatalog.JsonFileName}";
         _catalogDirectoryPath = $"{contentRoot}/{AssetCatalog.DirectoryName}";
     }
 
@@ -71,8 +73,7 @@ public sealed partial class AssetCatalogIndexer
             LogCatalogNotFound(
                 _logger,
                 sourceType,
-                _binaryCatalogPath,
-                _jsonCatalogPath);
+                _binaryCatalogPath);
         }
     }
 
@@ -109,20 +110,19 @@ public sealed partial class AssetCatalogIndexer
             {
                 LogTitleCatalogNotFound(
                     _logger,
-                    _binaryCatalogPath,
-                    _jsonCatalogPath);
+                    _binaryCatalogPath);
             }
         }
     }
 
     private bool TryImportCatalog(IFileProvider source, string sourceType)
     {
-        if (TryImportBinaryCatalog(TryOpenRead(source, _binaryCatalogPath), _binaryCatalogPath, sourceType))
+        if (_indexedPaths.Contains(_binaryCatalogPath))
         {
             return true;
         }
 
-        return TryImportJsonCatalog(TryOpenRead(source, _jsonCatalogPath), _jsonCatalogPath, sourceType);
+        return TryImportBinaryCatalog(TryOpenRead(source, _binaryCatalogPath), _binaryCatalogPath, sourceType);
     }
 
     private bool ImportPackageCatalogs(IFileProvider source, string sourceType)
@@ -142,20 +142,15 @@ public sealed partial class AssetCatalogIndexer
             }
 
             var path = $"{_catalogDirectoryPath}/{file.Name}";
-            var extension = Path.GetExtension(file.Name);
-            if (extension.Equals(".bin", StringComparison.OrdinalIgnoreCase))
+            if (_indexedPaths.Contains(path))
+            {
+                catalogFound = true;
+                continue;
+            }
+
+            if (Path.GetExtension(file.Name).Equals(".bin", StringComparison.OrdinalIgnoreCase))
             {
                 catalogFound |= TryImportBinaryCatalog(file.CreateReadStream(), path, sourceType);
-            }
-            else if (extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
-            {
-                var binaryPath = Path.ChangeExtension(path, ".bin");
-                if (source.GetFileInfo(binaryPath).Exists)
-                {
-                    continue;
-                }
-
-                catalogFound |= TryImportJsonCatalog(file.CreateReadStream(), path, sourceType);
             }
         }
 
@@ -164,12 +159,7 @@ public sealed partial class AssetCatalogIndexer
 
     private bool TryImportTitleCatalog(string sourceType)
     {
-        if (TryImportBinaryCatalog(TryOpenTitleCatalog(_binaryCatalogPath), _binaryCatalogPath, sourceType))
-        {
-            return true;
-        }
-
-        return TryImportJsonCatalog(TryOpenTitleCatalog(_jsonCatalogPath), _jsonCatalogPath, sourceType);
+        return TryImportBinaryCatalog(TryOpenTitleCatalog(_binaryCatalogPath), _binaryCatalogPath, sourceType);
     }
 
     private bool TryImportBinaryCatalog(Stream? stream, string path, string sourceType)
@@ -186,79 +176,90 @@ public sealed partial class AssetCatalogIndexer
                 return true;
             }
 
+            var started = Stopwatch.GetTimestamp();
             var catalog = AssetCatalogSerializer.Load(stream);
             Import(catalog);
             _indexedPaths.Add(path);
-            LogCatalogIndexed(catalog, path, "binary", sourceType);
+            LogCatalogIndexed(
+                catalog,
+                path,
+                "binary",
+                sourceType,
+                Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         }
 
         return true;
     }
 
-    private bool TryImportJsonCatalog(Stream? stream, string path, string sourceType)
+    private void Import(AssetCatalog catalog)
     {
-        if (stream is null)
+        if (catalog.Redirects.Length > 0 && _pathResolver is null)
         {
-            return false;
+            throw new InvalidOperationException("Indexing catalog redirects requires the content path resolver.");
         }
 
-        using (stream)
+        // Adapt catalog data here so the resolver only receives source-independent path mappings.
+        var redirects = new AssetCatalogRedirect[catalog.Redirects.Length];
+        for (var index = 0; index < redirects.Length; index++)
         {
-            if (_indexedPaths.Contains(path))
-            {
-                return true;
-            }
+            var redirect = catalog.Redirects[index];
+            var root = AssetCatalogSerializer.NormalizeContentRoot(catalog.Redirects[index].ContentRoot);
+            var path = catalog.Redirects[index].ObjectPathPrefix.Length == 0
+                    ? string.Empty
+                    : AssetCatalogSerializer.NormalizeObjectPath(catalog.Redirects[index].ObjectPathPrefix);
 
-            var catalog = AssetCatalogSerializer.LoadJson(stream);
-            Import(catalog);
-            _indexedPaths.Add(path);
-            LogCatalogIndexed(catalog, path, "JSON", sourceType);
+            _pathResolver?.Map(redirect.PackageName, root, path);
         }
 
-        return true;
+        catalog.Import(_registry, catalog.PackageId);
     }
 
-    private void Import(AssetCatalog catalog) => catalog.Import(_registry, catalog.PackageId);
-
-    private void LogCatalogIndexed(AssetCatalog catalog, string path, string format, string sourceType)
+    private void LogCatalogIndexed(
+        AssetCatalog catalog,
+        string path,
+        string format,
+        string sourceType,
+        double elapsedMilliseconds)
     {
         LogCatalogIndexed(
             _logger,
             format,
             path,
             sourceType,
-            catalog.PackageId);
+            catalog.PackageId,
+            catalog.Assets.Length,
+            elapsedMilliseconds);
     }
 
     [LoggerMessage(1, LogLevel.Trace, "Indexing asset catalog source {SourceType}.")]
     private static partial void LogIndexingSource(ILogger logger, string sourceType);
 
     [LoggerMessage(2, LogLevel.Debug,
-        "No asset catalog found in source {SourceType}; checked {BinaryCatalogPath} and {JsonCatalogPath}.")]
+        "No binary asset catalog found in source {SourceType}; checked {BinaryCatalogPath}.")]
     private static partial void LogCatalogNotFound(
         ILogger logger,
         string sourceType,
-        string binaryCatalogPath,
-        string jsonCatalogPath);
+        string binaryCatalogPath);
 
     [LoggerMessage(3, LogLevel.Trace, "Indexing the title asset catalog.")]
     private static partial void LogIndexingTitleContainer(ILogger logger);
 
     [LoggerMessage(5, LogLevel.Debug,
-        "No title asset catalog found; checked {BinaryCatalogPath} and {JsonCatalogPath}.")]
+        "No binary title asset catalog found; checked {BinaryCatalogPath}.")]
     private static partial void LogTitleCatalogNotFound(
         ILogger logger,
-        string binaryCatalogPath,
-        string jsonCatalogPath);
+        string binaryCatalogPath);
 
-    [LoggerMessage(6, LogLevel.Debug,
-        "Indexed {Format} asset catalog {CatalogPath} from {SourceType} for package {PackageId}.")]
+    [LoggerMessage(6, LogLevel.Trace,
+        "Loaded {Format} asset catalog {CatalogPath} from {SourceType} for package {PackageId}: {AssetCount} assets in {ElapsedMilliseconds} ms.")]
     private static partial void LogCatalogIndexed(
         ILogger logger,
         string format,
         string catalogPath,
         string sourceType,
-        string packageId);
+        string packageId,
+        int assetCount,
+        double elapsedMilliseconds);
 
     private static Stream? TryOpenRead(IFileProvider source, string path)
     {

@@ -1,8 +1,8 @@
 <Project>
   <Target Name="BuildContent" BeforeTargets="BeforeCompile">
     <PropertyGroup>
-      <ContentOutput>$(ProjectDir)$(OutputPath)</ContentOutput>
-      <ContentTemp>$(ProjectDir)$(IntermediateOutputPath)\ContentBuilder</ContentTemp>
+      <ContentOutput>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)GeneratedContent\</ContentOutput>
+      <ContentTemp>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)ContentBuilder\</ContentTemp>
       <ContentCreatePak Condition="'$(ContentCreatePak)' == ''">true</ContentCreatePak>
       <ContentArgs>--ContentBuilder:Platform=$(MonoGamePlatform) --ContentBuilder:SourceDirectory=&quot;$(MSBuildThisFileDirectory)Assets&quot; --ContentBuilder:OutputDirectory=&quot;$(ContentOutput)/.&quot; --ContentBuilder:IntermediateDirectory=&quot;$(ContentTemp)/.&quot; --ContentBuilder:CreatePak=$(ContentCreatePak)</ContentArgs>
       <ContentCommand>$(MSBuildThisFileDirectory)bin\Debug\KittyCat.Content</ContentCommand>
@@ -11,14 +11,26 @@
     <MSBuild Projects="$(MSBuildThisFileDirectory)KittyCat.Content.csproj" Targets="Build" RemoveProperties="Configuration;TargetFramework;RuntimeIdentifier;RuntimeIdentifiers" />
 	<Exec Command="$(ContentCommand) $(ContentArgs)" WorkingDirectory="$(MSBuildThisFileDirectory)..\" CustomErrorRegularExpression="\[E\] .+" CustomWarningRegularExpression="\[W\] .+" />
    </Target>
-  <Target Name="AddGeneratedContentAssets" AfterTargets="BuildContent" BeforeTargets="_CreateBaseApk">
+  <Target Name="CopyGeneratedContentToOutput" AfterTargets="BuildContent" BeforeTargets="_CreateBaseApk">
     <ItemGroup>
-      <!-- Include generated PAKs in APK assets or Apple bundled resources. -->
-      <GeneratedAsset Include="$(ContentOutput)Content\**\*" />
-      <BundledResource Include="@(GeneratedAsset)"
+      <GeneratedContent Include="$(ContentOutput)**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(GeneratedContent)"
+          DestinationFiles="@(GeneratedContent->'$(TargetDir)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <BundledResource Include="@(GeneratedContent)"
         Condition="'$(MonoGamePlatform)' == 'MacOSX' Or '$(MonoGamePlatform)' == 'iOS'">
-        <Link>Content\%(GeneratedAsset.RecursiveDir)%(GeneratedAsset.Filename)%(GeneratedAsset.Extension)</Link>
+        <Link>%(GeneratedContent.RecursiveDir)%(GeneratedContent.Filename)%(GeneratedContent.Extension)</Link>
       </BundledResource>
     </ItemGroup>
+  </Target>
+  <Target Name="CopyGeneratedContentToPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <GeneratedContentForPublish Include="$(ContentOutput)**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(GeneratedContentForPublish)"
+          DestinationFiles="@(GeneratedContentForPublish->'$(PublishDir)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
   </Target>
 </Project>

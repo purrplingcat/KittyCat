@@ -75,49 +75,80 @@ public sealed record AssetMetadata
     public string ObjectPath { get; }
     public string AssetName { get; }
     public string AssetClass { get; }
-    public string? ContentPath { get; }
-
+    public string? FileExtension { get; }
     public IReadOnlyDictionary<string, string> Tags { get; }
 
     public AssetMetadata(
         AssetId id,
-        string? contentPath = null,
+        string packageName,
+        string objectPath,
         string assetClass = "",
-        IReadOnlyDictionary<string, string>? tags = null)
+        IReadOnlyDictionary<string, string>? tags = null,
+        string? fileExtension = null)
     {
-        if (id.FullName is null)
-        {
-            throw new ArgumentException("Asset metadata requires a named asset ID.", nameof(id));
-        }
-
+        ArgumentException.ThrowIfNullOrWhiteSpace(packageName);
+        ObjectPath = NormalizeObjectPath(objectPath);
         ValidateFullName(id.FullName);
-        if (id.Guid != AssetId.CreateGuid(id.FullName))
-        {
-            throw new ArgumentException(
-                $"Asset ID does not match asset name '{id.FullName}'.",
-                nameof(id));
-        }
-
-        var separator = id.FullName.IndexOf(':');
-
         Id = id;
         FullName = id.FullName;
-        PackageName = FullName[..separator];
-        ObjectPath = FullName[(separator + 1)..];
+        PackageName = packageName;
         AssetName = Path.GetFileName(ObjectPath);
         AssetClass = assetClass;
-        ContentPath = contentPath;
+        FileExtension = NormalizeFileExtension(fileExtension);
         Tags = tags ?? new Dictionary<string, string>();
     }
 
     public static AssetMetadata Create(
-        string fullName,
-        string? contentPath = null,
+        string packageName,
+        string objectPath,
         string assetClass = "",
-        IReadOnlyDictionary<string, string>? tags = null)
+        IReadOnlyDictionary<string, string>? tags = null,
+        string? fileExtension = null,
+        string? id = null)
     {
-        ValidateFullName(fullName);
-        return new AssetMetadata(new AssetId(fullName), contentPath, assetClass, tags);
+        ArgumentException.ThrowIfNullOrWhiteSpace(packageName);
+        var normalizedPath = NormalizeObjectPath(objectPath);
+        var assetId = new AssetId(id ?? $"{packageName.ToLowerInvariant()}:{normalizedPath}");
+        return new AssetMetadata(assetId, packageName, normalizedPath, assetClass, tags, fileExtension);
+    }
+
+    private static string NormalizeObjectPath(string objectPath)
+    {
+        var normalizedPath = NormalizeRelativePath(objectPath, nameof(objectPath));
+        if (normalizedPath.EndsWith(".xnb", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedPath = normalizedPath[..^4];
+        }
+
+        return normalizedPath;
+    }
+
+    private static string? NormalizeFileExtension(string? fileExtension)
+    {
+        if (string.IsNullOrWhiteSpace(fileExtension))
+        {
+            return null;
+        }
+
+        var normalized = fileExtension.Trim();
+        if (!normalized.StartsWith('.') || normalized.Length == 1 || normalized.Contains('/') || normalized.Contains('\\'))
+        {
+            throw new ArgumentException($"Invalid asset file extension '{fileExtension}'.", nameof(fileExtension));
+        }
+
+        return normalized;
+    }
+
+    private static string NormalizeRelativePath(string path, string parameterName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path, parameterName);
+        var normalizedPath = path.Replace('\\', '/').Trim();
+        if (normalizedPath.StartsWith('/') || normalizedPath.Split('/').Any(segment => segment is "" or "." or ".."))
+        {
+            throw new ArgumentException($"Invalid asset path '{path}'.", parameterName);
+        }
+
+        return normalizedPath;
     }
 
     public static void ValidateFullName(string fullName)
@@ -136,7 +167,6 @@ public sealed record AssetMetadata
 
         void Throw(string message) => throw new ArgumentException($"Invalid asset name '{fullName}'. {message}", nameof(fullName));
     }
-
 }
 
 public interface IAssetCache
@@ -211,7 +241,6 @@ public class AssetCache<T> : IAssetCache
     {
         bool found = TryRetain(id, out var asset);
         value = asset;
-
         return found;
     }
 }
@@ -308,7 +337,6 @@ public class AssetRegistry(ILogger<AssetRegistry> logger)
             if (asset.AssetName == name)
                 yield return asset;
         }
-
     }
 
     public int GetAssetsByName(string name, Span<AssetMetadata> buffer, Func<AssetMetadata, bool> filter)
@@ -321,13 +349,8 @@ public class AssetRegistry(ILogger<AssetRegistry> logger)
         foreach (var asset in _database.Values)
         {
             if (count == buffer.Length) break;
-
-            if (asset.AssetName == name)
-            {
-                if (filter != null && !filter(asset)) continue;
-
+            if (asset.AssetName == name && filter(asset))
                 buffer[count++] = asset;
-            }
         }
 
         return count;
@@ -342,11 +365,8 @@ public class AssetRegistry(ILogger<AssetRegistry> logger)
         foreach (var asset in _database.Values)
         {
             if (count == buffer.Length) break;
-
             if (asset.AssetName == name)
-            {
                 buffer[count++] = asset;
-            }
         }
 
         return count;
@@ -491,6 +511,8 @@ public readonly struct AssetHandle<T> : IDisposable
 public class AssetManager
 {
     private readonly ContentManager _content;
+    private readonly ContentPathResolver _pathResolver;
+    private readonly string _defaultRoot;
     private readonly AssetRegistry _masterRegistry;
     private readonly AssetCatalogIndexer _catalogIndexer;
     private readonly IServiceProvider _services;
@@ -504,9 +526,12 @@ public class AssetManager
     public AssetManager(
         IContentManagerProvider contentProvider,
         AssetRegistry masterRegistry,
-        AssetCatalogIndexer catalogIndexer)
+        AssetCatalogIndexer catalogIndexer,
+        ContentPathResolver pathResolver)
     {
-        _content = contentProvider.CreateContentManager();
+        _pathResolver = pathResolver;
+        _defaultRoot = contentProvider.ContentManager.RootDirectory;
+        _content = contentProvider.CreateContentManager(root: "");
         _masterRegistry = masterRegistry;
         _catalogIndexer = catalogIndexer;
         _services = _content.ServiceProvider;
@@ -514,12 +539,13 @@ public class AssetManager
 
     protected virtual AssetCache<T> GetAssetCache<T>()
     {
-        return (AssetCache<T>)_cacheMap.GetOrAdd(
-            key: typeof(T),
-            valueFactory: static (_, services) => 
-                ActivatorUtilities.GetServiceOrCreateInstance<AssetCache<T>>(services),
-            factoryArgument: _services
-        );
+        if (_cacheMap.TryGetValue(typeof(T), out var cache))
+        {
+            return (AssetCache<T>)cache;
+        }
+
+        var newCache = ActivatorUtilities.GetServiceOrCreateInstance<AssetCache<T>>(_services);
+        return (AssetCache<T>)_cacheMap.GetOrAdd(typeof(T), newCache);
     }
 
     public AssetHandle<T> Get<T>(AssetId assetId)
@@ -535,6 +561,7 @@ public class AssetManager
                 descriptor = _masterRegistry.GetMetadata(assetId)
                     ?? throw new KeyNotFoundException($"Asset {assetId.Guid} is not registered!");
             }
+
             loadedAsset = LoadAsset<T>(in descriptor);
             cache.Add(assetId, loadedAsset);
         }
@@ -544,10 +571,20 @@ public class AssetManager
 
     protected virtual T LoadAsset<T>(in AssetMetadata descriptor)
     {
-        var loader = _services.GetService<IContentLoader<T>>() 
+        var loader = _services.GetService<IContentLoader<T>>()
             ?? throw new NotSupportedException($"Asset type {typeof(T)} is not supported.");
 
-        return loader.Load(_content, descriptor.GetAssetPath());
+        return loader.Load(_content, ResolveAssetPath(descriptor));
+    }
+
+    private string ResolveAssetPath(AssetMetadata descriptor)
+    {
+        var root = _pathResolver.Resolve(descriptor.PackageName, descriptor.ObjectPath);
+        var path = descriptor.GetAssetPath();
+
+        return root is null
+            ? Path.Combine(_defaultRoot, descriptor.PackageName, path)
+            : Path.Combine(root, path);
     }
 
     internal void Release<T>(Guid assetId)
@@ -559,7 +596,7 @@ public class AssetManager
             var descriptor = _masterRegistry.GetMetadata(assetId);
             if (descriptor != null)
             {
-                _content.UnloadAsset(descriptor.GetAssetPath());
+                _content.UnloadAsset(ResolveAssetPath(descriptor));
                 AssetsUnloaded?.Invoke([descriptor.Id]);
             }
         }
@@ -568,14 +605,10 @@ public class AssetManager
 
 public static class AssetHelper
 {
-    public static string GetAssetPath(this AssetMetadata descriptor)
+    public static string GetAssetPath(this AssetMetadata descriptor, string? root = null)
     {
-        if (!string.IsNullOrEmpty(descriptor.ContentPath))
-        {
-            return descriptor.ContentPath;
-        }
-
-        return descriptor.FullName.Replace(':', '/');
+        var path = descriptor.ObjectPath + descriptor.FileExtension;
+        return root is null ? path : Path.Combine(root, path);
     }
 
     public static AssetBank<T> CreateBank<T>(this AssetManager assetmanager) where T : class
