@@ -21,4 +21,8 @@
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
   </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="PurrplingCore.ContentBuilder.Tests/PurrplingCore.ContentBuilder.Tests.csproj" />
+    <Project Path="PurrplingCore.Toolkit.Tests/PurrplingCore.Toolkit.Tests.csproj" />
+  </Folder>
 </Solution>
