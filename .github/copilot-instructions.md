@@ -15,6 +15,7 @@
 
 ## Architecture and Composition
 
+- Product vision: build a lightweight, Unreal-inspired 2D engine and framework for indie games. Projects should scale from small games through modular, composable systems, with modding treated as a first-class design goal. Support data-only mods and content packages without requiring game-specific DLLs; keep the core modular rather than growing it into a monolith.
 - The framework is DI-driven. Modules expose registrations and are composed through the host and engine.
 - ECS is a core framework capability; worlds, systems, signatures, factories, and ECS modules belong to the ECS/engine composition model.
 - Framework modules must remain modular and optional rather than being hard-wired together.
