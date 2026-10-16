@@ -31,14 +31,14 @@ internal sealed class TestAssetBundle : AssetBundle
     }
 }
 
-internal sealed class MultiRootAssetBundle(string name) : AssetBundle(name, AssetBundleType.Pak)
+internal sealed class MultiRootAssetBundle(string name, string audioRoot = "Dlc2") : AssetBundle(name, AssetBundleType.Pak)
 {
     protected override IContentCollection CreateContentCollection()
     {
         var collection = new ContentCollection();
         collection.SetContentRoot("Dlc1");
         collection.Include<WildcardRule>("Textures/*.png");
-        collection.SetContentRoot("Dlc2");
+        collection.SetContentRoot(audioRoot);
         collection.Include<WildcardRule>("Sounds/*.wav");
         return collection;
     }

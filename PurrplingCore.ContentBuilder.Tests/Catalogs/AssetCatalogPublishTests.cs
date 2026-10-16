@@ -30,10 +30,6 @@ public sealed class AssetCatalogPublishTests
         var entry = Assert.Single(catalog.Assets);
 
         Assert.Equal("GameContent", entry.PackageName);
-        var redirect = Assert.Single(catalog.Redirects);
-        Assert.Equal("Content", redirect.ContentRoot);
-        Assert.Equal("GameContent", redirect.PackageName);
-        Assert.Equal(string.Empty, redirect.ObjectPathPrefix);
         Assert.Equal("Fonts/Hud", entry.ObjectPath);
         Assert.Null(entry.FileExtension);
         Assert.Equal("gamecontent:Fonts/Hud", entry.Id);
@@ -44,8 +40,8 @@ public sealed class AssetCatalogPublishTests
     public void GenerateCatalog_StoresRawFileExtension()
     {
         using var files = new TemporaryContentDirectory();
-        var bundle = new MultiRootAssetBundle("RawAssets");
-        CreateRawBundleFiles(files.Root, bundle.Name);
+        var bundle = new MultiRootAssetBundle("RawAssets", audioRoot: "Dlc1");
+        CreateRawBundleFiles(files.Root, bundle.Name, audioRoot: "Dlc1");
         var builder = new ContentBuilder(NullLogger<ContentBuilder>.Instance, [bundle]);
         var options = CreateOptions(files.Root);
 
@@ -58,15 +54,12 @@ public sealed class AssetCatalogPublishTests
         Assert.Equal(2, catalog.Assets.Length);
         Assert.Equal("rawassets:Textures/Fur", Assert.Single(catalog.Assets, entry => entry.ObjectPath == "Textures/Fur").Id);
         Assert.Equal("sfx:click", Assert.Single(catalog.Assets, entry => entry.ObjectPath == "Sounds/Click").Id);
-        Assert.Equal(2, catalog.Redirects.Length);
-        Assert.Equal("Dlc1", Assert.Single(catalog.Redirects, redirect => redirect.ObjectPathPrefix == "Textures").ContentRoot);
-        Assert.Equal("Dlc2", Assert.Single(catalog.Redirects, redirect => redirect.ObjectPathPrefix == "Sounds").ContentRoot);
         Assert.Collection(
             catalog.Assets.OrderBy(entry => entry.ObjectPath),
             entry => Assert.Equal(("Sounds/Click", ".wav"), (entry.ObjectPath, entry.FileExtension)),
             entry => Assert.Equal(("Textures/Fur", ".png"), (entry.ObjectPath, entry.FileExtension)));
         Assert.True(pak.FileExists(new UPath("/Dlc1/Textures/Fur.png")));
-        Assert.True(pak.FileExists(new UPath("/Dlc2/Sounds/Click.wav")));
+        Assert.True(pak.FileExists(new UPath("/Dlc1/Sounds/Click.wav")));
     }
 
     [Fact]
@@ -90,7 +83,7 @@ public sealed class AssetCatalogPublishTests
     }
 
     [Fact]
-    public void GenerateCatalog_StoresSharedRootOnlyOnce()
+    public void GenerateCatalog_EmitsOnlyAssetCatalog()
     {
         using var files = new TemporaryContentDirectory();
         var bundle = new TestAssetBundle("SharedRoot", true);
@@ -111,9 +104,6 @@ public sealed class AssetCatalogPublishTests
         using var pak = OpenBundle(files.Root, bundle.Name);
         using var stream = pak.OpenRead(new UPath($"/Content/{AssetCatalog.DirectoryName}/SharedRoot.bin"));
         var catalog = AssetCatalogSerializer.Load(stream);
-        var redirect = Assert.Single(catalog.Redirects);
-        Assert.Equal("Content", redirect.ContentRoot);
-        Assert.Equal(string.Empty, redirect.ObjectPathPrefix);
         Assert.Equal(2, catalog.Assets.Length);
         Assert.Null(typeof(AssetCatalogEntry).GetProperty("ContentRoot"));
         Assert.Null(typeof(AssetCatalogEntry).GetProperty("ContentRootIndex"));
@@ -137,7 +127,7 @@ public sealed class AssetCatalogPublishTests
         File.WriteAllBytes(compiledPath, [1, 2, 3]);
     }
 
-    private static void CreateRawBundleFiles(string root, string bundleName)
+    private static void CreateRawBundleFiles(string root, string bundleName, string audioRoot = "Dlc2")
     {
         var sourceDirectory = Path.Combine(root, "Assets");
         var furMetadataPath = Path.Combine(sourceDirectory, "Textures", "Fur.meta.json");
@@ -155,7 +145,7 @@ public sealed class AssetCatalogPublishTests
 
         var compiledDirectory = Path.Combine(root, "obj", bundleName);
         var furPath = Path.Combine(compiledDirectory, "Dlc1", "Textures", "Fur.png");
-        var clickPath = Path.Combine(compiledDirectory, "Dlc2", "Sounds", "Click.wav");
+        var clickPath = Path.Combine(compiledDirectory, audioRoot, "Sounds", "Click.wav");
         Directory.CreateDirectory(Path.GetDirectoryName(furPath)!);
         Directory.CreateDirectory(Path.GetDirectoryName(clickPath)!);
         File.WriteAllBytes(furPath, [1, 2, 3]);
@@ -172,4 +162,5 @@ public sealed class AssetCatalogPublishTests
 
     private static PakFileSystem OpenBundle(string root, string bundleName) => new(
         Path.Combine(root, "output", "Paks", $"{bundleName}.pak"));
+
 }

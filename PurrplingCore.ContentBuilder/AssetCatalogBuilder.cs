@@ -26,9 +26,6 @@ public static class AssetCatalogBuilder
     /// <param name="packageName">Bundle-level package name used to form asset IDs.</param>
     /// <param name="packageId">Catalog source identifier stored in the catalog.</param>
     /// <param name="outputPath">Optional catalog destination; defaults to the compiled root.</param>
-    /// <param name="objectPathPrefixes">
-    /// Optional object paths ("." = all) used to select entries for one package.
-    /// </param>
     /// <param name="contentRoots">Output roots used by the bundle's content collection.</param>
     /// <returns>The number of asset entries written, or zero when no compiled/copied asset matches.</returns>
     public static int Generate(
@@ -37,7 +34,6 @@ public static class AssetCatalogBuilder
         string packageName,
         string? packageId = null,
         string? outputPath = null,
-        IReadOnlyCollection<string>? objectPathPrefixes = null,
         IReadOnlyCollection<string>? contentRoots = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(sourceDirectory);
@@ -46,7 +42,7 @@ public static class AssetCatalogBuilder
 
         var catalogPath = outputPath ?? Path.Combine(compiledDirectory, AssetCatalog.DefaultFileName);
         var assets = new List<AssetCatalogEntry>();
-        var prefixRoots = new Dictionary<string, string?>(StringComparer.Ordinal);
+
         foreach (var metadataPath in Directory.EnumerateFiles(sourceDirectory, "*.meta.json", SearchOption.AllDirectories))
         {
             using var metadataStream = File.OpenRead(metadataPath);
@@ -83,12 +79,6 @@ public static class AssetCatalogBuilder
 
             var objectPath = AssetCatalogSerializer.NormalizeObjectPath(
                 Path.ChangeExtension(sourceRelativePath, null)!.Replace('\\', '/'));
-            // Per-package catalogs contain only assets physically packed into that package.
-            if (objectPathPrefixes is not null && !IsUnderAny(objectPath, objectPathPrefixes))
-            {
-                continue;
-            }
-
             var matchingRoot = FindCompiledRoot(compiledDirectory, objectPath, sourceExtension, contentRoots, out var outputExtension);
             if (matchingRoot is null)
             {
@@ -97,8 +87,6 @@ public static class AssetCatalogBuilder
 
             var assetId = sourceMetadata.Id ?? $"{packageName.ToLowerInvariant()}:{objectPath}";
             AssetMetadata.ValidateFullName(assetId);
-
-            AddPrefixRoots(prefixRoots, objectPath, matchingRoot);
 
             assets.Add(new AssetCatalogEntry
             {
@@ -114,80 +102,14 @@ public static class AssetCatalogBuilder
         var catalog = new AssetCatalog
         {
             PackageId = packageId ?? Path.GetFileName(compiledDirectory),
-            Redirects = CreateRedirects(packageName, assets, prefixRoots),
             Assets = [.. assets]
         };
 
         Directory.CreateDirectory(Path.GetDirectoryName(catalogPath)!);
         using var catalogStream = File.Create(catalogPath);
         AssetCatalogSerializer.Save(catalogStream, catalog);
+
         return assets.Count;
-    }
-
-    private static void AddPrefixRoots(Dictionary<string, string?> prefixRoots, string objectPath, string root)
-    {
-        AddPrefixRoot(prefixRoots, string.Empty, root);
-        var prefix = string.Empty;
-        foreach (var segment in objectPath.Split('/'))
-        {
-            prefix = prefix.Length == 0 ? segment : prefix + "/" + segment;
-            AddPrefixRoot(prefixRoots, prefix, root);
-        }
-    }
-
-    private static void AddPrefixRoot(Dictionary<string, string?> prefixRoots, string prefix, string root)
-    {
-        if (!prefixRoots.TryGetValue(prefix, out var existing))
-        {
-            prefixRoots.Add(prefix, root);
-        }
-        else if (existing != root)
-        {
-            prefixRoots[prefix] = null;
-        }
-    }
-
-    private static AssetCatalogRedirect[] CreateRedirects(
-        string packageName,
-        List<AssetCatalogEntry> assets,
-        Dictionary<string, string?> prefixRoots)
-    {
-        var redirects = new List<AssetCatalogRedirect>();
-        var registeredPrefixes = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var asset in assets)
-        {
-            var prefix = string.Empty;
-            var root = prefixRoots[prefix];
-            if (root is null)
-            {
-                foreach (var segment in asset.ObjectPath.Split('/'))
-                {
-                    prefix = prefix.Length == 0 ? segment : prefix + "/" + segment;
-                    root = prefixRoots[prefix];
-                    if (root is not null)
-                    {
-                        break;
-                    }
-                }
-            }
-
-            if (root is null)
-            {
-                throw new InvalidDataException($"Asset '{asset.ObjectPath}' has ambiguous content roots.");
-            }
-
-            if (registeredPrefixes.Add(prefix))
-            {
-                redirects.Add(new AssetCatalogRedirect
-                {
-                    PackageName = packageName,
-                    ObjectPathPrefix = prefix,
-                    ContentRoot = root
-                });
-            }
-        }
-
-        return [.. redirects];
     }
 
     private static string? FindCompiledRoot(
@@ -226,19 +148,4 @@ public static class AssetCatalogBuilder
         return found ? matchingRoot : null;
     }
 
-    private static bool IsUnderAny(string objectPath, IReadOnlyCollection<string> prefixes)
-    {
-        foreach (var rawPrefix in prefixes)
-        {
-            var prefix = rawPrefix.Replace('\\', '/').Trim('/');
-            if (prefix.Length == 0 || prefix == "." ||
-                objectPath.Equals(prefix, StringComparison.OrdinalIgnoreCase) ||
-                objectPath.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 }
