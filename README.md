@@ -5,7 +5,7 @@ KittyCat is a MonoGame project containing a reusable game framework, an engine, 
 ## Documentation
 
 - [Repository guide](AGENTS.md): project layout, dependency direction, architecture, and development conventions.
-- [Content path resolution](PurrplingCore.Toolkit/Content/README.md): package roots, path-prefix mappings, catalogs, and runtime content lookup.
+- [Packages and asset catalogs](PurrplingCore.Toolkit/Content/README.md): logical package mounts, catalogs, and runtime content lookup.
 - [2D rendering](PurrplingCore/Rendering/README.md): renderer setup, screens, scaling, layers, and draw order.
 - [Particles](PurrplingCore/Ecs/Particles/README.md): simulation, ECS integration, and rendering options.
 - [World feature packages](plans/world-feature-packages.md): current design notes for world feature composition.

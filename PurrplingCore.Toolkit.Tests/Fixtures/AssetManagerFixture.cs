@@ -13,7 +13,7 @@ internal sealed class AssetManagerFixture : IDisposable
 {
     private readonly ServiceProvider _services;
 
-    public ContentPathResolver Resolver { get; } = new();
+    public PackageManager Resolver { get; }
     public AssetRegistry Registry { get; } = new(NullLogger<AssetRegistry>.Instance);
     public MemoryFileSystem Files { get; } = new();
     public AssetCache<TestAsset> Cache { get; } = new();
@@ -39,14 +39,14 @@ internal sealed class AssetManagerFixture : IDisposable
         }
 
         _services = services.BuildServiceProvider();
+        Resolver = new PackageManager();
         ContentProvider = new RecordingContentProvider(_services, defaultRoot);
         Indexer = new AssetCatalogIndexer(
             Registry,
             NullLogger<AssetCatalogIndexer>.Instance,
             Options.Create(new ContentManagerOptions { ContentRoot = defaultRoot }),
-            new VirtualFileProvider(Files),
-            Resolver);
-        Manager = new AssetManager(ContentProvider, Registry, Indexer, Resolver);
+            new VirtualFileProvider(Files));
+        Manager = new AssetManager(ContentProvider, Registry, Resolver);
     }
 
     public AssetId Register(string packageName, string objectPath)
@@ -58,7 +58,7 @@ internal sealed class AssetManagerFixture : IDisposable
 
     public void Dispose()
     {
-        ContentProvider.CreatedManager.Dispose();
+        Manager.Dispose();
         ContentProvider.ContentManager.Dispose();
         _services.Dispose();
         Files.Dispose();

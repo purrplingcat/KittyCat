@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using PurrplingCore.Toolkit.DI;
+using PurrplingCore.Toolkit.Content;
 using PurrplingCore.Toolkit.Hosting;
 using PurrplingCore.Toolkit.Pak;
 using PurrplingCore.Toolkit.Vfs;
@@ -35,11 +36,11 @@ public sealed class ContentPackageManager : IStartupService
     private readonly IFileProvider _packageFiles;
     private readonly IVirtualFileSystemManager _vfs;
     private readonly ILogger _logger;
-    private readonly ContentPathResolver _resolver;
+    private readonly PackageManager _resolver;
 
     public ContentPackageManager(
         IGameApplicationLifetime lifetime,
-        ContentPathResolver resolver,
+        PackageManager resolver,
         [FromKeyedServices(FileProviderKey)] IFileProvider packageFiles,
         IVirtualFileSystemManager vfs,
         ILoggerFactory loggerFactory)
@@ -55,8 +56,8 @@ public sealed class ContentPackageManager : IStartupService
 
     public void Startup()
     {
-        _resolver.Map("game", "Content");
-        _resolver.Map("engine", "Content/Engine");
+        _resolver.RegisterMountPoint("game", "Content");
+        _resolver.RegisterMountPoint("engine", "Content/Engine");
 
         // Package mounting belongs to game initialization, not host service registration.
         _lifetime.GameInitializing.Register(Initialize);

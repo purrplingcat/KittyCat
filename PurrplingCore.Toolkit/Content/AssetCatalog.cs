@@ -10,14 +10,10 @@ public sealed record AssetCatalog
     public const string DirectoryName = "AssetCatalogs";
     public const string BinaryFileName = "asset-catalog.bin";
     public const string DefaultFileName = BinaryFileName;
-    public const int CurrentSchemaVersion = 7;
+    public const int CurrentSchemaVersion = 8;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public required string PackageId { get; init; }
-    /// <summary>
-    /// Gets package-level routing rules imported independently of asset metadata.
-    /// </summary>
-    public AssetCatalogRedirect[] Redirects { get; init; } = [];
     public AssetCatalogEntry[] Assets { get; init; } = [];
 }
 
@@ -32,16 +28,6 @@ public sealed record AssetCatalogEntry
     public string? FileExtension { get; init; }
     public string AssetClass { get; init; } = string.Empty;
     public Dictionary<string, string> Tags { get; init; } = [];
-}
-
-/// <summary>
-/// Maps a package, optionally restricted to an object-path prefix, to a VFS root.
-/// </summary>
-public sealed record AssetCatalogRedirect
-{
-    public required string PackageName { get; init; }
-    public string ObjectPathPrefix { get; init; } = string.Empty;
-    public required string ContentRoot { get; init; }
 }
 
 /// <summary>
@@ -76,7 +62,6 @@ public static class AssetCatalogSerializer
             {
                 SchemaVersion = schemaVersion,
                 PackageId = reader.ReadString(),
-                Redirects = ReadRedirects(reader),
                 Assets = ReadAssets(reader)
             };
 
@@ -99,13 +84,6 @@ public static class AssetCatalogSerializer
         writer.Write(BinaryMagic);
         writer.Write(catalog.SchemaVersion);
         writer.Write(catalog.PackageId);
-        writer.Write(catalog.Redirects.Length);
-        foreach (var redirect in catalog.Redirects)
-        {
-            writer.Write(redirect.PackageName);
-            writer.Write(redirect.ObjectPathPrefix);
-            writer.Write(redirect.ContentRoot);
-        }
         writer.Write(catalog.Assets.Length);
 
         foreach (var entry in catalog.Assets)
@@ -140,28 +118,6 @@ public static class AssetCatalogSerializer
             throw new InvalidDataException("Asset catalog package ID is required.");
         }
 
-        var redirects = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var redirect in catalog.Redirects)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(redirect.PackageName);
-            ArgumentNullException.ThrowIfNull(redirect.ObjectPathPrefix);
-            var prefix = redirect.ObjectPathPrefix.Length == 0
-                ? string.Empty
-                : NormalizeObjectPath(redirect.ObjectPathPrefix);
-
-            NormalizeContentRoot(redirect.ContentRoot);
-            if (!redirects.TryGetValue(redirect.PackageName, out var prefixes))
-            {
-                prefixes = new HashSet<string>(StringComparer.Ordinal);
-                redirects.Add(redirect.PackageName, prefixes);
-            }
-
-            if (!prefixes.Add(prefix))
-            {
-                throw new InvalidDataException($"Duplicate content redirect for package '{redirect.PackageName}' and prefix '{redirect.ObjectPathPrefix}'.");
-            }
-        }
-
         var identifiers = new HashSet<Guid>();
         foreach (var entry in catalog.Assets)
         {
@@ -180,7 +136,7 @@ public static class AssetCatalogSerializer
                 entry.Id);
             if (!identifiers.Add(metadata.Id.Guid))
             {
-                throw new InvalidDataException($"Asset catalog contains duplicate asset '{metadata.FullName}'.");
+                throw new InvalidDataException($"Asset catalog contains duplicate asset '{metadata.Name}'.");
             }
 
             foreach (var tag in entry.Tags)
@@ -204,41 +160,6 @@ public static class AssetCatalogSerializer
         return normalized.EndsWith(".xnb", StringComparison.OrdinalIgnoreCase)
             ? normalized[..^4]
             : normalized;
-    }
-
-    internal static string NormalizeContentRoot(string root)
-    {
-        ArgumentNullException.ThrowIfNull(root);
-        var normalized = root.Replace('\\', '/').Trim();
-        if (normalized.Length == 0 || normalized == ".")
-        {
-            return string.Empty;
-        }
-
-        if (normalized.Contains(':') || normalized.StartsWith('/') ||
-            normalized.Split('/').Any(segment => segment is "" or "." or ".."))
-        {
-            throw new ArgumentException("Content roots must be relative non-traversing VFS paths.", nameof(root));
-        }
-
-        return normalized;
-    }
-
-    private static AssetCatalogRedirect[] ReadRedirects(BinaryReader reader)
-    {
-        var count = ReadCount(reader, MaxAssetCount, "redirect");
-        var redirects = new AssetCatalogRedirect[count];
-        for (var index = 0; index < redirects.Length; index++)
-        {
-            redirects[index] = new AssetCatalogRedirect
-            {
-                PackageName = reader.ReadString(),
-                ObjectPathPrefix = reader.ReadString(),
-                ContentRoot = reader.ReadString()
-            };
-        }
-
-        return redirects;
     }
 
     private static AssetCatalogEntry[] ReadAssets(BinaryReader reader)

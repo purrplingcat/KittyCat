@@ -2,15 +2,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Xna.Framework.Content;
 using PurrplingCore.Toolkit.Attributes;
 using PurrplingCore.Toolkit.DI;
-using PurrplingCore.Toolkit.Graphics;
-using PurrplingCore.Toolkit;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -70,12 +66,12 @@ public readonly struct AssetId : IEquatable<AssetId>
 public sealed record AssetMetadata
 {
     public AssetId Id { get; }
-    public string FullName { get; }
+    public string Name => Id.FullName;
     public string PackageName { get; }
     public string ObjectPath { get; }
     public string AssetName { get; }
     public string AssetClass { get; }
-    public string? FileExtension { get; }
+    public string? ResourceType { get; }
     public IReadOnlyDictionary<string, string> Tags { get; }
 
     public AssetMetadata(
@@ -90,11 +86,10 @@ public sealed record AssetMetadata
         ObjectPath = NormalizeObjectPath(objectPath);
         ValidateFullName(id.FullName);
         Id = id;
-        FullName = id.FullName;
         PackageName = packageName;
         AssetName = Path.GetFileName(ObjectPath);
         AssetClass = assetClass;
-        FileExtension = NormalizeFileExtension(fileExtension);
+        ResourceType = NormalizeResourceType(fileExtension);
         Tags = tags ?? new Dictionary<string, string>();
     }
 
@@ -123,7 +118,7 @@ public sealed record AssetMetadata
         return normalizedPath;
     }
 
-    private static string? NormalizeFileExtension(string? fileExtension)
+    private static string? NormalizeResourceType(string? fileExtension)
     {
         if (string.IsNullOrWhiteSpace(fileExtension))
         {
@@ -262,7 +257,7 @@ public class AssetRegistry(ILogger<AssetRegistry> logger)
 
             if (exists)
             {
-                throw new InvalidOperationException($"Asset '{metadata.FullName}' is already registered.");
+                throw new InvalidOperationException($"Asset '{metadata.Name}' is already registered.");
             }
 
             slot = metadata;
@@ -292,7 +287,7 @@ public class AssetRegistry(ILogger<AssetRegistry> logger)
                 if (_database.ContainsKey(asset.Id.Guid))
                 {
                     throw new InvalidDataException(
-                        $"Catalog '{sourceId}' duplicates already registered asset '{asset.FullName}'.");
+                        $"Catalog '{sourceId}' duplicates already registered asset '{asset.Name}'.");
                 }
             }
 
@@ -508,13 +503,11 @@ public readonly struct AssetHandle<T> : IDisposable
     }
 }
 
-public class AssetManager
+public class AssetManager : IDisposable
 {
-    private readonly ContentManager _content;
-    private readonly ContentPathResolver _pathResolver;
-    private readonly string _defaultRoot;
+    private readonly PackageContentManagers _contentManagers;
+    private readonly PackageManager _packages;
     private readonly AssetRegistry _masterRegistry;
-    private readonly AssetCatalogIndexer _catalogIndexer;
     private readonly IServiceProvider _services;
     private readonly ConcurrentDictionary<Type, IAssetCache> _cacheMap = [];
 
@@ -526,15 +519,12 @@ public class AssetManager
     public AssetManager(
         IContentManagerProvider contentProvider,
         AssetRegistry masterRegistry,
-        AssetCatalogIndexer catalogIndexer,
-        ContentPathResolver pathResolver)
+        PackageManager pathResolver)
     {
-        _pathResolver = pathResolver;
-        _defaultRoot = contentProvider.ContentManager.RootDirectory;
-        _content = contentProvider.CreateContentManager(root: "");
+        _contentManagers = new PackageContentManagers(contentProvider, pathResolver);
+        _packages = pathResolver;
         _masterRegistry = masterRegistry;
-        _catalogIndexer = catalogIndexer;
-        _services = _content.ServiceProvider;
+        _services = contentProvider.ContentManager.ServiceProvider;
     }
 
     protected virtual AssetCache<T> GetAssetCache<T>()
@@ -548,19 +538,17 @@ public class AssetManager
         return (AssetCache<T>)_cacheMap.GetOrAdd(typeof(T), newCache);
     }
 
+    /// <summary>
+    /// Retains or loads a registered asset without discovering packages or indexing catalogs.
+    /// </summary>
     public AssetHandle<T> Get<T>(AssetId assetId)
     {
         var cache = GetAssetCache<T>();
 
         if (!cache.TryRetain(assetId, out var loadedAsset))
         {
-            var descriptor = _masterRegistry.GetMetadata(assetId);
-            if (descriptor is null)
-            {
-                _catalogIndexer.Refresh();
-                descriptor = _masterRegistry.GetMetadata(assetId)
-                    ?? throw new KeyNotFoundException($"Asset {assetId.Guid} is not registered!");
-            }
+            var descriptor = _masterRegistry.GetMetadata(assetId)
+                ?? throw new KeyNotFoundException($"Asset {assetId.Guid} is not registered!");
 
             loadedAsset = LoadAsset<T>(in descriptor);
             cache.Add(assetId, loadedAsset);
@@ -574,17 +562,8 @@ public class AssetManager
         var loader = _services.GetService<IContentLoader<T>>()
             ?? throw new NotSupportedException($"Asset type {typeof(T)} is not supported.");
 
-        return loader.Load(_content, ResolveAssetPath(descriptor));
-    }
-
-    private string ResolveAssetPath(AssetMetadata descriptor)
-    {
-        var root = _pathResolver.Resolve(descriptor.PackageName, descriptor.ObjectPath);
-        var path = descriptor.GetAssetPath();
-
-        return root is null
-            ? Path.Combine(_defaultRoot, descriptor.PackageName, path)
-            : Path.Combine(root, path);
+        var manager = _contentManagers.Get(descriptor.PackageName);
+        return loader.Load(manager, descriptor.GetAssetPath());
     }
 
     internal void Release<T>(Guid assetId)
@@ -596,18 +575,21 @@ public class AssetManager
             var descriptor = _masterRegistry.GetMetadata(assetId);
             if (descriptor != null)
             {
-                _content.UnloadAsset(ResolveAssetPath(descriptor));
+                var manager = _contentManagers.Get(descriptor.PackageName);
+                manager.UnloadAsset(descriptor.GetAssetPath());
                 AssetsUnloaded?.Invoke([descriptor.Id]);
             }
         }
     }
+
+    public void Dispose() => _contentManagers.Dispose();
 }
 
 public static class AssetHelper
 {
     public static string GetAssetPath(this AssetMetadata descriptor, string? root = null)
     {
-        var path = descriptor.ObjectPath + descriptor.FileExtension;
+        var path = Path.ChangeExtension(descriptor.ObjectPath, descriptor.ResourceType);
         return root is null ? path : Path.Combine(root, path);
     }
 
@@ -671,6 +653,7 @@ public static class PurrplingAssetsServiceExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<AssetRegistry>();
+        services.TryAddSingleton<PackageManager>();
         services.TryAddSingleton<AssetManager>();
         services.TryAddScoped(typeof(AssetBank<>));
         services.TryAddSingleton<AssetCatalogIndexer>();

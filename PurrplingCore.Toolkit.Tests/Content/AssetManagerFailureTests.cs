@@ -9,7 +9,7 @@ namespace PurrplingCore.Toolkit.Tests.Content;
 public sealed class AssetManagerFailureTests
 {
     [Fact]
-    public void Get_ThrowsWhenAssetIsStillMissingAfterRefresh()
+    public void Get_ThrowsWhenAssetIsNotRegistered()
     {
         using var fixture = new AssetManagerFixture();
         var id = new AssetId("extra:Missing");

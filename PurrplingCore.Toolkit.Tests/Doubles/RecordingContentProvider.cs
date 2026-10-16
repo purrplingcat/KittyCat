@@ -6,10 +6,12 @@ internal sealed class RecordingContentProvider(IServiceProvider services, string
 {
     public ContentManager ContentManager { get; } = new(services, root);
     public RecordingContentManager CreatedManager { get; private set; } = null!;
+    public List<RecordingContentManager> CreatedManagers { get; } = [];
 
     public ContentManager CreateContentManager(string? root = null)
     {
         CreatedManager = new RecordingContentManager(services, root ?? ContentManager.RootDirectory);
+        CreatedManagers.Add(CreatedManager);
         return CreatedManager;
     }
 }

@@ -15,12 +15,11 @@ namespace PurrplingCore.Toolkit.Content;
 /// <remarks>
 /// The indexer depends only on <see cref="IFileProvider"/>, not on VFS. It supports one root
 /// catalog plus uniquely named package catalogs under <see cref="AssetCatalog.DirectoryName"/>.
-/// Already imported paths are skipped, and all scans are serialized so lazy refreshes are safe.
+/// Already imported paths are skipped, and scans are serialized for explicit refresh calls.
 /// </remarks>
 public sealed partial class AssetCatalogIndexer
 {
     private readonly AssetRegistry _registry;
-    private readonly ContentPathResolver? _pathResolver;
     private readonly ILogger<AssetCatalogIndexer> _logger;
     private readonly IFileProvider? _contentFiles;
     private readonly string _binaryCatalogPath;
@@ -32,13 +31,11 @@ public sealed partial class AssetCatalogIndexer
         AssetRegistry registry,
         ILogger<AssetCatalogIndexer> logger,
         IOptions<ContentManagerOptions> contentOptions,
-        IFileProvider? contentFiles = null,
-        ContentPathResolver? pathResolver = null)
+        IFileProvider? contentFiles = null)
     {
         ArgumentNullException.ThrowIfNull(contentOptions);
 
         _registry = registry;
-        _pathResolver = pathResolver;
         _logger = logger;
         _contentFiles = contentFiles;
 
@@ -50,23 +47,24 @@ public sealed partial class AssetCatalogIndexer
     /// <summary>
     /// Scans one content provider for the root catalog and all package-specific catalogs.
     /// </summary>
-    public void Index(IFileProvider source)
+    public void Index(IFileProvider source, string mountRoot = "")
     {
         ArgumentNullException.ThrowIfNull(source);
 
         lock (_syncRoot)
         {
-            IndexCore(source);
+            IndexCore(source, mountRoot.Replace('\\', '/').Trim('/'));
         }
     }
 
-    private void IndexCore(IFileProvider source)
+    private void IndexCore(IFileProvider source, string mountRoot)
     {
         var sourceType = source.GetType().Name;
         LogIndexingSource(_logger, sourceType);
 
-        var catalogFound = TryImportCatalog(source, sourceType);
-        catalogFound |= ImportPackageCatalogs(source, sourceType);
+        var prefix = mountRoot.Length == 0 ? string.Empty : mountRoot + "/";
+        var catalogFound = TryImportCatalog(source, sourceType, prefix + _binaryCatalogPath);
+        catalogFound |= ImportPackageCatalogs(source, sourceType, prefix + _catalogDirectoryPath);
 
         if (!catalogFound)
         {
@@ -81,8 +79,8 @@ public sealed partial class AssetCatalogIndexer
     /// Re-scans the optional provider supplied through dependency injection.
     /// </summary>
     /// <remarks>
-    /// This is also called after an asset lookup miss, allowing catalogs from a newly mounted
-    /// package to be discovered without VFS events or a direct VFS dependency.
+    /// Called during startup or explicitly after mounting new content, never from asset lookup.
+    /// It requires neither VFS events nor a direct VFS dependency.
     /// </remarks>
     public void Refresh()
     {
@@ -115,19 +113,19 @@ public sealed partial class AssetCatalogIndexer
         }
     }
 
-    private bool TryImportCatalog(IFileProvider source, string sourceType)
+    private bool TryImportCatalog(IFileProvider source, string sourceType, string path)
     {
-        if (_indexedPaths.Contains(_binaryCatalogPath))
+        if (_indexedPaths.Contains(path))
         {
             return true;
         }
 
-        return TryImportBinaryCatalog(TryOpenRead(source, _binaryCatalogPath), _binaryCatalogPath, sourceType);
+        return TryImportBinaryCatalog(TryOpenRead(source, path), path, sourceType);
     }
 
-    private bool ImportPackageCatalogs(IFileProvider source, string sourceType)
+    private bool ImportPackageCatalogs(IFileProvider source, string sourceType, string directoryPath)
     {
-        var directory = source.GetDirectoryContents(_catalogDirectoryPath);
+        var directory = source.GetDirectoryContents(directoryPath);
         if (!directory.Exists)
         {
             return false;
@@ -141,7 +139,7 @@ public sealed partial class AssetCatalogIndexer
                 continue;
             }
 
-            var path = $"{_catalogDirectoryPath}/{file.Name}";
+            var path = $"{directoryPath}/{file.Name}";
             if (_indexedPaths.Contains(path))
             {
                 catalogFound = true;
@@ -191,28 +189,7 @@ public sealed partial class AssetCatalogIndexer
         return true;
     }
 
-    private void Import(AssetCatalog catalog)
-    {
-        if (catalog.Redirects.Length > 0 && _pathResolver is null)
-        {
-            throw new InvalidOperationException("Indexing catalog redirects requires the content path resolver.");
-        }
-
-        // Adapt catalog data here so the resolver only receives source-independent path mappings.
-        var redirects = new AssetCatalogRedirect[catalog.Redirects.Length];
-        for (var index = 0; index < redirects.Length; index++)
-        {
-            var redirect = catalog.Redirects[index];
-            var root = AssetCatalogSerializer.NormalizeContentRoot(catalog.Redirects[index].ContentRoot);
-            var path = catalog.Redirects[index].ObjectPathPrefix.Length == 0
-                    ? string.Empty
-                    : AssetCatalogSerializer.NormalizeObjectPath(catalog.Redirects[index].ObjectPathPrefix);
-
-            _pathResolver?.Map(redirect.PackageName, root, path);
-        }
-
-        catalog.Import(_registry, catalog.PackageId);
-    }
+    private void Import(AssetCatalog catalog) => catalog.Import(_registry, catalog.PackageId);
 
     private void LogCatalogIndexed(
         AssetCatalog catalog,
@@ -292,6 +269,11 @@ internal sealed class FileProviderAssetCatalogStartup(
     public void Startup()
     {
         // GameInitialized is deterministic here: every GameInitializing mount callback has finished.
-        lifetime.GameInitialized.Register(indexer.Refresh);
+        lifetime.GameInitialized.Register(Refresh);
+    }
+
+    private void Refresh()
+    {
+        indexer.Refresh();
     }
 }
