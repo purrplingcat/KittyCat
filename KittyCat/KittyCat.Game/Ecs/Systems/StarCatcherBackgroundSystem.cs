@@ -12,7 +12,7 @@ using PurrplingCore.Toolkit.Rendering;
 namespace KittyCat.Ecs.Systems;
 
 /// <summary>
-/// Draws a stable, gently twinkling night sky and decorative ground behind gameplay.
+/// Draws a stable, gently twinkling night sky and the ground behind gameplay.
 /// </summary>
 [System<DrawSystemGroup>]
 public sealed class StarCatcherBackgroundSystem : BaseSystem
@@ -31,9 +31,7 @@ public sealed class StarCatcherBackgroundSystem : BaseSystem
         _context = context;
         var playfield = options.Value.Playfield;
         // Bounds use world coordinates; the background layer applies the shared world camera.
-        // Terrain stays inside the playfield and is decorative, not part of collision detection.
-        var groundHeight = Math.Min(24, playfield.Height);
-        _ground = new Rectangle(0, playfield.Height - groundHeight, playfield.Width, groundHeight);
+        _ground = new Rectangle(0, playfield.GroundTop, playfield.Width, playfield.Height - playfield.GroundTop);
         // Allocate star positions once per world; drawing only animates their brightness.
         _stars = CreateStars(playfield.Width, _ground.Top);
     }

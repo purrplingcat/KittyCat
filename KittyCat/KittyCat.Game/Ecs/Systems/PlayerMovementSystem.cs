@@ -44,7 +44,7 @@ public sealed partial class PlayerMovementSystem : StoreSystem
             Store,
             direction,
             _playfield.Width,
-            _playfield.Height,
+            _playfield.GroundTop,
             _paddle.StrikesForMaximumSpeed,
             _paddle.MaximumStrikeSpeedMultiplier,
             _paddle.HardSpeedMultiplier,
@@ -59,7 +59,7 @@ public sealed partial class PlayerMovementSystem : StoreSystem
         ref PlayerState player,
         Vector2 direction,
         int playfieldWidth,
-        int playfieldHeight,
+        int groundTop,
         int strikesForMaximumSpeed,
         float maximumStrikeSpeedMultiplier,
         float hardSpeedMultiplier,
@@ -81,7 +81,7 @@ public sealed partial class PlayerMovementSystem : StoreSystem
             var moveSpeed = baseSpeed * MathHelper.Lerp(1, maximumStrikeSpeedMultiplier, strikeProgress);
             transform.Position += direction * moveSpeed * Tick.deltaTime;
             transform.Position.X = Math.Clamp(transform.Position.X, 0, playfieldWidth - transform.Size.X);
-            transform.Position.Y = Math.Clamp(transform.Position.Y, 0, playfieldHeight - transform.Size.Y);
+            transform.Position.Y = Math.Clamp(transform.Position.Y, PlayfieldOptions.HudHeight, groundTop - transform.Size.Y);
         }
 
     }

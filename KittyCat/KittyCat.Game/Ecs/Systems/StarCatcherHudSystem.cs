@@ -28,7 +28,6 @@ public sealed class StarCatcherHudSystem(
     [FromKeyedServices(KittyCatRendererKey.Screen)] RenderContext render)
     : QuerySystem<PlayerState>
 {
-    private const int HudHeight = 54;
     private const int LivesSpacing = 26;
     private const int LivesRightMargin = 16;
     private const int HeartPixelSize = 4;
@@ -68,7 +67,7 @@ public sealed class StarCatcherHudSystem(
 
     private void DrawHud(in LayerWriter<DrawCommand> hud, GraphicsDevice device, SpriteFont font, in PlayerState player)
     {
-        hud.FillRect(device, new Rectangle(0, 0, _options.Playfield.Width, HudHeight), new Color(24, 34, 49));
+        hud.FillRect(device, new Rectangle(0, 0, _options.Playfield.Width, PlayfieldOptions.HudHeight), new Color(24, 34, 49));
         hud.DrawStar(device, 20, 15, 24, Color.Gold);
         hud.DrawString(font, "SCORE", new Vector2(56, 17), Color.White);
         DrawNumber(in hud, device, player.Score, 116, 12, Color.White);

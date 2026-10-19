@@ -21,8 +21,16 @@ public sealed class StarCatcherOptions
 /// </summary>
 public sealed class PlayfieldOptions
 {
+    public const int HudHeight = 54;
+    public const int GroundHeight = 24;
+
     public int Width { get; set; } = 1280;
     public int Height { get; set; } = 720;
+
+    /// <summary>
+    /// World-space surface shared by terrain drawing and gameplay collisions.
+    /// </summary>
+    public int GroundTop => Math.Max(0, Height - GroundHeight);
 }
 
 /// <summary>

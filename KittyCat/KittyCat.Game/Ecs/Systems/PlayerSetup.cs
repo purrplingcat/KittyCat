@@ -54,6 +54,6 @@ internal static class PlayerSetup
     private static Vector2 GetStartingPosition(PlayfieldOptions playfield, Vector2 size)
     {
         // Keep one paddle-height of space below the starting position.
-        return new Vector2((playfield.Width - size.X) / 2, playfield.Height - size.Y * 2);
+        return new Vector2((playfield.Width - size.X) / 2, playfield.GroundTop - size.Y * 2);
     }
 }

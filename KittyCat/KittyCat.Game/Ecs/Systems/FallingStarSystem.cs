@@ -3,6 +3,7 @@ using Friflo.Engine.ECS;
 using Friflo.Engine.ECS.Systems;
 using KittyCat.Configuration;
 using KittyCat.Ecs.Components;
+using KittyCat.Services;
 using Microsoft.Extensions.Options;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Ecs;
@@ -13,16 +14,18 @@ using PurrplingCore.Ecs.Systems;
 namespace KittyCat.Ecs.Systems;
 
 /// <summary>
-/// Moves active stars and applies miss penalties when they leave the playfield.
+/// Moves active stars and applies miss penalties when they reach the ground.
 /// </summary>
 [System<UpdateSystemGroup>]
 public sealed partial class FallingStarSystem : QuerySystem<ArcadeTransform, FallingStar, ArcadeVisual>
 {
     private readonly PlayfieldOptions _playfield;
+    private readonly StarCatcherParticleEffects _particles;
 
-    public FallingStarSystem(IOptions<StarCatcherOptions> options)
+    public FallingStarSystem(IOptions<StarCatcherOptions> options, StarCatcherParticleEffects particles)
     {
         _playfield = options.Value.Playfield;
+        _particles = particles;
     }
 
     protected override void OnUpdate()
@@ -40,8 +43,16 @@ public sealed partial class FallingStarSystem : QuerySystem<ArcadeTransform, Fal
                 if (!star.IsActive) continue;
 
                 transform.Position.Y += star.FallSpeed * Tick.deltaTime;
-                if (transform.Position.Y <= _playfield.Height) continue;
+                if (transform.Position.Y + transform.Size.Y < _playfield.GroundTop) continue;
 
+                var color = star.PaddleEffect switch
+                {
+                    PaddleSizeEffect.Expand => new Color(80, 235, 125),
+                    PaddleSizeEffect.Shrink => new Color(245, 75, 85),
+                    _ => Color.Gold,
+                };
+                _particles.Shatter(CommandBuffer,
+                    new Vector2(transform.Position.X + transform.Size.X * 0.5f, _playfield.GroundTop), color);
                 star.IsActive = false;
                 visual.IsVisible = false;
                 // Defer structural changes until after query iteration completes.
