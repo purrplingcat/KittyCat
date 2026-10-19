@@ -1,6 +1,6 @@
 # 2D rendering
 
-The 2D renderer is optional. Draw systems, scenes, and ordinary objects submit commands to a renderer; the renderer sends them to MonoGame only when it is flushed. The core types live in `PurrplingCore.Toolkit.Rendering`; DI integration and the optional game component live in `PurrplingCore.Rendering`. Neither ECS nor `SceneManager` is required to use the renderer.
+The 2D renderer is optional. Draw systems, scenes, and ordinary objects submit data to layer passes; the renderer prepares and executes those passes only when it is flushed. Each pass owns its data and rendering strategy. The default `DrawCommandPass` accepts sprite, text, and primitive commands, while custom passes may accept any struct or render without queued data. The core types live in `PurrplingCore.Toolkit.Rendering`; DI integration and the optional game component live in `PurrplingCore.Rendering`. Neither ECS nor `SceneManager` is required to use the renderer.
 
 The [particle system](../Ecs/Particles/README.md) can use this renderer through a small game-owned draw wrapper. Particle simulation itself does not require a renderer; the low-level Toolkit sprite helper can also draw particle states without ECS.
 
@@ -17,7 +17,7 @@ Renderer identity is a keyed-service key of type `object`. Use the same key for 
 The flow is:
 
 ```text
-producer.Draw() -> renderer.Context.Layer(id).Draw(...) -> per-layer command queue
+producer.Draw() -> renderer.Context.Batch<T>(id).Submit(...) -> pass-owned submissions
 RendererGameComponent.Draw() or your own Draw() -> renderer.Flush()
 ```
 
@@ -214,7 +214,7 @@ options.AddLayer(Layers.Menu, new RenderLayerOptions { Order = 100 });
 Submit UI without a camera, using logical coordinates:
 
 ```csharp
-renderer.Context.Layer(Layers.Hud)
+renderer.Context.Batch(Layers.Hud)
     .Draw(badge, new Vector2(12, 12), Color.White);
 ```
 
@@ -375,7 +375,7 @@ services.AddRenderer("World")
     .AddDrawComponent();
 ```
 
-The renderer also joins `IEnumerable<IRenderer>`. Inject it with `[FromKeyedServices(RendererKey.World)] IRenderer renderer`, then submit through `renderer.Context.Layer(Layers.Sprites)`. Omit `.AddDrawComponent()` for manual ownership; your controller must call `Initialize` and `Flush`. Add an `IRendererConfiguration` module under the same key when camera, effect, or other service dependencies must be injected; never build a second provider inside `ConfigureServices`.
+The renderer also joins `IEnumerable<IRenderer>`. Inject it with `[FromKeyedServices(RendererKey.World)] IRenderer renderer`, then submit through `renderer.Context.Batch(Layers.Sprites)`. Omit `.AddDrawComponent()` for manual ownership; your controller must call `Initialize` and `Flush`. Add an `IRendererConfiguration` module under the same key when camera, effect, or other service dependencies must be injected; never build a second provider inside `ConfigureServices`.
 
 ### Submitting from ECS
 
@@ -395,7 +395,7 @@ public sealed class SpriteDrawSystem([FromKeyedServices(RendererKey.World)] IRen
 {
     protected override void OnUpdate()
     {
-        var writer = renderer.Context.Layer(Layers.Sprites);
+        var writer = renderer.Context.Batch(Layers.Sprites);
         foreach (var (positions, sprites, entities) in Query.Chunks)
         {
             for (var index = 0; index < entities.Length; index++)
@@ -420,7 +420,7 @@ public sealed class BadgeOverlay([FromKeyedServices(RendererKey.Screen)] IRender
 {
     public void Draw(Texture2D badge)
     {
-        renderer.Context.Layer(Layers.Hud)
+        renderer.Context.Batch(Layers.Hud)
             .Draw(badge, new Vector2(12, 12), Color.White);
     }
 }
@@ -449,7 +449,7 @@ public sealed class MenuScene(
     protected override void Update(GameTime time, bool isActive) { }
 
     protected override void Draw(GameTime time)
-        => Context.Layer(Layers.Menu)
+        => Context.Batch(Layers.Menu)
             .DrawString(_font, "PAUSED", new Vector2(120, 80), Color.White);
 }
 ```
@@ -486,7 +486,7 @@ public sealed class CutsceneScene(
 
     protected override void Draw(GameTime time)
     {
-        Context.Layer(Layers.Menu).Draw(_image, Vector2.Zero, Color.White);
+        Context.Batch(Layers.Menu).Draw(_image, Vector2.Zero, Color.White);
         renderer.Flush();
     }
 }
@@ -527,7 +527,7 @@ public sealed class StandaloneGame : PurrplingCore.Toolkit.Game
 
     protected override void Draw(GameTime gameTime)
     {
-        _renderer.Context.Layer(World).Draw(_hero, new Vector2(32, 32), Color.White);
+        _renderer.Context.Batch(World).Draw(_hero, new Vector2(32, 32), Color.White);
         _renderer.Flush();
         base.Draw(gameTime);
     }
@@ -576,7 +576,7 @@ options.AddLayer(World, new RenderLayerOptions
 var renderer = new Renderer2D("World", options);
 renderer.Initialize(graphicsDevice);
 
-renderer.Context.Layer(World).Draw(texture, position, Color.White);
+renderer.Context.Batch(World).Draw(texture, position, Color.White);
 renderer.Flush();
 ```
 
@@ -620,7 +620,7 @@ public sealed class RawMonoGame : Microsoft.Xna.Framework.Game
 
     protected override void Draw(GameTime gameTime)
     {
-        _renderer.Context.Layer(World).Draw(_hero, new Vector2(32, 32), Color.White);
+        _renderer.Context.Batch(World).Draw(_hero, new Vector2(32, 32), Color.White);
         _renderer.Flush();
         base.Draw(gameTime);
     }
@@ -638,7 +638,7 @@ public sealed class RawMonoGame : Microsoft.Xna.Framework.Game
 
 ## Layers, camera, targets, and extensions
 
-Each renderer has ordered layers (`RenderLayerOptions.Order`). A layer inherits the renderer's `DefaultSamplerState` (`PointClamp` by default) unless overridden. `SortMode` defaults to `Submission`, preserving the order in which calls were queued. Other modes are `FrontToBack`, `BackToFront`, and `Texture`; sorting is done separately within each layer. `FrontToBack` sorts the `depth` argument to `Draw`/`DrawString` ascending (lower values first); `BackToFront` sorts it descending (higher values first). Equal depths retain submission order. This is CPU-side ordering only: the built-in SpriteBatch batcher submits every command with GPU `layerDepth` zero, so `depth` does not by itself provide depth-buffer testing. Renderers are independent and do not share a global sort order.
+Each renderer has ordered layers (`RenderLayerOptions.Order`). A layer inherits the renderer's `DefaultSamplerState` (`PointClamp` by default) unless overridden. Command ordering and initial capacity belong to `DrawCommandPass`, not the layer: configure them with `new DrawCommandPass(sortMode, initialCapacity)`. Its sort mode defaults to `Submission`, preserving the order in which calls were queued. Other modes are `FrontToBack`, `BackToFront`, and `Texture`; the pass sorts its own queue during `Prepare`. `FrontToBack` sorts the `depth` argument to `Draw`/`DrawString` ascending (lower values first); `BackToFront` sorts it descending (higher values first). Equal depths retain submission order. This is CPU-side ordering only: the built-in SpriteBatch batcher submits every command with GPU `layerDepth` zero, so `depth` does not by itself provide depth-buffer testing. Renderers are independent and do not share a global sort order.
 
 World-space layers can share a DI-owned `Camera2D`. The renderer configuration is constructed by DI, so it receives the same camera instance as systems that update its position:
 
@@ -652,7 +652,7 @@ public sealed class CameraWorldRendering(Camera2D camera, Resolution resolution)
             Camera = camera,
             SyncCameraViewport = true,
             CullingEnabled = true,
-            SortMode = RenderSortMode.FrontToBack,
+            Pass = new DrawCommandPass(RenderSortMode.FrontToBack),
         });
         options.AddLayer(Layers.Effects, new RenderLayerOptions
         {
@@ -678,15 +678,47 @@ Update `camera.Position` from your update code. With `SyncCameraViewport = true`
 
 For an offscreen layer or renderer, set `layer.Target` or `options.Output` to `RenderTargetSpec.MatchScreen()`, `MatchPresentation()`, or `OfSize(width, height)`. Layer targets are composed onto the renderer output. `Renderer2D.OutputOverride` can direct the final composed image to an externally owned target; leave it null to use the backbuffer. It does not replace the renderer's private output target or bypass its screen layout. `IPostProcessor` chains can be added to a layer's `PostProcessors` or a renderer's `PostProcessors`; processors are initialized with the renderer and disposed with it. The renderer-level chain processes the private output before final presentation; `options.Output` is non-nullable and defaults to `MatchScreen()`. A layer's chain requires `layer.Target`. Renderers do not share a global post-processing stage.
 
-`RenderLayerOptions.Pass` replaces the default `DrawCommandPass` with your `IRenderLayerPass`; its `Initialize(GraphicsDevice)` is called before drawing and `Prepare/Execute` run during flush. A custom pass must explicitly replay `context.Layer.Commands` if it wants queued commands to appear. `Primitives2D` provides `FillRect`, `DrawRect`, `DrawLine`, and `FillCircle` extensions on `LayerWriter`; they currently take a `GraphicsDevice` to obtain the shared white pixel. That first pixel creation is a GPU operation, so warm it up after device initialization if draw systems must only enqueue during the frame.
+`RenderLayerOptions.Pass` replaces the default `DrawCommandPass` with your `IRenderLayerPass`; its `Initialize(GraphicsDevice)` is called before drawing and `Prepare/Execute` run during flush. The layer owns graphics state and target configuration, but no submission queue. Use a separate pass instance per layer; the renderer initializes and disposes it. A pass accepts draw commands only when it implements `ILayerSubmissionPass<DrawCommand>`. `Primitives2D` provides `FillRect`, `DrawRect`, `DrawLine`, and `FillCircle` extensions on `LayerWriter<DrawCommand>`; they currently take a `GraphicsDevice` to obtain the shared white pixel. That first pixel creation is a GPU operation, so warm it up after device initialization if draw systems must only enqueue during the frame.
 
 ### Frame-scoped pass submissions
 
-A custom pass can implement `ILayerSubmissionPass<T>` to receive typed values from producers without putting them in the ordinary draw-command list. Producers call `renderer.Context.Submissions<T>(layerId).Submit(in value)`. The returned writer is a `ref struct` intended to stay local to the submitting method. The pass also implements `ClearSubmissions()`; `BeginFrame()` calls it when a new frame opens, before any new submissions are added. Requesting submissions for a layer whose pass does not accept `T` throws `InvalidOperationException`.
+A pass implements `ILayerSubmissionPass<T>` to own and receive typed values. Producers use the single `renderer.Context.Batch<T>(layerId).Submit(in value)` entry point. `LayerWriter<T>` is a `ref struct`; keep it local to the submitting method. Its public `Resources` and `Text` properties expose the renderer's shared resource table and current frame text buffer for custom submissions and extensions. `CullBounds` contains the visible bounds sampled when the writer was obtained, or null when culling is disabled. Missing, disabled, or incompatible optional layers return an inactive writer that discards data without opening a frame; all three properties are null on an inactive writer, so check `IsActive` before using them.
+
+`Batch(layerId)` is shorthand for `Batch<DrawCommand>(layerId)`. `Draw`, `DrawString`, and `DrawPrimitives` are extensions from `DrawCommandExtensions` on `LayerWriter<DrawCommand>`, not operations on every writer. Custom submission types can have their own extensions over the same generic writer.
+
+`Culling2D.IsCulled(...)` is a public, command-independent visibility test for world-space rectangles or local dimensions with position, origin, and scale. The same overloads are available as `writer.IsCulled(...)` for every `LayerWriter<T>`, including custom submissions:
+
+```csharp
+var writer = renderer.Context.Batch<MeshSubmission>(Layers.Mesh);
+if (writer.IsActive && !writer.IsCulled(meshBounds))
+{
+    writer.Submit(in meshSubmission);
+}
+```
+
+Culling preserves edge-touching bounds and handles mirrored scales. Missing cull bounds or nonzero rotation conservatively return false. `IsCulled` only tests geometry; check `IsActive` separately when inactive writers should skip submission preparation.
+
+One pass can implement several closed interfaces, such as `ILayerSubmissionPass<DrawCommand>` and `ILayerSubmissionPass<MeshSubmission>`. Each `Batch<T>` resolves the corresponding interface on that same instance. Opening a second submission type within a frame does not clear earlier submissions. The pass supplies each `Submit(in T)` implementation and decides how different types are stored, ordered, and drawn.
+
+The shared `SubmissionCount` totals all supported types. The shared `ClearSubmissions()` clears all of them and runs once per layer at frame reset, not once per type. `BeginFrame()` clears every submission pass, including disabled layers, before new data is added. `DrawCommandPass` implements this same contract and owns its `Commands` queue; custom passes choose their own storage and preparation without allocating an unused `DrawList`.
+
+When extending `DrawCommandPass` with another submission type, override `SubmissionCount` to include the base count and override `ClearSubmissions()` to call the base implementation and clear the additional storage. Both members are virtual so the renderer still sees one complete frame lifecycle through every submission interface.
+
+Required access belongs to the producer's request, not to the pass as a whole:
+
+```csharp
+var mesh = renderer.Context.Batch<MeshSubmission>(Layers.Mesh, required: true);
+mesh.Submit(in meshSubmission);
+
+var debug = renderer.Context.Batch<DebugSubmission>(Layers.Debug, required: false);
+debug.Submit(in debugSubmission);
+```
+
+`Batch<T>(layerId)` is required by default (`required: true`), while the draw-command shorthand `Batch(layerId)` is optional by default (`required: false`). Required access throws `InvalidOperationException` if the layer is missing or its pass does not implement `ILayerSubmissionPass<T>`, including when the renderer or layer is disabled. A configured compatible layer that is disabled still returns an inactive writer: visibility is not a composition error. Failed and inactive requests never open or clear a frame. `Batch(layerId, required: true)` applies the same validation for `DrawCommand`. This checks composition, not whether at least one value of that type is submitted every frame.
 
 ### Custom pass and post-processor
 
-A pass can issue its own draw calls instead of consuming layer commands. This example draws one texture using the batcher; the texture is supplied by the caller and remains caller-owned:
+A pass can issue its own draw calls without accepting submissions. This example draws one texture using the batcher; the texture is supplied by the caller and remains caller-owned:
 
 ```csharp
 public sealed class BackdropPass(Texture2D backdrop) : RenderLayerPass
@@ -712,15 +744,16 @@ public sealed class BackdropPass(Texture2D backdrop) : RenderLayerPass
 options.AddLayer(Layers.Sprites, new RenderLayerOptions { Pass = new BackdropPass(backdrop) });
 ```
 
-The `backdrop` must be loaded before configuration; `RenderLayerPass` does not own or dispose it. `Prepare` is optional on the `RenderLayerPass` base class. To retain regular queued commands as well, either replay `context.Layer.Commands` inside your pass or use a separate layer for the backdrop and leave `DrawCommandPass` on the sprite layer.
+The `backdrop` must be loaded before configuration; `RenderLayerPass` does not own or dispose it. `Prepare` is optional on the `RenderLayerPass` base class. `Batch(layerId)` is inactive for `BackdropPass` because it does not accept draw commands. To retain regular queued commands as well, use a separate sprite layer or derive from `DrawCommandPass` and extend its `Execute` implementation.
 
 #### Drawing vertex geometry
 
-For geometry that is not a sprite or text, use `RenderFrameContext.Device` directly. The renderer has already bound the layer target. Raw `GraphicsDevice` calls do not apply the layer's camera transform or batch state automatically, so the pass must apply the relevant `context.State` values itself. This pass allocates its effect and vertex array once, then draws one colored triangle per frame:
+For geometry that is not a sprite or text, use `RenderFrameContext.Device` directly. The renderer has already bound the layer target. Raw `GraphicsDevice` calls do not apply the layer's camera transform or batch state automatically, so the pass must apply the relevant `context.State` values itself. This pass accepts positions instead of draw commands, reuses its own list, and draws a colored triangle at each submitted offset:
 
 ```csharp
-public sealed class TrianglePass : RenderLayerPass
+public sealed class TrianglePass : RenderLayerPass, ILayerSubmissionPass<Vector2>
 {
+    private readonly List<Vector2> _positions = new(256);
     private readonly VertexPositionColor[] _vertices =
     [
         new(new Vector3(80, 40, 0), Color.Cyan),
@@ -729,6 +762,12 @@ public sealed class TrianglePass : RenderLayerPass
     ];
 
     private BasicEffect? _effect;
+
+    public int SubmissionCount => _positions.Count;
+
+    public void Submit(in Vector2 submission) => _positions.Add(submission);
+
+    public void ClearSubmissions() => _positions.Clear();
 
     public override void Initialize(GraphicsDevice device)
     {
@@ -749,7 +788,6 @@ public sealed class TrianglePass : RenderLayerPass
 
         var device = context.Device;
         var viewport = device.Viewport;
-        effect.World = Matrix.Identity;
         effect.View = context.State.Transform;
         effect.Projection = Matrix.CreateOrthographicOffCenter(
             0, viewport.Width, viewport.Height, 0, 0, 1);
@@ -758,10 +796,14 @@ public sealed class TrianglePass : RenderLayerPass
         device.DepthStencilState = context.State.DepthStencilState ?? DepthStencilState.None;
         device.RasterizerState = context.State.RasterizerState ?? RasterizerState.CullNone;
 
-        foreach (var pass in effect.CurrentTechnique.Passes)
+        foreach (var position in _positions)
         {
-            pass.Apply();
-            device.DrawUserPrimitives(PrimitiveType.TriangleList, _vertices, 0, 1);
+            effect.World = Matrix.CreateTranslation(position.X, position.Y, 0f);
+            foreach (var pass in effect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                device.DrawUserPrimitives(PrimitiveType.TriangleList, _vertices, 0, 1);
+            }
         }
     }
 
@@ -772,15 +814,16 @@ public sealed class TrianglePass : RenderLayerPass
     }
 }
 
-options.AddLayer(Layers.Sprites, new RenderLayerOptions { Pass = new TrianglePass() });
+options.AddLayer(Layers.Mesh, new RenderLayerOptions { Pass = new TrianglePass() });
+renderer.Context.Batch<Vector2>(Layers.Mesh).Submit(new Vector2(16, 32));
 ```
 
-`context.State.Transform` contains the layer camera/parallax transform. A custom pass replaces the default `DrawCommandPass`; it must handle every command kind it supports. `DrawUserPrimitives` is suitable for small, transient geometry; for larger or frequently changing meshes, create a `VertexBuffer` and submit it through the same `LayerWriter` as sprites and text.
+`context.State.Transform` contains the layer camera/parallax transform. The triangle pass never creates or reads `DrawCommand` values. `DrawUserPrimitives` is suitable for small, transient geometry; for larger or frequently changing meshes, use a custom mesh submission or submit a `VertexBuffer` through `LayerWriter<DrawCommand>` alongside sprites and text.
 
-`DrawPrimitives` adds a primitive command to the layer's ordered `DrawList`. This ECS-style loop interleaves geometry and sprites using one depth convention:
+`DrawPrimitives` adds a primitive command to the accepting pass. With the default `DrawCommandPass`, this ECS-style loop interleaves geometry and sprites in its ordered `DrawList`:
 
 ```csharp
-var writer = renderer.Context.Layer(Layers.World);
+var writer = renderer.Context.Batch(Layers.World);
 foreach (var tileChunk in visibleTileChunks)
 {
     writer.DrawPrimitives(
@@ -798,12 +841,12 @@ foreach (var entity in visibleEntities)
 }
 ```
 
-The renderer sorts both kinds together according to the layer's `SortMode`. `FrontToBack` and `BackToFront` use each command's `depth`; equal depths preserve submission order. Primitive commands require a layer `Effect` implementing `IEffectMatrices`; its `Projection` is caller-configured, while the command supplies `World` and the layer camera supplies `View`. Vertex buffers remain caller-owned and must stay valid through `Flush()`.
+`DrawCommandPass.Prepare` sorts both kinds together using the pass's configured sort mode. `FrontToBack` and `BackToFront` use each command's `depth`; equal depths preserve submission order. Primitive commands require a layer `Effect` implementing `IEffectMatrices`; its `Projection` is caller-configured, while the command supplies `World` and the layer camera supplies `View`. Vertex buffers remain caller-owned and must stay valid through `Flush()`.
 
 To control every command field directly, construct a `DrawCommand` and submit it with the resource it references:
 
 ```csharp
-var writer = renderer.Context.Layer(Layers.Mesh);
+var writer = renderer.Context.Batch(Layers.Mesh);
 var resourceIndex = renderer.Context.Resources.GetVertexBufferIndex(mesh.VertexBuffer);
 var command = new DrawCommand
 {
@@ -818,7 +861,7 @@ var command = new DrawCommand
 writer.Submit(in command);
 ```
 
-`LayerWriter.Submit` only appends the command: it does not resolve resources, validate the command kind, or alter its fields. Use `renderer.Context.Resources` to obtain texture, font, or vertex-buffer indices. For text, append characters through `renderer.Context.TextBuffer` and set `TextOffset`/`TextLength` yourself. Direct commands must contain valid indices and frame text offsets; resources must remain alive until `Flush()`. The regular `Draw` and `DrawString` helpers continue to resolve these details for you.
+`LayerWriter<DrawCommand>.Submit` forwards the command unchanged to the pass: it does not resolve resources, validate the command kind, or alter its fields. Use `renderer.Context.Resources` to obtain texture, font, or vertex-buffer indices. For text, append characters through `renderer.Context.TextBuffer` and set `TextOffset`/`TextLength` yourself. Direct commands must contain valid indices and frame text offsets; resources must remain alive until `Flush()`. The `Draw` and `DrawString` extensions resolve these details for you.
 
 A processor receives an already-bound destination target and a source texture. The supplied effect is owned by its caller:
 
@@ -875,7 +918,7 @@ public sealed class WorldRendering : IRendererConfiguration
 }
 ```
 
-`Renderer2D.Diagnostics` exposes the latest frame, per-layer command/sort/prepare/execute timings, and a rolling summary (average, min, p95, max, slow-frame count). `CopyHistory(Span<RendererFrameSample>)` copies retained frames without allocating. `CreateDebugReport()` formats the current snapshot for a log or debugger; call it on demand, since creating a string allocates.
+`Renderer2D.Diagnostics` exposes the latest frame, per-layer `SubmissionCount`, prepare/execute timings, and a rolling summary (average, min, p95, max, slow-frame count). Submission counts include custom pass data; pass-specific sorting is included in `PrepareMilliseconds`. `CopyHistory(Span<RendererFrameSample>)` copies retained frames without allocating. `CreateDebugReport()` formats the current snapshot for a log or debugger; call it on demand, since creating a string allocates.
 
 Use `GetSummary()` for a throttled development overlay. Call `CreateDebugReport()` on demand from a debug command rather than logging it every frame:
 
@@ -895,7 +938,7 @@ Run the benchmark after renderer initialization from a development command or is
 ```csharp
 var result = RendererBenchmark.Run(() =>
 {
-    renderer.Context.Layer(Layers.Sprites).Draw(sprite, position, Color.White);
+    renderer.Context.Batch(Layers.Sprites).Draw(sprite, position, Color.White);
     renderer.Flush();
 }, warmupFrames: 60, measuredFrames: 300);
 
@@ -909,7 +952,7 @@ logger.LogInformation("Renderer avg {Average:F2} ms, p95 {P95:F2} ms",
 ## Lifecycle and current limits
 
 - Do not call `Flush` from a constructor, host service configuration, or before device initialization. An explicit `Initialize` must complete first. `RendererGameComponent.Initialize` handles this for its group; manually driven groups/renderers must do it themselves.
-- The first submission after a flush opens a fresh frame and clears the previous command lists and frame-scoped pass submissions. `BeginFrame()` is available for explicit clearing but is not required each frame. Calling it **after** submitting commands discards those commands. Submitting again after an early flush starts a new queue.
-- A renderer is only flushed by the controller or `RendererGameComponent` that owns it. Disabled renderers discard submissions; disabled layers return an inactive `LayerWriter` that also discards submissions.
-- The renderer currently has no built-in multithreaded submission synchronization. Submit and flush on the game/graphics thread. Pool-backed command lists and text buffers reuse capacity but may grow on their first large frame; layer and output targets are created when first used and recreated when their size changes. Post-process scratch targets are recreated when their source dimensions or format changes.
-- `SpriteBatchBatcher` is the current default; one `Begin/End` encloses each non-empty sprite layer. Text is submitted through a reused `StringBuilder` because MonoGame 3.8.5 has no `ReadOnlySpan<char>` `DrawString` overload. Measure allocation and draw-call targets on the actual workload rather than assuming they are always zero.
+- The first compatible `Batch` request after a flush opens a fresh frame and clears pass-owned submissions. `BeginFrame()` is available for explicit clearing but is not required each frame. Calling it **after** submitting data discards that data. Submitting again after an early flush starts a new queue.
+- A renderer is only flushed by the controller or `RendererGameComponent` that owns it. Missing or incompatible optional layers return an inactive `LayerWriter<T>`; required access rejects those composition errors. Compatible disabled renderers and layers return inactive writers in either mode.
+- The renderer currently has no built-in multithreaded submission synchronization. Submit and flush on the game/graphics thread. Pass queues and text buffers reuse capacity but may grow on their first large frame; layer and output targets are created when first used and recreated when their size changes. Post-process scratch targets are recreated when their source dimensions or format changes.
+- `SpriteBatchBatcher` is the current default; `DrawCommandPass` batches consecutive sprite/text commands and closes the batch before drawing primitives. Text is submitted through a reused `StringBuilder` because MonoGame 3.8.5 has no `ReadOnlySpan<char>` `DrawString` overload. Measure allocation and draw-call targets on the actual workload rather than assuming they are always zero.

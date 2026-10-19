@@ -5,7 +5,7 @@ Particles are part of the engine. The reusable foundation lives in Toolkit; ECS 
 | Layer | Types | Responsibility |
 | --- | --- | --- |
 | `PurrplingCore.Toolkit.Particles` | `ParticleEmission`, `ParticleState` | Initial settings, motion, lifetime, tint, and scale; no engine, ECS, DI, or graphics device required. |
-| `PurrplingCore.Toolkit.Particles` | `ParticleRenderer2D` | Optional static sprite helper for `LayerWriter`; independent of ECS. |
+| `PurrplingCore.Toolkit.Particles` | `ParticleRenderer2D` | Optional static sprite helper for `LayerWriter<DrawCommand>`; independent of ECS. |
 | `PurrplingCore.Ecs.Particles` | `Particle`, `ParticleModule`, `ParticleUpdateSystem` | Store the state in entities, advance simulation, and delete expired entities. |
 | `PurrplingCore.Ecs.Particles` | `EmitParticle`, `ParticleDrawSystem` | Deferred emission and a world-owned query with an optional layered-rendering helper. |
 | Game code | Your effects and draw wrappers | Choose when and what to emit, renderer keys, layers, cameras, assets, or an entirely different drawing backend. |
