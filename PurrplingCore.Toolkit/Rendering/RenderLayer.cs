@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -14,8 +15,6 @@ public sealed class RenderLayerOptions
     public int Order { get; set; }
 
     public bool Enabled { get; set; } = true;
-
-    public RenderSortMode SortMode { get; set; } = RenderSortMode.Submission;
 
     /// <summary>
     /// Camera for world-space layers. Leave null to draw in screen space.
@@ -66,22 +65,20 @@ public sealed class RenderLayerOptions
     public IList<IPostProcessor> PostProcessors { get; } = [];
 
     /// <summary>
-    /// Custom pass. Defaults to <see cref="DrawCommandPass"/> when left null.
+    /// Pass that owns and processes this layer's submissions. Defaults to <see cref="DrawCommandPass"/>.
     /// </summary>
+    /// <remarks>
+    /// The renderer initializes and disposes this instance. Do not share it between layers or renderers.
+    /// </remarks>
     public IRenderLayerPass? Pass { get; set; }
-
-    /// <summary>
-    /// Initial command capacity, sized to avoid growth during the first frames.
-    /// </summary>
-    public int InitialCapacity { get; set; } = 256;
 }
 
 /// <summary>
-/// A composed render layer: its configuration, its command queue, and the pass that draws it.
+/// A composed render layer: its graphics configuration and the pass that draws it.
 /// </summary>
 /// <remarks>
 /// Built once from <see cref="RenderLayerOptions"/> during composition. Only <see cref="Enabled"/>
-/// is mutable afterwards, so the flush path reads immutable fields and a pooled command list.
+/// is mutable afterwards. The pass owns its submission data and preparation strategy.
 /// </remarks>
 public sealed class RenderLayer : IDisposable
 {
@@ -121,7 +118,6 @@ public sealed class RenderLayer : IDisposable
         PostProcessors = [.. options.PostProcessors];
         Pass = options.Pass ?? new DrawCommandPass();
         FrameSubmissionPass = Pass as IFrameSubmissionPass;
-        Commands = new DrawList(options.SortMode, options.InitialCapacity);
     }
 
     public RenderLayerId Id { get; }
@@ -144,6 +140,7 @@ public sealed class RenderLayer : IDisposable
 
     public Vector2 Parallax { get; }
 
+    [MemberNotNullWhen(true, nameof(Camera))]
     public bool CullingEnabled { get; }
 
     public Color? ClearColor { get; }
@@ -167,11 +164,6 @@ public sealed class RenderLayer : IDisposable
     internal IFrameSubmissionPass? FrameSubmissionPass { get; }
 
     /// <summary>
-    /// Commands queued for the current frame.
-    /// </summary>
-    public DrawList Commands { get; }
-
-    /// <summary>
     /// Builds the graphics state for this layer.
     /// </summary>
     public BatchState CreateBatchState()
@@ -191,7 +183,7 @@ public sealed class RenderLayer : IDisposable
     /// Returns the region visible to this layer, or null when nothing is culled.
     /// </summary>
     public Rectangle? GetCullBounds()
-        => CullingEnabled ? Camera!.GetVisibleBounds(Parallax) : null;
+        => CullingEnabled ? Camera.GetVisibleBounds(Parallax) : null;
 
     public void Dispose()
     {

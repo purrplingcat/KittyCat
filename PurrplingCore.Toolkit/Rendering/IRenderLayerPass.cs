@@ -3,8 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 namespace PurrplingCore.Toolkit.Rendering;
 
 /// <summary>
-/// Executes one layer of a renderer. Implement this to draw a layer in a way the sprite
-/// command queue cannot express, such as a tilemap mesh or a full-screen effect.
+/// Executes one render layer using its own drawing strategy and optional submission data.
 /// </summary>
 /// <remarks>
 /// Allocate in <see cref="Initialize"/> and release in <see cref="IDisposable.Dispose"/>.
@@ -29,20 +28,28 @@ public interface IRenderLayerPass : IDisposable
 }
 
 /// <summary>
-/// Clears data submitted to a pass when its renderer starts another frame.
+/// Manages frame-scoped data owned by a render pass.
 /// </summary>
 public interface IFrameSubmissionPass
 {
     /// <summary>
-    /// Discards pending submissions.
+    /// Total values queued for the current frame across every supported submission type.
+    /// </summary>
+    int SubmissionCount { get; }
+
+    /// <summary>
+    /// Discards pending submissions of every supported type. Called once per layer at frame reset.
     /// </summary>
     void ClearSubmissions();
 }
 
 /// <summary>
-/// Accepts frame-scoped data of type <typeparamref name="T"/> through a layer writer.
+/// A render pass that owns and accepts frame-scoped data of type <typeparamref name="T"/>.
 /// </summary>
-public interface ILayerSubmissionPass<T> : IFrameSubmissionPass where T : struct
+/// <remarks>
+/// A pass may implement this interface for multiple types, sharing one frame reset and total count.
+/// </remarks>
+public interface ILayerSubmissionPass<T> : IRenderLayerPass, IFrameSubmissionPass where T : struct
 {
     /// <summary>
     /// Queues data for this pass to draw when the renderer flushes.

@@ -11,7 +11,7 @@ namespace PurrplingCore.Toolkit.Rendering;
 public readonly record struct RenderLayerDefinition(RenderLayerId Id, RenderLayerOptions Options);
 
 /// <summary>
-/// Collects draw commands during the frame and replays them onto the device when flushed.
+/// Routes frame submissions to layer passes and composes their output when flushed.
 /// </summary>
 /// <remarks>
 /// Submission never touches the graphics device. A game composes several renderers, typically
@@ -31,7 +31,7 @@ public interface IRenderer : IDisposable
     bool Enabled { get; set; }
 
     /// <summary>
-    /// Entry point used by draw systems, scenes, and overlays to queue commands.
+    /// Entry point used by draw systems, scenes, and overlays to submit pass data.
     /// </summary>
     RenderContext Context { get; }
 
@@ -42,12 +42,12 @@ public interface IRenderer : IDisposable
     void Initialize(GraphicsDevice device);
 
     /// <summary>
-    /// Discards queued commands and starts a new frame.
+    /// Discards pass submissions and starts a new frame.
     /// </summary>
     void BeginFrame();
 
     /// <summary>
-    /// Sorts, draws, post-processes, and composes everything queued this frame on the bound device.
+    /// Prepares, draws, post-processes, and composes this frame on the bound device.
     /// </summary>
     void Flush();
 }
@@ -80,7 +80,7 @@ public sealed class RendererOptions()
     public SamplerState DefaultSamplerState { get; set; } = SamplerState.PointClamp;
 
     /// <summary>
-    /// Enables bounded CPU timing and command-count diagnostics when non-null.
+    /// Enables bounded CPU timing and submission-count diagnostics when non-null.
     /// </summary>
     public RendererDiagnosticsOptions? Diagnostics { get; set; }
 

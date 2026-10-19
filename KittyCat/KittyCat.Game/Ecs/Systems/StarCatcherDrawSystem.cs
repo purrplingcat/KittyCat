@@ -53,7 +53,7 @@ public sealed class StarCatcherDrawSystem(
     }
 
     private void DrawEntity(
-        in LayerWriter writer,
+        in LayerWriter<DrawCommand> writer,
         GraphicsDevice device,
         in ArcadeTransform transform,
         ArcadeVisualKind kind)
@@ -93,7 +93,7 @@ public sealed class StarCatcherDrawSystem(
     /// <summary>
     /// Draws the heart-pop effect centered on its original floating-point transform.
     /// </summary>
-    private static void DrawHeartPop(in LayerWriter writer, GraphicsDevice device, in ArcadeTransform transform)
+    private static void DrawHeartPop(in LayerWriter<DrawCommand> writer, GraphicsDevice device, in ArcadeTransform transform)
     {
         var centerX = (int)(transform.Position.X + transform.Size.X / 2);
         var centerY = (int)(transform.Position.Y + transform.Size.Y / 2);

@@ -7,13 +7,12 @@ using PurrplingCore.Toolkit.Graphics;
 namespace PurrplingCore.Toolkit.Rendering;
 
 /// <summary>
-/// Collects draw commands per layer and replays them in one pass when the frame is flushed.
+/// Routes submissions to layer passes and composes their output when the frame is flushed.
 /// </summary>
 /// <remarks>
 /// A frame opens lazily on the first submission after a flush, so submitters never depend on
 /// running in a particular order relative to each other or to the flush. Flushing runs the
-/// Bevy-style sequence prepare, sort, execute, compose, with graphics state changing at most
-/// once per layer.
+/// sequence prepare, execute, compose. Each pass owns its data and any sorting it requires.
 /// </remarks>
 public class Renderer2D : IRenderer
 {
@@ -159,7 +158,6 @@ public class Renderer2D : IRenderer
 
         foreach (var layer in _layers)
         {
-            layer.Commands.Clear();
             layer.FrameSubmissionPass?.ClearSubmissions();
         }
     }
@@ -260,23 +258,17 @@ public class Renderer2D : IRenderer
             var layer = _layers[index];
             if (!layer.Enabled)
             {
-                diagnostics?.RecordLayerPrepared(index, false, 0, 0, 0);
+                diagnostics?.RecordLayerPrepared(index, false, 0, 0);
                 continue;
             }
 
-            var sortStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
-            layer.Commands.Sort();
-            var sortMilliseconds = diagnostics is null
-                ? 0
-                : Stopwatch.GetElapsedTime(sortStart).TotalMilliseconds;
             var state = layer.CreateBatchState();
             var prepareStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
             layer.Pass.Prepare(new RenderFrameContext(_device, layer, _batcher!, _resources, _text, state));
             diagnostics?.RecordLayerPrepared(
                 index,
                 true,
-                layer.Commands.Count,
-                sortMilliseconds,
+                layer.FrameSubmissionPass?.SubmissionCount ?? 0,
                 Stopwatch.GetElapsedTime(prepareStart).TotalMilliseconds
             );
         }
@@ -439,51 +431,53 @@ public class Renderer2D : IRenderer
         return (Math.Max(1, bounds.Width), Math.Max(1, bounds.Height));
     }
 
-    internal LayerWriter OpenLayer(RenderLayerId id)
+    internal LayerWriter<T> OpenBatch<T>(RenderLayerId id, bool required) where T : struct
     {
-        var layer = GetActiveLayer(id);
-        if (layer is null) return default;
+        var layer = GetLayer(id);
+        if (layer is null)
+        {
+            if (required)
+            {
+                throw new InvalidOperationException($"Renderer '{Name}' does not declare required layer '{id.Name}'.");
+            }
+
+            return default;
+        }
+
+        if (layer.Pass is not ILayerSubmissionPass<T> pass)
+        {
+            if (required)
+            {
+                throw new InvalidOperationException(
+                    $"Layer '{id.Name}' on renderer '{Name}' does not accept required submissions of type '{typeof(T).FullName}'.");
+            }
+
+            return default;
+        }
+
+        if (!Enabled || !layer.Enabled) return default;
 
         OpenLayerFrame();
 
-        return new LayerWriter(layer, _resources, _text);
+        return new LayerWriter<T>(layer, pass, _resources, _text);
     }
 
     internal bool IsActiveLayer(RenderLayerId id)
     {
-        var layer = GetActiveLayer(id);
-        return layer != null;
+        if (!Enabled) return false;
+
+        var layer = GetLayer(id);
+        return layer is { Enabled: true };
     }
 
-    internal LayerSubmissionWriter<T> OpenSubmissions<T>(RenderLayerId id) where T : struct
+    private RenderLayer? GetLayer(RenderLayerId id)
     {
-        var layer = GetActiveLayer(id);
-        if (layer is null) return default;
-
-        if (layer.Pass is not ILayerSubmissionPass<T> submissionPass) 
-            return default;
-            
-        OpenLayerFrame();
-        return new LayerSubmissionWriter<T>(submissionPass);
-    }
-
-    internal bool Supports<T>(RenderLayerId id) where T : struct
-    {
-        var layer = GetActiveLayer(id);
-        if (layer == null) return false;
-        
-        return layer.Pass is ILayerSubmissionPass<T>;
-    }
-
-    private RenderLayer? GetActiveLayer(RenderLayerId id)
-    {
-        if (!Enabled) return null;
+        if (!id.IsValid) return null;
 
         var slot = id.Value;
         if (slot >= _layersById.Length) return null;
 
-        var layer = _layersById[slot];
-        return layer is { Enabled: true } ? layer : null;
+        return _layersById[slot];
     }
 
     private void OpenLayerFrame()

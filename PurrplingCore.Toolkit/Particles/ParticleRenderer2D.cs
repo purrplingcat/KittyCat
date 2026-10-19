@@ -12,7 +12,7 @@ public static class ParticleRenderer2D
     /// <summary>
     /// Queues one live, textured particle without retaining its state or changing simulation.
     /// </summary>
-    public static void Draw(in ParticleState particle, in LayerWriter writer)
+    public static void Draw(in ParticleState particle, in LayerWriter<DrawCommand> writer)
     {
         if (!writer.IsActive || !particle.IsAlive) return;
         var texture = particle.Texture;

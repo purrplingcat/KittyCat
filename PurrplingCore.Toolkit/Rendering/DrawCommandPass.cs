@@ -6,11 +6,32 @@ namespace PurrplingCore.Toolkit.Rendering;
 /// <summary>
 /// Executes a layer's ordered sprite, text, and primitive draw commands.
 /// </summary>
-public class DrawCommandPass : RenderLayerPass
+public class DrawCommandPass : RenderLayerPass, ILayerSubmissionPass<DrawCommand>
 {
+    /// <summary>
+    /// Creates the pass-owned command queue with the requested ordering and initial capacity.
+    /// </summary>
+    public DrawCommandPass(RenderSortMode sortMode = RenderSortMode.Submission, int initialCapacity = 256)
+    {
+        Commands = new DrawList(sortMode, initialCapacity);
+    }
+
+    /// <summary>
+    /// Commands owned by this pass for the current frame.
+    /// </summary>
+    public DrawList Commands { get; }
+
+    public virtual int SubmissionCount => Commands.Count;
+
+    public void Submit(in DrawCommand submission) => Commands.Add(submission, submission.ResourceIndex);
+
+    public virtual void ClearSubmissions() => Commands.Clear();
+
+    public override void Prepare(in RenderFrameContext context) => Commands.Sort();
+
     public override void Execute(in RenderFrameContext context)
     {
-        var commands = context.Layer.Commands;
+        var commands = Commands;
         var count = commands.Count;
         if (count == 0) return;
 

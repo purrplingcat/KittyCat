@@ -21,7 +21,7 @@ public sealed class RendererDiagnosticsOptions
 }
 
 /// <summary>
-/// CPU timings and command totals recorded for one renderer flush.
+/// CPU timings and submission totals recorded for one renderer flush.
 /// </summary>
 public readonly record struct RendererFrameSample(
     int Frame,
@@ -29,18 +29,17 @@ public readonly record struct RendererFrameSample(
     double PrepareMilliseconds,
     double ExecuteMilliseconds,
     double ComposeMilliseconds,
-    int CommandCount,
+    int SubmissionCount,
     int EnabledLayerCount,
     bool IsSlowFrame);
 
 /// <summary>
-/// Command count and CPU timings for one layer in the latest renderer frame.
+/// Submission count and CPU timings for one layer in the latest renderer frame.
 /// </summary>
 public readonly record struct RendererLayerSample(
     RenderLayerId Id,
     bool Enabled,
-    int CommandCount,
-    double SortMilliseconds,
+    int SubmissionCount,
     double PrepareMilliseconds,
     double ExecuteMilliseconds);
 
@@ -85,7 +84,7 @@ public sealed class RendererDiagnostics
 
         for (var index = 0; index < layers.Length; index++)
         {
-            _latestLayers[index] = new RendererLayerSample(layers[index].Id, false, 0, 0, 0, 0);
+            _latestLayers[index] = new RendererLayerSample(layers[index].Id, false, 0, 0, 0);
         }
     }
 
@@ -163,7 +162,7 @@ public sealed class RendererDiagnostics
         builder.Append("Renderer ").AppendLine(_rendererName);
         builder.Append("Frame ").Append(LatestFrame.Frame)
             .Append(": ").Append(Format(LatestFrame.TotalMilliseconds)).Append(" ms, ")
-            .Append(LatestFrame.CommandCount).Append(" commands, ")
+            .Append(LatestFrame.SubmissionCount).Append(" submissions, ")
             .Append(LatestFrame.EnabledLayerCount).AppendLine(" enabled layers");
         builder.Append("CPU prepare/execute/compose: ")
             .Append(Format(LatestFrame.PrepareMilliseconds)).Append(" / ")
@@ -179,8 +178,7 @@ public sealed class RendererDiagnostics
         {
             builder.Append("  ").Append(layer.Id.Name)
                 .Append(layer.Enabled ? " enabled" : " disabled")
-                .Append(": ").Append(layer.CommandCount).Append(" commands, sort ")
-                .Append(Format(layer.SortMilliseconds)).Append(" ms, prepare ")
+                .Append(": ").Append(layer.SubmissionCount).Append(" submissions, prepare ")
                 .Append(Format(layer.PrepareMilliseconds)).Append(" ms, execute ")
                 .Append(Format(layer.ExecuteMilliseconds)).AppendLine(" ms");
         }
@@ -200,7 +198,7 @@ public sealed class RendererDiagnostics
 
         for (var index = 0; index < _latestLayers.Length; index++)
         {
-            _latestLayers[index] = new RendererLayerSample(_latestLayers[index].Id, false, 0, 0, 0, 0);
+            _latestLayers[index] = new RendererLayerSample(_latestLayers[index].Id, false, 0, 0, 0);
         }
     }
 
@@ -208,22 +206,20 @@ public sealed class RendererDiagnostics
     {
         for (var index = 0; index < _latestLayers.Length; index++)
         {
-            _latestLayers[index] = new RendererLayerSample(_latestLayers[index].Id, false, 0, 0, 0, 0);
+            _latestLayers[index] = new RendererLayerSample(_latestLayers[index].Id, false, 0, 0, 0);
         }
     }
 
     internal void RecordLayerPrepared(
         int index,
         bool enabled,
-        int commandCount,
-        double sortMilliseconds,
+        int submissionCount,
         double prepareMilliseconds)
     {
         _latestLayers[index] = _latestLayers[index] with
         {
             Enabled = enabled,
-            CommandCount = commandCount,
-            SortMilliseconds = sortMilliseconds,
+            SubmissionCount = submissionCount,
             PrepareMilliseconds = prepareMilliseconds,
         };
     }
@@ -238,14 +234,14 @@ public sealed class RendererDiagnostics
         double executeMilliseconds,
         double composeMilliseconds)
     {
-        var commandCount = 0;
+        var submissionCount = 0;
         var enabledLayerCount = 0;
         foreach (var layer in _latestLayers)
         {
             if (!layer.Enabled) continue;
 
             enabledLayerCount++;
-            commandCount += layer.CommandCount;
+            submissionCount += layer.SubmissionCount;
         }
 
         var sample = new RendererFrameSample(
@@ -254,7 +250,7 @@ public sealed class RendererDiagnostics
             prepareMilliseconds,
             executeMilliseconds,
             composeMilliseconds,
-            commandCount,
+            submissionCount,
             enabledLayerCount,
             totalMilliseconds >= _slowFrameThresholdMilliseconds);
 

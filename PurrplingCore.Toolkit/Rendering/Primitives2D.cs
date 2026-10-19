@@ -32,14 +32,14 @@ public static class Primitives2D
     /// <summary>
     /// Fills <paramref name="bounds"/> with a solid colour.
     /// </summary>
-    public static void FillRect(this in LayerWriter writer, GraphicsDevice device, Rectangle bounds, Color color, float depth = 0f)
+    public static void FillRect(this in LayerWriter<DrawCommand> writer, GraphicsDevice device, Rectangle bounds, Color color, float depth = 0f)
         => writer.Draw(GetPixel(device), bounds, color, depth);
 
     /// <summary>
     /// Draws the outline of <paramref name="bounds"/>.
     /// </summary>
     public static void DrawRect(
-        this in LayerWriter writer,
+        this in LayerWriter<DrawCommand> writer,
         GraphicsDevice device,
         Rectangle bounds,
         Color color,
@@ -119,7 +119,7 @@ public static class Primitives2D
     /// Draws a straight line between two points.
     /// </summary>
     public static void DrawLine(
-        this in LayerWriter writer,
+        this in LayerWriter<DrawCommand> writer,
         GraphicsDevice device,
         Vector2 from,
         Vector2 to,
@@ -147,7 +147,7 @@ public static class Primitives2D
     /// Draws a filled circle using horizontal spans.
     /// </summary>
     public static void FillCircle(
-        this in LayerWriter writer,
+        this in LayerWriter<DrawCommand> writer,
         GraphicsDevice device,
         Vector2 center,
         int radius,

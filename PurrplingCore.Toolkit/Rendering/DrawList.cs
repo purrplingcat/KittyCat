@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 namespace PurrplingCore.Toolkit.Rendering;
 
 /// <summary>
-/// Growable, reusable command queue for a single render layer.
+/// Growable, reusable command queue owned by a draw-command pass.
 /// </summary>
 /// <remarks>
 /// Backing arrays are allocated once and grown by doubling; <see cref="Clear"/> only resets the

@@ -16,7 +16,7 @@ internal static class StarCatcherShapes
     /// <summary>
     /// Draws the game's cross-shaped star as two filled rectangles.
     /// </summary>
-    public static void DrawStar(this in LayerWriter writer, GraphicsDevice device, int x, int y, int size, Color color)
+    public static void DrawStar(this in LayerWriter<DrawCommand> writer, GraphicsDevice device, int x, int y, int size, Color color)
     {
         writer.FillRect(device, new Rectangle(x + size / 2 - 3, y, 6, size), color);
         writer.FillRect(device, new Rectangle(x, y + size / 2 - 3, size, 6), color);
@@ -25,7 +25,7 @@ internal static class StarCatcherShapes
     /// <summary>
     /// Draws the five-row pixel heart at the supplied origin.
     /// </summary>
-    public static void DrawHeart(this in LayerWriter writer, GraphicsDevice device, int x, int y, int pixelSize, Color color)
+    public static void DrawHeart(this in LayerWriter<DrawCommand> writer, GraphicsDevice device, int x, int y, int pixelSize, Color color)
     {
         var rows = HeartRows;
         for (var row = 0; row < rows.Length; row++)

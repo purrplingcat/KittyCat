@@ -15,7 +15,7 @@ public abstract class ParticleDrawSystem : QuerySystem<Particle>
     /// <summary>
     /// Optionally queues this world's particles into the layer selected by the wrapper.
     /// </summary>
-    protected void Draw(in LayerWriter writer)
+    protected void Draw(in LayerWriter<DrawCommand> writer)
     {
         if (!writer.IsActive) return;
 

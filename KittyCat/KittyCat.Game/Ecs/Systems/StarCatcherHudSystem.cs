@@ -42,7 +42,7 @@ public sealed class StarCatcherHudSystem(
     {
         var device = graphics.GraphicsDevice;
         var hud = render.Batch(KittyCatLayers.Hud);
-        LayerWriter modal = default;
+        LayerWriter<DrawCommand> modal = default;
         var modalOpened = false;
 
         foreach (var (players, entities) in Query.Chunks)
@@ -66,7 +66,7 @@ public sealed class StarCatcherHudSystem(
         }
     }
 
-    private void DrawHud(in LayerWriter hud, GraphicsDevice device, SpriteFont font, in PlayerState player)
+    private void DrawHud(in LayerWriter<DrawCommand> hud, GraphicsDevice device, SpriteFont font, in PlayerState player)
     {
         hud.FillRect(device, new Rectangle(0, 0, _options.Playfield.Width, HudHeight), new Color(24, 34, 49));
         hud.DrawStar(device, 20, 15, 24, Color.Gold);
@@ -90,7 +90,7 @@ public sealed class StarCatcherHudSystem(
         }
     }
 
-    private void DrawGameOver(in LayerWriter modal, GraphicsDevice device, SpriteFont font, int score)
+    private void DrawGameOver(in LayerWriter<DrawCommand> modal, GraphicsDevice device, SpriteFont font, int score)
     {
         var playfield = _options.Playfield;
         modal.FillRect(device,
@@ -113,7 +113,7 @@ public sealed class StarCatcherHudSystem(
     /// <summary>
     /// Draws a non-negative integer using the HUD's seven-segment style.
     /// </summary>
-    private static void DrawNumber(in LayerWriter writer, GraphicsDevice device, int value, int x, int y, Color color)
+    private static void DrawNumber(in LayerWriter<DrawCommand> writer, GraphicsDevice device, int value, int x, int y, Color color)
     {
         ReadOnlySpan<byte> segments = [0b00111111, 0b00000110, 0b01011011, 0b01001111, 0b01100110,
             0b01101101, 0b01111101, 0b00000111, 0b01111111, 0b01101111];
@@ -156,7 +156,7 @@ public sealed class StarCatcherHudSystem(
         return digitCount * DigitWidth + (digitCount - 1) * DigitSpacing;
     }
 
-    private void DrawStrikeMeter(in LayerWriter writer, GraphicsDevice device, int strike)
+    private void DrawStrikeMeter(in LayerWriter<DrawCommand> writer, GraphicsDevice device, int strike)
     {
         const int x = 260;
         const int y = 18;
@@ -174,7 +174,7 @@ public sealed class StarCatcherHudSystem(
         }
     }
 
-    private void DrawDifficultyIndicator(in LayerWriter writer, GraphicsDevice device, int score)
+    private void DrawDifficultyIndicator(in LayerWriter<DrawCommand> writer, GraphicsDevice device, int score)
     {
         var color = _options.Difficulty.GetProgress(score).Stage switch
         {
