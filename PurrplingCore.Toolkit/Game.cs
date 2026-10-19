@@ -48,6 +48,7 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
     public event EventHandler<EventArgs>? Launched;
     public event EventHandler<EventArgs>? Initializing;
     public event EventHandler<EventArgs>? Initialized;
+    public event Action? BeginDraw;
 
     public GraphicsDeviceManager GraphicsDeviceManager => _graphicsManager;
 
@@ -167,6 +168,7 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
 
     protected override void Draw(GameTime gameTime)
     {
+        BeginDraw?.Invoke();
         _gameClock.RecordDraw(gameTime);
         base.Draw(gameTime);
     }
