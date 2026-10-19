@@ -13,7 +13,7 @@ namespace PurrplingCore.Toolkit.Rendering;
 /// </remarks>
 public readonly struct RenderLayerId : IEquatable<RenderLayerId>
 {
-    private static readonly ConcurrentDictionary<string, RenderLayerId> Interned = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, RenderLayerId> Interned = new(StringComparer.OrdinalIgnoreCase);
     private static int _nextValue = -1;
 
     private readonly string? _name;
