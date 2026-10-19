@@ -11,6 +11,7 @@ using Microsoft.Xna.Framework.Graphics;
 using PurrplingCore.Ecs.Attributes;
 using PurrplingCore.Ecs.Systems;
 using PurrplingCore.Graphics;
+using PurrplingCore.Toolkit.Content;
 using PurrplingCore.Toolkit.Rendering;
 
 namespace KittyCat.Ecs.Systems;
@@ -22,7 +23,7 @@ namespace KittyCat.Ecs.Systems;
 [PurrplingCore.Ecs.RunAfter<StarCatcherDrawSystem>]
 public sealed class StarCatcherHudSystem(
     GraphicsManager graphics,
-    ContentManager content,
+    AssetManager content,
     IOptions<StarCatcherOptions> options,
     [FromKeyedServices(KittyCatRendererKey.Screen)] RenderContext render)
     : QuerySystem<PlayerState>
@@ -35,7 +36,7 @@ public sealed class StarCatcherHudSystem(
     private const int DigitWidth = 20;
     private const int DigitSpacing = 8;
     private readonly StarCatcherOptions _options = options.Value;
-    private readonly SpriteFont _font = content.Load<SpriteFont>("Fonts/Hud");
+    private readonly AssetHandle<SpriteFont> _font = content.Get<SpriteFont>(new AssetId("game:Font/Hud"));
 
     protected override void OnUpdate()
     {
@@ -49,7 +50,7 @@ public sealed class StarCatcherHudSystem(
             for (var index = 0; index < entities.Length; index++)
             {
                 var player = players[index];
-                DrawHud(hud, device, _font, player);
+                DrawHud(hud, device, _font.Asset, player);
 
                 if (player.Lives <= 0)
                 {
@@ -59,7 +60,7 @@ public sealed class StarCatcherHudSystem(
                         modalOpened = true;
                     }
 
-                    DrawGameOver(in modal, device, _font, player.Score);
+                    DrawGameOver(in modal, device, _font.Asset, player.Score);
                 }
             }
         }
@@ -71,7 +72,7 @@ public sealed class StarCatcherHudSystem(
         hud.DrawStar(device, 20, 15, 24, Color.Gold);
         hud.DrawString(font, "SCORE", new Vector2(56, 17), Color.White);
         DrawNumber(in hud, device, player.Score, 116, 12, Color.White);
-        hud.DrawString(_font, "STRIKE", new Vector2(190, 17), new Color(120, 190, 255));
+        hud.DrawString(font, "STRIKE", new Vector2(190, 17), new Color(120, 190, 255));
         DrawStrikeMeter(in hud, device, player.Strike);
         DrawDifficultyIndicator(in hud, device, player.Score);
 
