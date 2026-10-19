@@ -19,22 +19,20 @@ public sealed class AssetManagerFailureTests
             fixture.Manager.Get<TestAsset>(id);
         });
 
-        Assert.Contains(id.Guid.ToString(), exception.Message);
+        Assert.Contains(id.ToString(), exception.Message);
         Assert.Empty(fixture.Loader.LoadPaths);
     }
 
     [Fact]
-    public void Get_ThrowsWhenLoaderIsNotRegistered()
+    public void Get_UsesContentManagerWhenLoaderIsNotRegistered()
     {
         using var fixture = new AssetManagerFixture(registerLoader: false);
         var id = fixture.Register("extra", "Textures/Fur");
 
-        var exception = Assert.Throws<NotSupportedException>(() =>
-        {
-            fixture.Manager.Get<TestAsset>(id);
-        });
+        using var handle = fixture.Manager.Get<TestAsset>(id);
 
-        Assert.Contains(typeof(TestAsset).ToString(), exception.Message);
+        Assert.False(handle.Asset.IsDisposed);
+        Assert.Single(fixture.ContentProvider.CreatedManagers);
         Assert.Empty(fixture.Loader.LoadPaths);
     }
 

@@ -4,10 +4,10 @@ namespace PurrplingCore.Toolkit.Content;
 
 internal sealed class PackageContentManagers(IContentManagerProvider provider, PackageManager packages) : IDisposable
 {
-    private readonly Dictionary<string, ContentManager> _managers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<Name, ContentManager> _managers = [];
     private readonly object _syncRoot = new();
 
-    public ContentManager Get(string packageName)
+    public ContentManager Get(Name packageName)
     {
         lock (_syncRoot)
         {
@@ -24,7 +24,7 @@ internal sealed class PackageContentManagers(IContentManagerProvider provider, P
         }
     }
 
-    public void Release(string packageName)
+    public void Release(Name packageName)
     {
         lock (_syncRoot)
         {

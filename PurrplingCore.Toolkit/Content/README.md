@@ -12,6 +12,9 @@ The following responsibilities are kept separate:
 configure. Neither `AssetMetadata` nor the binary catalog contains mount paths,
 redirects, or mount indices. Catalog schema 8 requires rebuilding older catalogs.
 
+Runtime package names use interned `Name` values; catalogs continue to store text.
+Empty or whitespace-only names become `Name.None` and are not valid package names.
+
 ## Registering Packages
 
 The content builder writes binary asset catalogs under
@@ -20,7 +23,7 @@ Mount package roots directly when the host attaches content to the VFS:
 
 ```csharp
 vfs.AddRootContainer(packageFileSystem);
-packages.RegisterMountPoint("Winter", "Mods/Winter/Content");
+packages.RegisterMountPoint(new Name("Winter"), "Mods/Winter/Content");
 catalogs.Index(contentFiles, "Mods/Winter");
 ```
 
@@ -39,7 +42,7 @@ package against that actual VFS root and explicitly index the catalog. The
 provider must expose the mounted VFS namespace:
 
 ```csharp
-packages.RegisterMountPoint("Winter", "Mods/Winter/Content");
+packages.RegisterMountPoint(new Name("Winter"), "Mods/Winter/Content");
 catalogs.Index(fileProvider, "Mods/Winter");
 ```
 
@@ -53,10 +56,10 @@ The code that chooses a non-root VFS mount supplies its actual root explicitly.
 ## Explicit Mount Points
 
 ```csharp
-packages.RegisterMountPoint("Winter", "Mods/Winter/Content");
+packages.RegisterMountPoint(new Name("Winter"), "Mods/Winter/Content");
 
-var root = packages.Resolve("Winter");
-packages.UnregisterMountPoint("Winter");
+var root = packages.Resolve(new Name("Winter"));
+packages.UnregisterMountPoint(new Name("Winter"));
 ```
 
 - Each package has exactly one root, selected by one dictionary lookup. There are
@@ -72,8 +75,8 @@ For package names that follow a shared convention, register a route template onc
 instead of adding a mount registration for every mod:
 
 ```csharp
-packages.RegisterMountPoint("Mod/{name}", "Mods/{name}/Content");
-packages.Resolve("Mod/Frostfall"); // Mods/Frostfall/Content
+packages.RegisterMountPoint(new Name("Mod/{name}"), "Mods/{name}/Content");
+packages.Resolve(new Name("Mod/Frostfall")); // Mods/Frostfall/Content
 ```
 
 Templates use one named placeholder for exactly one path segment; they are not

@@ -1,9 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
-using PurrplingCore.Toolkit.DI;
-using PurrplingCore.Toolkit.Content;
-using PurrplingCore.Toolkit.Hosting;
 using PurrplingCore.Toolkit.Pak;
 using PurrplingCore.Toolkit.Vfs;
 using PurrplingCore.Toolkit.Vfs.Comparers;
@@ -13,7 +10,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Zio;
 using Zio.FileSystems;
-using PurrplingCore.Toolkit;
 
 namespace PurrplingCore.Content;
 
@@ -24,46 +20,32 @@ namespace PurrplingCore.Content;
 /// The platform supplies a keyed <see cref="IFileProvider"/> capable of enumerating its packaged
 /// content. Packages are sorted by <see cref="PakPathComparer"/> before mounting, so adding a PAK
 /// file does not require updating a separate manifest.
-/// Packages are mounted during <see cref="IGameApplicationLifetime.GameInitializing"/>. Dynamic
+/// The engine mounts bundled packages during game initialization. Dynamic
 /// callers may use <see cref="AddPackage"/> later; asset catalogs are discovered independently.
 /// </remarks>
-public sealed class ContentPackageManager : IStartupService
+public sealed class ContentPackageManager
 {
     public const string FileProviderKey = "ContentPackages";
     private const string PackagesPath = "Paks";
 
-    private readonly IGameApplicationLifetime _lifetime;
     private readonly IFileProvider _packageFiles;
     private readonly IVirtualFileSystemManager _vfs;
     private readonly ILogger _logger;
-    private readonly PackageManager _resolver;
 
     public ContentPackageManager(
-        IGameApplicationLifetime lifetime,
-        PackageManager resolver,
         [FromKeyedServices(FileProviderKey)] IFileProvider packageFiles,
         IVirtualFileSystemManager vfs,
         ILoggerFactory loggerFactory)
     {
-        _lifetime = lifetime;
         _packageFiles = packageFiles;
         _vfs = vfs;
         _logger = loggerFactory.CreateLogger<ContentPackageManager>();
-        _resolver = resolver;
     }
 
-    public int Order => -90;
-
-    public void Startup()
-    {
-        _resolver.RegisterMountPoint("game", "Content");
-        _resolver.RegisterMountPoint("engine", "Content/Engine");
-
-        // Package mounting belongs to game initialization, not host service registration.
-        _lifetime.GameInitializing.Register(Initialize);
-    }
-
-    private void Initialize()
+    /// <summary>
+    /// Discovers and mounts bundled packages before the engine indexes their asset catalogs.
+    /// </summary>
+    public void MountPackages()
     {
         var packages = _packageFiles.GetDirectoryContents(PackagesPath);
         if (!packages.Exists)

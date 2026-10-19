@@ -21,11 +21,11 @@ public sealed class AssetManagerCatalogTests
             AssetCatalogSerializer.Save(stream, new AssetCatalog
             {
                 PackageId = "Extra",
-                Assets = [new AssetCatalogEntry { Id = id.FullName, PackageName = "extra", ObjectPath = "Compiled/Fur" }]
+                Assets = [new AssetCatalogEntry { Id = id.FullName.ToString(), PackageName = "extra", ObjectPath = "Compiled/Fur" }]
             });
         }
 
-        fixture.Resolver.RegisterMountPoint("extra", "Ready");
+        fixture.Resolver.RegisterMountPoint(new Name("extra"), "Ready");
         fixture.Indexer.Refresh();
         using var handle = fixture.Manager.Get<TestAsset>(id);
 
@@ -44,7 +44,7 @@ public sealed class AssetManagerCatalogTests
         new AssetCatalog
         {
             PackageId = "ParsedModCatalog",
-            Assets = [new AssetCatalogEntry { Id = id.FullName, PackageName = "extra", ObjectPath = "Mod/Textures/Fur" }]
+            Assets = [new AssetCatalogEntry { Id = id.FullName.ToString(), PackageName = "extra", ObjectPath = "Mod/Textures/Fur" }]
         }.Import(fixture.Registry, "ParsedModCatalog");
 
         using var handle = fixture.Manager.Get<TestAsset>(id);
@@ -57,8 +57,8 @@ public sealed class AssetManagerCatalogTests
     public void Get_LoadsAssetsAfterExplicitPackageRegistrationAndCatalogIndexing()
     {
         using var fixture = new AssetManagerFixture();
-        fixture.Resolver.RegisterMountPoint("Textures", "Dlc1");
-        fixture.Resolver.RegisterMountPoint("Sounds", "Dlc2");
+        fixture.Resolver.RegisterMountPoint(new Name("Textures"), "Dlc1");
+        fixture.Resolver.RegisterMountPoint(new Name("Sounds"), "Dlc2");
         fixture.Files.CreateDirectory($"/Content/{AssetCatalog.DirectoryName}");
         using (var stream = fixture.Files.CreateFile($"/Content/{AssetCatalog.DirectoryName}/Dlc.bin"))
         {
@@ -106,8 +106,8 @@ public sealed class AssetManagerCatalogTests
     public void Get_PackageMountOverridesEngineDefaultForLoadAndUnload(string root)
     {
         using var fixture = new AssetManagerFixture();
-        fixture.Resolver.RegisterMountPoint("game", "Content");
-        fixture.Resolver.RegisterMountPoint("Game", root);
+        fixture.Resolver.RegisterMountPoint(new Name("game"), "Content");
+        fixture.Resolver.RegisterMountPoint(new Name("Game"), root);
         var id = new AssetId("game:Fonts/Hud");
         fixture.Files.CreateDirectory("/Content");
         using (var stream = fixture.Files.CreateFile("/Content/asset-catalog.bin"))
@@ -117,7 +117,7 @@ public sealed class AssetManagerCatalogTests
                 PackageId = "Winter",
                 Assets = [new AssetCatalogEntry
                 {
-                    Id = id.FullName,
+                    Id = id.FullName.ToString(),
                     PackageName = "Game",
                     ObjectPath = "Fonts/Hud"
                 }]
@@ -133,8 +133,8 @@ public sealed class AssetManagerCatalogTests
         Assert.Equal("Fonts/Hud", Normalize(Assert.Single(fixture.ContentProvider.CreatedManager.UnloadPaths)));
         var metadata = Assert.IsType<AssetMetadata>(fixture.Registry.GetMetadata(id));
         Assert.Equal(id, metadata.Id);
-        Assert.Equal("Game", metadata.PackageName);
-        Assert.Equal(root, fixture.Resolver.Resolve("Game"));
+        Assert.Equal("Game", metadata.PackageName.PlainName);
+        Assert.Equal(root, fixture.Resolver.Resolve(new Name("Game")));
     }
 
     [Theory]
@@ -143,7 +143,7 @@ public sealed class AssetManagerCatalogTests
     public void Mount_RejectsNonRelativeContentRoots(string root)
     {
         var packages = new PackageManager();
-        Assert.Throws<ArgumentException>(() => packages.RegisterMountPoint("Game", root));
+        Assert.Throws<ArgumentException>(() => packages.RegisterMountPoint(new Name("Game"), root));
     }
 
     [Fact]
@@ -179,17 +179,17 @@ public sealed class AssetManagerCatalogTests
     public void Mount_RejectsInvalidRootWithoutChangingTheExistingPackage()
     {
         using var fixture = new AssetManagerFixture();
-        fixture.Resolver.RegisterMountPoint("Winter", "Fallback");
-        Assert.Throws<ArgumentException>(() => fixture.Resolver.RegisterMountPoint("Winter", "../Outside"));
+        fixture.Resolver.RegisterMountPoint(new Name("Winter"), "Fallback");
+        Assert.Throws<ArgumentException>(() => fixture.Resolver.RegisterMountPoint(new Name("Winter"), "../Outside"));
 
-        Assert.Equal("Fallback", fixture.Resolver.Resolve("winter"));
+        Assert.Equal("Fallback", fixture.Resolver.Resolve(new Name("winter")));
     }
 
     [Fact]
     public void Index_DoesNotChangeExistingPackageMounts()
     {
         using var fixture = new AssetManagerFixture();
-        fixture.Resolver.RegisterMountPoint("Winter", "DLC/Winter");
+        fixture.Resolver.RegisterMountPoint(new Name("Winter"), "DLC/Winter");
         var conflicting = new AssetCatalog
         {
             PackageId = "Other",
@@ -199,7 +199,7 @@ public sealed class AssetManagerCatalogTests
         IndexCatalog(fixture, conflicting);
 
         Assert.NotNull(fixture.Registry.GetMetadata(new AssetId("winter:Fonts/Hud")));
-        Assert.Equal("DLC/Winter", fixture.Resolver.Resolve("Winter"));
+        Assert.Equal("DLC/Winter", fixture.Resolver.Resolve(new Name("Winter")));
     }
 
     private static void IndexCatalog(AssetManagerFixture fixture, AssetCatalog catalog)
@@ -219,7 +219,7 @@ public sealed class AssetManagerCatalogTests
     public void Get_UsesExplicitMountRootWithoutChangingCatalog(string mountRoot)
     {
         using var fixture = new AssetManagerFixture();
-        fixture.Resolver.RegisterMountPoint("Winter", mountRoot + "/Content");
+        fixture.Resolver.RegisterMountPoint(new Name("Winter"), mountRoot + "/Content");
         fixture.Files.CreateDirectory("/Content/AssetCatalogs");
         var id = new AssetId("winter:Fonts/Hud");
         using (var stream = fixture.Files.CreateFile("/Content/AssetCatalogs/Winter.bin"))
@@ -227,7 +227,7 @@ public sealed class AssetManagerCatalogTests
             AssetCatalogSerializer.Save(stream, new AssetCatalog
             {
                 PackageId = "Winter",
-                Assets = [new AssetCatalogEntry { Id = id.FullName, PackageName = "Winter", ObjectPath = "Fonts/Hud" }]
+                Assets = [new AssetCatalogEntry { Id = id.FullName.ToString(), PackageName = "Winter", ObjectPath = "Fonts/Hud" }]
             });
         }
 
@@ -251,17 +251,17 @@ public sealed class AssetManagerCatalogTests
         using var fixture = new AssetManagerFixture();
         var id = fixture.Register("Winter", "Fonts/Hud");
         var metadata = fixture.Registry.GetMetadata(id);
-        fixture.Resolver.RegisterMountPoint("Winter", "OldLocation/Content");
+        fixture.Resolver.RegisterMountPoint(new Name("Winter"), "OldLocation/Content");
         fixture.Manager.Get<TestAsset>(id).Dispose();
 
-        fixture.Resolver.RegisterMountPoint("Winter", "NewLocation/Content");
+        fixture.Resolver.RegisterMountPoint(new Name("Winter"), "NewLocation/Content");
         fixture.Manager.Get<TestAsset>(id).Dispose();
 
         Assert.Equal(["OldLocation/Content"], fixture.ContentProvider.CreatedManagers.Select(manager => manager.RootDirectory));
         Assert.Equal(["Fonts/Hud", "Fonts/Hud"], fixture.Loader.LoadPaths.Select(Normalize));
         Assert.Same(metadata, fixture.Registry.GetMetadata(id));
-        Assert.True(fixture.Resolver.UnregisterMountPoint("winter"));
-        Assert.Null(fixture.Resolver.Resolve("Winter"));
+        Assert.True(fixture.Resolver.UnregisterMountPoint(new Name("winter")));
+        Assert.Null(fixture.Resolver.Resolve(new Name("Winter")));
     }
 
 }

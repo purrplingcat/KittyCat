@@ -15,15 +15,16 @@ namespace PurrplingCore.Toolkit.Content;
 [DebuggerDisplay("{FullName}")]
 public readonly struct AssetId : IEquatable<AssetId>
 {
+    private const string EMPTY_ASSET = "[Empty asset]";
     public static readonly AssetId Empty = default;
 
     public readonly Guid Guid;
-    public readonly string FullName;
+    public readonly Name FullName;
 
     public AssetId(string fullName)
     {
-        ArgumentException.ThrowIfNullOrEmpty(fullName);
-        FullName = fullName;
+        ValidateFullName(fullName);
+        FullName = new Name(fullName);
         Guid = CreateGuid(fullName);
     }
 
@@ -31,7 +32,12 @@ public readonly struct AssetId : IEquatable<AssetId>
 
     public bool Equals(AssetId other) => Guid == other.Guid;
 
-    public override string ToString() => FullName ?? "[Empty asset]";
+    public override string ToString() 
+    {
+        return FullName.IsNone 
+            ? EMPTY_ASSET
+            : FullName.ToString();
+    }
 
     public override int GetHashCode()
     {
@@ -42,6 +48,16 @@ public readonly struct AssetId : IEquatable<AssetId>
     public static Guid CreateGuid(string qualifiedId)
     {
         return DeterministicGuid.Create(Namespaces.Assets, qualifiedId);
+    }
+
+    internal static void ValidateFullName(string fullName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(fullName);
+
+        if (fullName.Length > ushort.MaxValue)
+            Throw("Asset name is too long.");
+
+        void Throw(string message) => throw new ArgumentException($"Invalid asset name '{fullName}'. {message}", nameof(fullName));
     }
 
     public static implicit operator Guid(AssetId id) => id.Guid;
@@ -66,8 +82,8 @@ public readonly struct AssetId : IEquatable<AssetId>
 public sealed record AssetMetadata
 {
     public AssetId Id { get; }
-    public string Name => Id.FullName;
-    public string PackageName { get; }
+    public Name Name => Id.FullName;
+    public Name PackageName { get; }
     public string ObjectPath { get; }
     public string AssetName { get; }
     public string AssetClass { get; }
@@ -76,15 +92,23 @@ public sealed record AssetMetadata
 
     public AssetMetadata(
         AssetId id,
-        string packageName,
+        Name packageName,
         string objectPath,
         string assetClass = "",
         IReadOnlyDictionary<string, string>? tags = null,
         string? fileExtension = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(packageName);
+        if (packageName.IsNone)
+        {
+            throw new ArgumentException("Package name cannot be empty or whitespace.", nameof(packageName));
+        }
+
+        if (id.IsEmpty)
+        {
+            throw new ArgumentException("Asset identifier cannot be empty.", nameof(id));
+        }
+
         ObjectPath = NormalizeObjectPath(objectPath);
-        ValidateFullName(id.FullName);
         Id = id;
         PackageName = packageName;
         AssetName = Path.GetFileName(ObjectPath);
@@ -104,7 +128,7 @@ public sealed record AssetMetadata
         ArgumentException.ThrowIfNullOrWhiteSpace(packageName);
         var normalizedPath = NormalizeObjectPath(objectPath);
         var assetId = new AssetId(id ?? $"{packageName.ToLowerInvariant()}:{normalizedPath}");
-        return new AssetMetadata(assetId, packageName, normalizedPath, assetClass, tags, fileExtension);
+        return new AssetMetadata(assetId, new Name(packageName), normalizedPath, assetClass, tags, fileExtension);
     }
 
     private static string NormalizeObjectPath(string objectPath)
@@ -146,22 +170,7 @@ public sealed record AssetMetadata
         return normalizedPath;
     }
 
-    public static void ValidateFullName(string fullName)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(fullName);
-
-        if (fullName.Length > ushort.MaxValue)
-            Throw("Asset name is too long.");
-
-        int separator = fullName.IndexOf(':');
-        if (separator <= 0 || separator == fullName.Length - 1 || separator != fullName.LastIndexOf(':'))
-            Throw("Asset name must contain one ':' separating a non-empty namespace and path.");
-
-        if (fullName.Split('/').Any(segment => segment is "" or "." or ".."))
-            Throw("Asset name contains an invalid path segment.");
-
-        void Throw(string message) => throw new ArgumentException($"Invalid asset name '{fullName}'. {message}", nameof(fullName));
-    }
+    public static void ValidateFullName(string fullName) => AssetId.ValidateFullName(fullName);
 }
 
 public interface IAssetCache
@@ -548,7 +557,7 @@ public class AssetManager : IDisposable
         if (!cache.TryRetain(assetId, out var loadedAsset))
         {
             var descriptor = _masterRegistry.GetMetadata(assetId)
-                ?? throw new KeyNotFoundException($"Asset {assetId.Guid} is not registered!");
+                ?? throw new KeyNotFoundException($"Asset {assetId} is not registered!");
 
             loadedAsset = LoadAsset<T>(in descriptor);
             cache.Add(assetId, loadedAsset);
@@ -559,11 +568,13 @@ public class AssetManager : IDisposable
 
     protected virtual T LoadAsset<T>(in AssetMetadata descriptor)
     {
-        var loader = _services.GetService<IContentLoader<T>>()
-            ?? throw new NotSupportedException($"Asset type {typeof(T)} is not supported.");
-
+        var loader = _services.GetService<IContentLoader<T>>();
         var manager = _contentManagers.Get(descriptor.PackageName);
-        return loader.Load(manager, descriptor.GetAssetPath());
+        var path = descriptor.GetAssetPath();
+        
+        return loader is null 
+            ? manager.Load<T>(path) 
+            : loader.Load(manager, path);
     }
 
     internal void Release<T>(Guid assetId)

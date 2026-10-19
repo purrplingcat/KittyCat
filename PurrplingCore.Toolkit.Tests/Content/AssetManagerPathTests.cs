@@ -22,7 +22,7 @@ public sealed class AssetManagerPathTests
         using var fixture = new AssetManagerFixture(defaultRoot);
         if (mappedRoot is not null)
         {
-            fixture.Resolver.RegisterMountPoint("extra", mappedRoot);
+            fixture.Resolver.RegisterMountPoint(new Name("extra"), mappedRoot);
         }
 
         var id = fixture.Register("extra", objectPath);
@@ -36,7 +36,7 @@ public sealed class AssetManagerPathTests
     public void Dispose_UsesMappedPathForUnload()
     {
         using var fixture = new AssetManagerFixture();
-        fixture.Resolver.RegisterMountPoint("extra", "Mods/Extra");
+        fixture.Resolver.RegisterMountPoint(new Name("extra"), "Mods/Extra");
         var id = fixture.Register("extra", "Compiled/Fur");
         var handle = fixture.Manager.Get<TestAsset>(id);
 
@@ -52,9 +52,9 @@ public sealed class AssetManagerPathTests
     public void Get_CreatesManagersOnlyForLoadedPackagesAndReusesEachOne()
     {
         using var fixture = new AssetManagerFixture();
-        fixture.Resolver.RegisterMountPoint("A", "Mods/A");
-        fixture.Resolver.RegisterMountPoint("B", "Mods/B");
-        fixture.Resolver.RegisterMountPoint("Unused", "Mods/Unused");
+        fixture.Resolver.RegisterMountPoint(new Name("A"), "Mods/A");
+        fixture.Resolver.RegisterMountPoint(new Name("B"), "Mods/B");
+        fixture.Resolver.RegisterMountPoint(new Name("Unused"), "Mods/Unused");
         Assert.Empty(fixture.ContentProvider.CreatedManagers);
 
         using var first = fixture.Manager.Get<TestAsset>(fixture.Register("A", "Textures/First"));
@@ -85,18 +85,75 @@ public sealed class AssetManagerPathTests
     public void PackageManager_ReplacesOneRootAndKeepsOtherPackagesIndependent()
     {
         var resolver = new PackageManager();
-        resolver.RegisterMountPoint("Extra", "Content/Extra");
-        resolver.RegisterMountPoint("Other", "Content/Other");
-        resolver.RegisterMountPoint("Extra", "Mods/Extra");
-        resolver.RegisterMountPoint("Extra", "Mods/Extra");
+        resolver.RegisterMountPoint(new Name("Extra"), "Content/Extra");
+        resolver.RegisterMountPoint(new Name("Other"), "Content/Other");
+        resolver.RegisterMountPoint(new Name("Extra"), "Mods/Extra");
+        resolver.RegisterMountPoint(new Name("Extra"), "Mods/Extra");
 
-        Assert.Equal("Mods/Extra", resolver.Resolve("extra"));
-        Assert.Equal("Content/Other", resolver.Resolve("Other"));
+        Assert.Equal("Mods/Extra", resolver.Resolve(new Name("extra")));
+        Assert.Equal("Content/Other", resolver.Resolve(new Name("Other")));
 
-        Assert.True(resolver.UnregisterMountPoint("extra"));
-        Assert.Null(resolver.Resolve("Extra"));
-        Assert.Equal("Content/Other", resolver.Resolve("Other"));
-        Assert.False(resolver.UnregisterMountPoint("Extra"));
+        Assert.True(resolver.UnregisterMountPoint(new Name("extra")));
+        Assert.Null(resolver.Resolve(new Name("Extra")));
+        Assert.Equal("Content/Other", resolver.Resolve(new Name("Other")));
+        Assert.False(resolver.UnregisterMountPoint(new Name("Extra")));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" \t\r\n")]
+    [InlineData("\u2003")]
+    public void PackagesRejectNoneNames(string? value)
+    {
+        var packageName = new Name(value);
+        var packages = new PackageManager();
+
+        Assert.Throws<ArgumentException>(() => packages.RegisterMountPoint(packageName, "Content"));
+        Assert.Throws<ArgumentException>(() =>
+            new AssetMetadata(new AssetId("game:Texture"), packageName, "Texture"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void AssetId_RejectsNullOrEmptyFullNamesAtConstruction(string? fullName)
+    {
+        Assert.ThrowsAny<ArgumentException>(() => new AssetId(fullName!));
+    }
+
+    [Theory]
+    [InlineData("Texture")]
+    [InlineData(":Texture")]
+    [InlineData("game:")]
+    [InlineData("game:Textures//Fur")]
+    [InlineData("game:Textures/../Fur")]
+    public void AssetId_AcceptsExplicitNamesWithoutPathRestrictions(string fullName)
+    {
+        var id = new AssetId(fullName);
+
+        Assert.False(id.IsEmpty);
+        Assert.Equal(fullName, id.FullName.ToString());
+    }
+
+    [Fact]
+    public void Metadata_RejectsDefaultAssetId()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            new AssetMetadata(AssetId.Empty, new Name("game"), "Texture"));
+    }
+
+    [Theory]
+    [InlineData("game:_0")]
+    [InlineData("game:Textures/Fur_42")]
+    public void Metadata_PreservesValidatedNumberedIdentifier(string fullName)
+    {
+        var id = new AssetId(fullName);
+        var metadata = new AssetMetadata(id, new Name("game"), "Texture");
+
+        Assert.Equal(id, metadata.Id);
+        Assert.Equal(id.FullName, metadata.Name);
+        Assert.Equal(fullName, metadata.Name.ToString());
     }
 
     private static string Normalize(string path) => path.Replace('\\', '/');

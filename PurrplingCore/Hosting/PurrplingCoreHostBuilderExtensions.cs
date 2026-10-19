@@ -12,42 +12,8 @@ using PurrplingCore.Toolkit.Graphics;
 using PurrplingCore.Toolkit.Hosting;
 using PurrplingCore.Toolkit.Hosting.Services;
 using PurrplingCore.Toolkit.Vfs;
-using static Microsoft.Extensions.DependencyInjection.ActivatorUtilities;
 
 namespace PurrplingCore.Hosting;
-
-/// <summary>
-/// Adds the reusable KittyCat engine services to the boot/host service collection.
-/// </summary>
-internal sealed class PurrplingCoreHostServices : IServiceModule
-{
-    /// <inheritdoc />
-    public void ConfigureServices(IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        
-    }
-}
-
-internal sealed class EngineGameServices(IHostEnvironment env) : IServiceModule
-{
-    public void ConfigureServices(IServiceCollection services)
-    {
-        services.TryAddSingleton<Screen, ResolutionScreen>();
-        services.AddAssetRegistry();
-        services.AddWorld();
-        services.TryAddSingleton<ContentPackageManager>();
-        services.AddStartup(GetServiceOrCreateInstance<VirtualFileSystemStartup>);
-        services.AddStartup(provider => provider.GetRequiredService<ContentPackageManager>());
-        services.TryAddKeyedSingleton<IFileProvider>(
-            ContentPackageManager.FileProviderKey,
-            new PhysicalFileProvider(env.BaseDirectory));
-    }
-}
-
-internal sealed class EngineAssemblyServices()
-    : AssemblyServices(typeof(PurrplingCoreHostServices).Assembly);
 
 /// <summary>
 /// Configures KittyCat engine host services explicitly.
@@ -78,9 +44,29 @@ public static class PurrplingCoreHostBuilderExtensions
         builder.Services.AddServiceModule<EngineGameServices>();
         builder.Services.AddServiceModule<EngineAssemblyServices>();
         builder.Services.AddVfs();
-        builder.Services.TryExpose<ContentManager, IContentManagerProvider>(provider => provider.ContentManager);
-        builder.Services.TryExpose<Resolution, GraphicsManager>(source => source.Resolution);
+        builder.Services.TryExpose<ContentManager, IContentManagerProvider>(
+            static provider => provider.ContentManager);
+        builder.Services.TryExpose<Resolution, GraphicsManager>(
+            static graphics => graphics.Resolution);
 
         return builder;
+    }
+
+    private sealed class EngineAssemblyServices()
+        : AssemblyServices(typeof(EngineAssemblyServices).Assembly);
+
+    private sealed class EngineGameServices(IHostEnvironment env) : IServiceModule
+    {
+        public void ConfigureServices(IServiceCollection services)
+        {
+            services.TryAddSingleton<Screen, ResolutionScreen>();
+            services.AddAssetRegistry();
+            services.AddWorld();
+            services.TryAddSingleton<ContentPackageManager>();
+            services.AddStartup<EngineStartup>();
+            services.TryAddKeyedSingleton<IFileProvider>(
+                ContentPackageManager.FileProviderKey,
+                new PhysicalFileProvider(env.BaseDirectory));
+        }
     }
 }

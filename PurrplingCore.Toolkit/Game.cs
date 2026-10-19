@@ -152,8 +152,6 @@ public abstract class Game: Microsoft.Xna.Framework.Game, IGame
         }
 
         Window.Title = Title;
-
-       
         
         base.Initialize();
         _isInitialized = true;

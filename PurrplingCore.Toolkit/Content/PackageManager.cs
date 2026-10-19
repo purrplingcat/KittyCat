@@ -7,7 +7,7 @@ namespace PurrplingCore.Toolkit.Content;
 /// </summary>
 public sealed class PackageManager
 {
-    private readonly Dictionary<string, string> _mounts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<Name, string> _mounts = [];
     private readonly object _syncRoot = new();
 
     /// <summary>
@@ -16,9 +16,13 @@ public sealed class PackageManager
     /// <remarks>
     /// Unload affected assets before changing a mount point used by loaded content.
     /// </remarks>
-    public void RegisterMountPoint(string packageName, string contentPath)
+    public void RegisterMountPoint(Name packageName, string contentPath)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(packageName);
+        if (packageName.IsNone)
+        {
+            throw new ArgumentException("Package name cannot be empty or whitespace.", nameof(packageName));
+        }
+
         var path = NormalizePath(contentPath);
         lock (_syncRoot)
         {
@@ -29,7 +33,7 @@ public sealed class PackageManager
     /// <summary>
     /// Removes a logical package's root without unmounting any VFS containers.
     /// </summary>
-    public bool UnregisterMountPoint(string packageName)
+    public bool UnregisterMountPoint(Name packageName)
     {
         lock (_syncRoot)
         {
@@ -40,7 +44,7 @@ public sealed class PackageManager
     /// <summary>
     /// Gets the package-wide root, or null when no package-wide mount exists.
     /// </summary>
-    public string? Resolve(string packageName)
+    public string? Resolve(Name packageName)
     {
         lock (_syncRoot)
         {
