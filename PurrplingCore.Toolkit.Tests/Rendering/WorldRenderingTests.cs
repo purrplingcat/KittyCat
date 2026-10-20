@@ -58,7 +58,7 @@ public class WorldRenderingTests
     }
 
     [Fact]
-    public void RegistrationChangesDuringExecutionApplyToNextInvocation()
+    public void RegistrationChangesDuringExecutionAffectCurrentAndNextInvocation()
     {
         var executor = new CallbackExecutor<int>();
         var values = new List<int>();
@@ -71,9 +71,10 @@ public class WorldRenderingTests
         executor.Callbacks.Add(values.Add);
 
         executor.Execute(1);
+        Assert.Equal(new[] { 10 }, values);
         executor.Execute(2);
 
-        Assert.Equal(new[] { 1, 20 }, values);
+        Assert.Equal(new[] { 10, 20 }, values);
     }
 
     [Fact]
@@ -108,10 +109,10 @@ public class WorldRenderingTests
         Assert.Null(type.GetMethod("Execute"));
         Assert.Null(type.GetMethod("Snapshot"));
         Assert.Null(type.GetProperty("Item"));
-        Assert.Null(type.GetProperty("Count"));
+        Assert.NotNull(type.GetProperty("Count"));
         Assert.Empty(type.GetConstructors());
         Assert.False(typeof(System.Collections.IEnumerable).IsAssignableFrom(type));
-        Assert.Equal(new[] { "Add", "Remove" }, type
+        Assert.Equal(new[] { "Add", "get_Count", "Remove" }, type
             .GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance |
                 System.Reflection.BindingFlags.DeclaredOnly)
             .Select(method => method.Name).OrderBy(name => name));

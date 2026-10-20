@@ -25,7 +25,7 @@ public sealed class CallbackExecutor<TContext>
     /// <summary>
     /// Gets the number of registered callbacks.
     /// </summary>
-    public int Count => Callbacks.Items.Count;
+    public int Count => Callbacks.Count;
 
     /// <summary>
     /// Creates an executor whose registrations are independent of subsequent changes.

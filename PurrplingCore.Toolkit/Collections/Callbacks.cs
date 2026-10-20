@@ -5,7 +5,7 @@ namespace PurrplingCore.Toolkit.Collections;
 /// </summary>
 public sealed class Callbacks<TContext>
 {
-    private List<Action<TContext>> _callbacks;
+    private readonly List<Action<TContext>> _callbacks;
 
     internal Callbacks(IEnumerable<Action<TContext>> callbacks)
     {
@@ -14,6 +14,8 @@ public sealed class Callbacks<TContext>
 
     internal List<Action<TContext>> Items => _callbacks;
 
+    public int Count => _callbacks.Count;
+
     /// <summary>
     /// Appends a callback unless an equal delegate is already registered.
     /// </summary>
@@ -21,8 +23,8 @@ public sealed class Callbacks<TContext>
     {
         ArgumentNullException.ThrowIfNull(callback);
         if (_callbacks.Contains(callback)) return false;
-
-        _callbacks = new List<Action<TContext>>(_callbacks) { callback };
+        
+        _callbacks.Add(callback);
         return true;
     }
 
@@ -32,10 +34,8 @@ public sealed class Callbacks<TContext>
     public bool Remove(Action<TContext> callback)
     {
         ArgumentNullException.ThrowIfNull(callback);
-
+        
         if (!_callbacks.Contains(callback)) return false;
-
-        _callbacks = new List<Action<TContext>>(_callbacks);
         return _callbacks.Remove(callback);
     }
 }
