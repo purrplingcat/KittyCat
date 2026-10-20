@@ -9,7 +9,6 @@ using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.DI;
 using PurrplingCore.Ecs.Modules;
 using PurrplingCore.Ecs.Particles;
-using PurrplingCore.Ecs.Particles.Systems;
 using PurrplingCore.Ecs.WorldBuilding;
 using PurrplingCore.Rendering;
 using PurrplingCore.Scenes;
@@ -18,7 +17,6 @@ using PurrplingCore.Toolkit.Hosting;
 using PurrplingCore.Toolkit.Rendering;
 using System;
 using System.Reflection;
-using PurrplingCore.Toolkit.Graphics;
 
 namespace KittyCat.Configuration;
 
@@ -27,16 +25,6 @@ namespace KittyCat.Configuration;
 /// </summary>
 public class KittyCatGameServices : IServiceModule
 {
-    public Assembly Assembly => GetType().Assembly;
-
-    /// <summary>
-    /// Resolves the default content manager used by game scenes.
-    /// </summary>
-    protected virtual ContentManager GetDefaultContentManager(IServiceProvider provider)
-    {
-        return provider.GetRequiredService<IContentManagerProvider>().ContentManager;
-    }
-
     /// <summary>
     /// Registers the game's settings, world, renderers, and draw-loop components.
     /// </summary>

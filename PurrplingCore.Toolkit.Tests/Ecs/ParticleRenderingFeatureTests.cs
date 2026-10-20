@@ -33,8 +33,8 @@ public class ParticleRenderingFeatureTests
         using var world = CreateWorld<RenderedWorld>(provider);
 
         Assert.IsType<WorldRenderer>(world.Services.GetRequiredService<WorldRenderer>());
-        Assert.Single(world.Services.GetKeyedServices<IWorldModule>(typeof(RenderedWorld))
-            .OfType<ParticleModule>());
+        Assert.NotNull(world.FindSystem<ParticleUpdateSystem>());
+        Assert.NotNull(world.FindSystem<ParticleDrawSystem>());
         Assert.NotNull(world.Services.GetRequiredService<IWorldOptions<ParticleOptions>>().Value);
     }
 

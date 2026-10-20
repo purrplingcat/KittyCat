@@ -46,8 +46,6 @@ public class ParticleFeatureTests
         var defaultState = ReadSingleParticle(defaultSpeed);
         Assert.Equal(0.2f, defaultState.Age, 5);
         Assert.Equal(2f, defaultState.Position.X, 5);
-        Assert.Single(halfSpeed.Services.GetKeyedServices<IWorldModule>(typeof(HalfSpeedWorld))
-            .OfType<ParticleModule>());
     }
 
     [Fact]

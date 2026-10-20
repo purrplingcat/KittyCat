@@ -6,12 +6,12 @@ using PurrplingCore.Toolkit.Rendering;
 namespace PurrplingCore.Ecs.Particles.Systems;
 
 [System<DrawSystemGroup>]
-internal sealed class ConfiguredParticleDrawSystem : ParticleDrawSystem
+internal sealed class DefaultParticleDrawSystem : ParticleDrawSystem
 {
     private readonly RenderContext _context;
     private readonly RenderLayerId _layer;
 
-    public ConfiguredParticleDrawSystem(
+    public DefaultParticleDrawSystem(
         RenderContext context,
         IWorldOptions<ParticleRenderingOptions> options)
     {

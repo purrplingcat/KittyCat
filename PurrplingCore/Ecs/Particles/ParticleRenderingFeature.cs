@@ -49,13 +49,6 @@ public sealed class ParticleRenderingFeature : IWorldFeature
         builder.Services.AddOptions<ParticleRenderingOptions>();
         builder.Services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IValidateOptions<ParticleRenderingOptions>, ParticleRenderingOptionsValidator>());
-        builder.AddModule<ParticleRenderingModule>();
+        builder.Configure(w => w.AddSystem<DefaultParticleDrawSystem>());
     }
-}
-
-internal sealed class ParticleRenderingModule : IWorldModule
-{
-    public int Order => 0;
-
-    public void Setup(IWorldBlueprint builder) => builder.AddSystem<ConfiguredParticleDrawSystem>();
 }

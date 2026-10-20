@@ -22,20 +22,27 @@ public sealed class WorldControllerOptions
 /// </summary>
 public sealed class WorldController : DrawableGameComponent
 {
-    private readonly World _world;
+    private World _world = null!;
     private bool _disposed;
+
+    private readonly IWorldFactory _worldFactory;
+    private readonly WorldControllerOptions _worldOptions;
 
     public WorldController(Game game, IWorldFactory worldFactory, IOptions<WorldControllerOptions> options)
         : base(game)
     {
         ArgumentNullException.ThrowIfNull(worldFactory);
-        var worldOptions = options.Value;
-        _world = worldFactory.CreateWorld(worldOptions.Name, worldOptions.Signature);
+        ArgumentNullException.ThrowIfNull(options);
+
+        _worldFactory = worldFactory;
+        _worldOptions = options.Value;
     }
 
     public override void Initialize()
     {
+        _world = _worldFactory.CreateWorld(_worldOptions.Name, _worldOptions.Signature);
         _world.Initialize();
+
         base.Initialize();
     }
 

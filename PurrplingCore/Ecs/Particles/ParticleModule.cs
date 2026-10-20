@@ -9,21 +9,6 @@ using PurrplingCore.Ecs.WorldBuilding;
 namespace PurrplingCore.Ecs.Particles;
 
 /// <summary>
-/// Adds particle simulation and lifetime management without choosing a renderer.
-/// </summary>
-public sealed class ParticleModule : IWorldModule
-{
-    public int Order => 0;
-
-    public void Setup(IWorldBlueprint world)
-    {
-        world.Systems
-            .In<UpdateSystemGroup>()
-            .Add<ParticleUpdateSystem>();
-    }
-}
-
-/// <summary>
 /// Configures particle simulation for one world marker.
 /// </summary>
 public sealed class ParticleOptions
@@ -60,6 +45,18 @@ public sealed class ParticlesFeature : IWorldFeature
         builder.Services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IValidateOptions<ParticleOptions>, ParticleOptionsValidator>());
         builder.AddModule<ParticleModule>();
+    }
+
+    private sealed class ParticleModule : IWorldModule
+    {
+        public int Order => 0;
+
+        public void Setup(IWorldBlueprint world)
+        {
+            world.Systems
+                .In<UpdateSystemGroup>()
+                .Add<ParticleUpdateSystem>();
+        }
     }
 }
 
