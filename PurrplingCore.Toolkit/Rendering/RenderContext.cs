@@ -46,7 +46,7 @@ public readonly ref struct LayerWriter<T> where T : struct
     public bool IsActive => _pass != null;
 
     /// <summary>
-    /// Queues one value without modifying it. Any resources it references must remain valid until flush.
+    /// Queues one value without modifying it. Referenced resources must remain valid through the last replay.
     /// </summary>
     public void Submit(in T submission) => _pass?.Submit(in submission);
 }
@@ -55,8 +55,8 @@ public readonly ref struct LayerWriter<T> where T : struct
 /// Per-renderer entry point for submitting data to layer passes.
 /// </summary>
 /// <remarks>
-/// Resolving a layer also opens the frame when needed, so callers never have to begin or end
-/// a frame explicitly regardless of the order in which they run.
+/// Resolving a layer never begins or clears a frame. The renderer owner calls BeginFrame
+/// before producers submit the next frame's data.
 /// </remarks>
 public sealed class RenderContext
 {

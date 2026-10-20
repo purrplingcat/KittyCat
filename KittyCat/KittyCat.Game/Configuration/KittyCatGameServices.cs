@@ -42,7 +42,6 @@ public class KittyCatGameServices : IServiceModule
     public void ConfigureServices(IServiceCollection services)
     {
         // Register shared services consumed by world and renderer modules here.
-        services.AddSingleton<Camera2D>();
         services.AddSingleton<StarCatcherParticleEffects>();
 
         // Bind and validate game-wide options before registering systems that consume them.
@@ -55,14 +54,12 @@ public class KittyCatGameServices : IServiceModule
         // Declare the world's systems and world-specific modules here.
         services
             .AddWorld(ConfigureWorld)
+            .AddService<Camera2D>()
+            .AddRenderer<WorldRendererConfiguration>()
             .AddParticleModule()
             .AddModule<EntityCleanupModule>();
 
-        // Declare renderer keys, layers, and renderer-specific configuration modules here.
-        services
-            .AddRenderer(KittyCatRendererKey.World)
-            .AddModule<WorldRendererConfiguration>()
-            .AddDrawComponent(DrawStage.World);
+        // Keep screen-space UI independent of the world renderer's lifetime.
         services
             .AddRenderer(KittyCatRendererKey.Screen, ConfigureScreenRenderer)
             .AddDrawComponent(DrawStage.Screen);

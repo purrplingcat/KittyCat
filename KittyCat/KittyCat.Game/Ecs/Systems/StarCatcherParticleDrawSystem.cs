@@ -1,5 +1,4 @@
 using KittyCat.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using PurrplingCore.Ecs.Attributes;
 using PurrplingCore.Ecs.Particles;
 using PurrplingCore.Ecs.Systems;
@@ -12,7 +11,7 @@ namespace KittyCat.Ecs.Systems;
 /// </summary>
 [System<DrawSystemGroup>]
 public sealed class StarCatcherParticleDrawSystem(
-    [FromKeyedServices(KittyCatRendererKey.World)] RenderContext context)
+    RenderContext context)
     : ParticleDrawSystem
 {
     protected override void OnUpdate()

@@ -3,7 +3,6 @@ using Friflo.Engine.ECS;
 using Friflo.Engine.ECS.Systems;
 using KittyCat.Configuration;
 using KittyCat.Ecs.Components;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -21,7 +20,7 @@ namespace KittyCat.Ecs.Systems;
 public sealed class StarCatcherDrawSystem(
     GraphicsManager graphics,
     IOptions<StarCatcherOptions> options,
-    [FromKeyedServices(KittyCatRendererKey.World)] RenderContext renderer)
+    RenderContext renderer)
     : QuerySystem<ArcadeTransform, ArcadeVisual>
 {
     private const int ArenaHeartSize = 25;

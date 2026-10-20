@@ -68,6 +68,7 @@ public class RenderSubmissionTests
         using var renderer = CreateRenderer(pass);
         var command = new DrawCommand { ResourceIndex = 7 };
 
+        renderer.BeginFrame();
         var writer = renderer.Context.Batch(Layer);
         Assert.True(writer.IsActive);
         writer.Submit(in command);
@@ -198,6 +199,7 @@ public class RenderSubmissionTests
         var first = new GeometrySubmission(3, 5);
         var second = new GeometrySubmission(9, 2);
 
+        renderer.BeginFrame();
         renderer.Context.Batch<GeometrySubmission>(Layer).Submit(in first);
         renderer.Context.Batch<GeometrySubmission>(Layer).Submit(in second);
 
@@ -221,6 +223,7 @@ public class RenderSubmissionTests
         var command = new DrawCommand { ResourceIndex = 7 };
         var geometry = new GeometrySubmission(3, 5);
 
+        renderer.BeginFrame();
         var commands = renderer.Context.Batch(Layer, required: true);
         var geometries = renderer.Context.Batch<GeometrySubmission>(Layer, required: true);
         Assert.True(commands.IsActive);
@@ -240,6 +243,30 @@ public class RenderSubmissionTests
         Assert.Equal(0, pass.SubmissionCount);
         Assert.Equal(0, pass.Commands.Count);
         Assert.Empty(pass.Geometry);
+    }
+
+    [Fact]
+    public void CompatibleBatchesDoNotBeginOrClearAFrame()
+    {
+        var pass = new MixedPass();
+        using var renderer = CreateRenderer(pass);
+        var command = new DrawCommand { ResourceIndex = 7 };
+        var geometry = new GeometrySubmission(3, 5);
+        pass.Submit(in command);
+        pass.Submit(in geometry);
+
+        Assert.True(renderer.Context.Batch(Layer, required: true).IsActive);
+        Assert.True(renderer.Context.Batch<GeometrySubmission>(Layer).IsActive);
+
+        Assert.Equal(0, pass.ClearCount);
+        Assert.Equal(2, pass.SubmissionCount);
+        Assert.Equal(command, pass.Commands.At(0));
+        Assert.Equal(geometry, Assert.Single(pass.Geometry));
+
+        renderer.BeginFrame();
+
+        Assert.Equal(1, pass.ClearCount);
+        Assert.Equal(0, pass.SubmissionCount);
     }
 
     [Theory]

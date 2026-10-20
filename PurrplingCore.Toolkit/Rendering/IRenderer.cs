@@ -15,8 +15,8 @@ public readonly record struct RenderLayerDefinition(RenderLayerId Id, RenderLaye
 /// </summary>
 /// <remarks>
 /// Submission never touches the graphics device. A game composes several renderers, typically
-/// one per output target or post-processing chain. The automatic driver flushes its group
-/// in <see cref="Order"/> order; a renderer without a group can be flushed explicitly.
+/// one per output target or post-processing chain. The owner explicitly begins a frame before
+/// submission and may flush the retained submissions more than once.
 /// </remarks>
 public interface IRenderer : IDisposable
 {
@@ -42,12 +42,14 @@ public interface IRenderer : IDisposable
     void Initialize(GraphicsDevice device);
 
     /// <summary>
-    /// Discards pass submissions and starts a new frame.
+    /// Discards pass submissions and text, samples the current layout, and starts a new frame.
+    /// Call explicitly before producers submit; neither Batch nor Flush calls this method.
     /// </summary>
     void BeginFrame();
 
     /// <summary>
-    /// Prepares, draws, post-processes, and composes this frame on the bound device.
+    /// Prepares, draws, post-processes, and composes the retained frame on the bound device.
+    /// Does not clear submissions or text; repeated calls replay them until BeginFrame.
     /// </summary>
     void Flush();
 }

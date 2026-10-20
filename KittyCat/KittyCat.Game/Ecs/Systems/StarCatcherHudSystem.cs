@@ -25,7 +25,7 @@ public sealed class StarCatcherHudSystem(
     GraphicsManager graphics,
     AssetManager content,
     IOptions<StarCatcherOptions> options,
-    [FromKeyedServices(KittyCatRendererKey.Screen)] RenderContext render)
+    [FromKeyedServices(KittyCatRendererKey.Screen)] IRenderer render)
     : QuerySystem<PlayerState>
 {
     private const int LivesSpacing = 26;
@@ -37,10 +37,11 @@ public sealed class StarCatcherHudSystem(
     private readonly StarCatcherOptions _options = options.Value;
     private readonly AssetHandle<SpriteFont> _font = content.Get<SpriteFont>(new AssetId("game:Font/Hud"));
 
+
     protected override void OnUpdate()
     {
         var device = graphics.GraphicsDevice;
-        var hud = render.Batch(KittyCatLayers.Hud);
+        var hud = render.Context.Batch(KittyCatLayers.Hud);
         LayerWriter<DrawCommand> modal = default;
         var modalOpened = false;
 
@@ -55,7 +56,7 @@ public sealed class StarCatcherHudSystem(
                 {
                     if (!modalOpened)
                     {
-                        modal = render.Batch(KittyCatLayers.Modal);
+                        modal = render.Context.Batch(KittyCatLayers.Modal);
                         modalOpened = true;
                     }
 

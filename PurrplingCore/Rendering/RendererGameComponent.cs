@@ -23,12 +23,19 @@ public sealed class RendererGameComponent : DrawableGameComponent
         _renderer = renderer;
         _graphics = graphics;
         DrawOrder = drawOrder;
+
+        game.BeginDraw += OnBeginDraw;
+    }
+
+    private void OnBeginDraw()
+    {
+        _renderer.BeginFrame();
     }
 
     public override void Initialize()
     {
         base.Initialize();
-        _renderer.Initialize(_graphics.GraphicsDevice);    
+        _renderer.Initialize(_graphics.GraphicsDevice);
     }
 
     public override void Draw(GameTime gameTime)

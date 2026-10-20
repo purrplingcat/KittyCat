@@ -10,9 +10,9 @@ namespace PurrplingCore.Toolkit.Rendering;
 /// Routes submissions to layer passes and composes their output when the frame is flushed.
 /// </summary>
 /// <remarks>
-/// A frame opens lazily on the first submission after a flush, so submitters never depend on
-/// running in a particular order relative to each other or to the flush. Flushing runs the
-/// sequence prepare, execute, compose. Each pass owns its data and any sorting it requires.
+/// BeginFrame explicitly clears submissions and samples the screen layout. Flushing runs the
+/// sequence prepare, execute, compose without discarding the frame, so it can be replayed.
+/// Each pass owns its data and any sorting it requires.
 /// </remarks>
 public class Renderer2D : IRenderer
 {
@@ -35,7 +35,6 @@ public class Renderer2D : IRenderer
     private RenderTarget2D? _output;
     private RenderTarget2D? _outputScratch;
     private int _frameId;
-    private int _openFrame = -1;
     private bool _initialized;
     private bool _disposed;
 
@@ -146,11 +145,10 @@ public class Renderer2D : IRenderer
 
     public void BeginFrame()
     {
-        var isNewFrame = _openFrame != _frameId;
-        _openFrame = _frameId;
+        _frameId++;
         _text.Clear();
 
-        if (isNewFrame && _initialized)
+        if (_initialized)
         {
             ReadScreenLayout();
             SynchronizeCameraViewports();
@@ -171,11 +169,7 @@ public class Renderer2D : IRenderer
             throw new InvalidOperationException("Initialize the renderer before flushing it.");
         }
 
-        if (!Enabled) goto AdvanceFrame;
-
-        var hasQueuedFrame = _openFrame == _frameId;
-
-        if (!hasQueuedFrame) BeginFrame();
+        if (!Enabled) return;
 
         var diagnostics = Diagnostics;
         var totalStart = diagnostics is null ? 0 : Stopwatch.GetTimestamp();
@@ -230,10 +224,6 @@ public class Renderer2D : IRenderer
             executeMilliseconds,
             composeMilliseconds
         );
-
-    AdvanceFrame:
-        // Keep frame advancement in one epilogue for skipped and rendered frames.
-        _frameId++;
     }
 
     private RenderTarget2D? ResolveOutput()
@@ -457,8 +447,6 @@ public class Renderer2D : IRenderer
 
         if (!Enabled || !layer.Enabled) return default;
 
-        OpenLayerFrame();
-
         return new LayerWriter<T>(layer, pass, _resources, _text);
     }
 
@@ -478,11 +466,6 @@ public class Renderer2D : IRenderer
         if (slot >= _layersById.Length) return null;
 
         return _layersById[slot];
-    }
-
-    private void OpenLayerFrame()
-    {
-        if (_openFrame != _frameId) BeginFrame();
     }
 
     private void SynchronizeCameraViewports()

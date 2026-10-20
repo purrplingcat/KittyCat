@@ -2,12 +2,15 @@
 
 The 2D renderer is optional. Draw systems, scenes, and ordinary objects submit data to layer passes; the renderer prepares and executes those passes only when it is flushed. Each pass owns its data and rendering strategy. The default `DrawCommandPass` accepts sprite, text, and primitive commands, while custom passes may accept any struct or render without queued data. The core types live in `PurrplingCore.Toolkit.Rendering`; DI integration and the optional game component live in `PurrplingCore.Rendering`. Neither ECS nor `SceneManager` is required to use the renderer.
 
+See [renderer usage examples](EXAMPLES.md) for global, world-owned, shared-world, and manually driven renderers, including frame ownership and draw ordering.
+
 The [particle system](../Ecs/Particles/README.md) can use this renderer through a small game-owned draw wrapper. Particle simulation itself does not require a renderer; the low-level Toolkit sprite helper can also draw particle states without ECS.
 
 ## Choose an execution mode
 
 | Mode | Register | Who calls `Initialize` and `Flush`? |
 | --- | --- | --- |
+| World-owned renderer | `AddWorld(...).AddRenderer<WorldRendering>()` | `WorldRenderer` initializes it, begins each frame before draw systems, and flushes afterward |
 | Automatic renderer | `AddRenderer(key).AddLayer(...).AddDrawComponent()` | `RendererGameComponent`, via `Game.Components` |
 | Manual renderer via DI | `AddRenderer(key)` | Your controller calls `Initialize(device)` and `Flush()` |
 | No DI integration | `new Renderer2D(name, options)` | Your code owns initialization, flushing, and disposal |
@@ -17,11 +20,70 @@ Renderer identity is a keyed-service key of type `object`. Use the same key for 
 The flow is:
 
 ```text
+owner calls renderer.BeginFrame() -> previous submissions and text are cleared
 producer.Draw() -> renderer.Context.Batch<T>(id).Submit(...) -> pass-owned submissions
 RendererGameComponent.Draw() or your own Draw() -> renderer.Flush()
 ```
 
-Submission must happen before the relevant flush **in the same frame**. `Flush` never initializes GPU resources: call `Initialize` first. `Initialize` binds the renderer to that device; every subsequent call throws. A `RendererGameComponent` does this during its `Initialize` lifecycle; a manually driven renderer is your responsibility. Flushing before initialization throws `InvalidOperationException`.
+The owner calls `BeginFrame()` before producers submit a new frame. Neither `Batch` nor `Flush` begins a frame. A flush retains submissions and text, so the same frame can be replayed until the next `BeginFrame()`. For world-owned rendering, `WorldRenderer` pairs this reset with flushing through the world's drawing lifecycle. Other rendering paths choose their boundary in the code that owns their submissions, not in the main game class unless it actually draws through that renderer.
+
+`Flush` never initializes GPU resources: call `Initialize` first. `Initialize` binds the renderer to that device; every subsequent call throws. A `RendererGameComponent` does this during its `Initialize` lifecycle; a manually driven renderer is your responsibility. Flushing before initialization throws `InvalidOperationException`.
+
+```csharp
+renderer.BeginFrame();
+renderer.Context.Batch(Layers.Sprites).Draw(texture, position, Color.White);
+renderer.Flush();
+renderer.Flush();
+```
+
+Both flushes replay the same queue. Submitting more data between flushes appends to that queue; call `BeginFrame()` only when the existing data should be discarded. Each flush reruns preparation, passes, post-processing, and composition; it does not merely copy a cached final image. Custom passes must retain their submissions in `Prepare` and `Execute`, and discard them only in `ClearSubmissions`. Keep referenced textures, fonts, and buffers alive through the last replay. Replaying with another camera does not rerun submission-time culling.
+
+## World-owned renderer and services
+
+Use `AddRenderer<TConfiguration>()` on an `IWorldServicesBuilder` to attach a renderer to each instance of that world. `TConfiguration` implements `IRendererConfiguration` and is created through DI inside the world's scope. It can therefore depend on world-owned services, such as a camera. The `WorldRendering` module and `SpriteDrawSystem` used here are defined below.
+
+```csharp
+using Friflo.Engine.ECS.Systems;
+using Microsoft.Extensions.DependencyInjection;
+using PurrplingCore.Ecs;
+using PurrplingCore.Ecs.Attributes;
+using PurrplingCore.Ecs.DI;
+using PurrplingCore.Ecs.Systems;
+using PurrplingCore.Ecs.WorldBuilding;
+using PurrplingCore.Rendering;
+using PurrplingCore.Toolkit.Graphics;
+using PurrplingCore.Toolkit.Hosting;
+using PurrplingCore.Toolkit.Rendering;
+
+public sealed class ExampleWorldServices : IServiceModule
+{
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services.AddWorld(ConfigureWorld)
+            .AddService<Camera2D>()
+            .AddRenderer<WorldRendering>();
+        services.AddRenderer(RendererKey.Screen)
+            .AddLayer(Layers.Hud)
+            .AddDrawComponent(DrawStage.Screen);
+        services.AddWorldController();
+    }
+
+    private static void ConfigureWorld(IWorldBlueprint world)
+    {
+        world.AddSystem<SpriteDrawSystem>();
+    }
+}
+```
+
+World draw systems inject an ordinary, unkeyed `RenderContext`. The scoped `WorldRenderer` owns its `IRenderer` and exposes the same context. It keeps lifecycle integration together: initialize during `World.Initialize`, begin a new frame through `OnDrawing` before all draw systems, flush through `OnDrawn` afterward, and dispose with the world scope. No game callback or begin-frame helper system is needed. Additional `Flush` calls replay the retained frame; the next `World.Draw` begins a new frame. The underlying renderer still supports explicit `BeginFrame` in manually driven paths. Do not also add a renderer game component or initialize it yourself. Repeated registration of the same configuration module is deduplicated per marker. One world owns one renderer; multiple distinct configuration modules contribute to that renderer.
+
+The independent screen renderer has a separate frame boundary. The main game class does not manage that renderer. The world's `WorldRenderer` only begins and flushes its own renderer and does not reset the global screen renderer.
+
+The globally keyed screen renderer remains independent, so UI or scenes can render without any world. World-owned renderers do not join the application-wide `IEnumerable<IRenderer>`. Two worlds, including two instances of the same marker, have separate render queues and GPU resources. They may share the engine's main `Screen` and `GraphicsDevice`; disposing one world does not dispose those shared services or another renderer. Worlds without `AddRenderer` do not require graphics services.
+
+`AddService<TService>()`, `AddService<TService, TImplementation>()`, and the factory overload provide the same world lifetime for arbitrary services. Constructor injection selects the implementation registered for the current marker; another world instance gets its own value, and the world scope disposes disposable services once. The unkeyed resolver uses `TryAdd`, so an existing application registration is preserved instead of rejected. A later application registration can override it using normal DI precedence. Consumers and modules then receive that application service, whose lifetime and disposal remain controlled by its registration. Global renderers use keyed contracts and are unaffected.
+
+Group registrations in an `IWorldFeature.ConfigureServices(IWorldServicesBuilder)` implementation and opt in with `AddFeature<TFeature>()`. Features run immediately during service registration and are deduplicated per feature type and marker; they are not runtime service modules. Register blueprint modules with `AddModule<TModule>()` or `AddModule(factory)`. All blueprint modules, including `Configure` callback wrappers, are scoped to the world and may inject world-owned services. Register a type or a per-world factory, not a shared module instance. `DeriveWorld<TMarker>()` inherits blueprint modules, not service registrations: register their required services/features on the derived marker too.
 
 ## Logical screens and split-screen
 
@@ -76,7 +138,7 @@ For direct construction, use `new RendererOptions(screen)` or an object initiali
 
 `ResolutionScreen` caches the logical size and updates it through `Resolution.ResolutionChanged`, raised after `ApplyChanges()` and handled client-size changes. `SetResolution()` alone stages the change. In the default fixed virtual mode, a window resize changes the physical backbuffer without changing the logical size. In responsive virtual mode, a changed output aspect ratio also changes the logical size. In `MatchClient` mode, logical size copies the current client dimensions in every display mode. A fixed `Screen` has no resolution binding, and child regions derive their size from their parent. Choose the screen source during configuration; there is no method that switches an existing screen between fixed and resolution-bound modes.
 
-Screen layout is sampled at initialization and at the start of each frame, before camera synchronization. Applied changes affect targets and cameras on the next frame. Use `renderer.Screen.Size` for the screen's current logical size; `MatchScreen()` uses the frame's sampled logical size, and `MatchPresentation()` uses its sampled presentation bounds. The screen never changes global `Resolution` or allocates GPU resources. The renderer only reads the screen and output dimensions; it does not subscribe to device-reset events or manage the window. DI disposes its shared `ResolutionScreen`; callers dispose manually owned `ResolutionScreen` instances. Fixed screens and regions require no disposal, and the renderer never owns their lifetime. Automatic and scene-owned renderers use exactly the same sizing and presentation code.
+Screen layout is sampled at initialization and on every explicit `BeginFrame`, before camera synchronization. Applied changes affect targets and cameras on the next `BeginFrame`. Replaying without a reset keeps the sampled layout even if `OutputOverride` changes. Use `renderer.Screen.Size` for the screen's current logical size; `MatchScreen()` uses the frame's sampled logical size, and `MatchPresentation()` uses its sampled presentation bounds. The screen never changes global `Resolution` or allocates GPU resources. The renderer only reads the screen and output dimensions; it does not subscribe to device-reset events or manage the window. DI disposes its shared `ResolutionScreen`; callers dispose manually owned `ResolutionScreen` instances. Fixed screens and regions require no disposal, and the renderer never owns their lifetime. Automatic and scene-owned renderers use exactly the same sizing and presentation code.
 
 ### Virtual resolution modes
 
@@ -361,7 +423,7 @@ public sealed class ExampleRenderingServices : IServiceModule
 }
 ```
 
-The game adds registered `IGameComponent` services to `Game.Components` during `Game.Initialize()`. Each renderer component initializes and flushes only its keyed renderer. `layer.Order` orders layers **inside a renderer**; `drawOrder` on `AddDrawComponent` orders the component relative to other MonoGame components and defaults to `0`. Calling `AddDrawComponent` again adds another component, even with a different `drawOrder`. `DrawStage` contains optional `int` anchors for components, not renderers; a game can use its own values.
+The game adds registered `IGameComponent` services to `Game.Components` during `Game.Initialize()`. Each renderer component initializes and flushes only its keyed renderer. It subscribes to the game's `BeginDraw` event to call `BeginFrame` before the draw components run. `layer.Order` orders layers **inside a renderer**; `drawOrder` on `AddDrawComponent` orders the component relative to other MonoGame components and defaults to `0`. Calling `AddDrawComponent` again adds another component, even with a different `drawOrder`. `DrawStage` contains optional `int` anchors for components, not renderers; a game can use its own values.
 
 At equal `DrawOrder`, MonoGame 3.8.5 draws components in registration order. Give each renderer component an explicit draw order after its producers. If two renderers need to be flushed at different points in the MonoGame draw loop, register two components with different `drawOrder` values.
 
@@ -375,11 +437,11 @@ services.AddRenderer("World")
     .AddDrawComponent();
 ```
 
-The renderer also joins `IEnumerable<IRenderer>`. Inject it with `[FromKeyedServices(RendererKey.World)] IRenderer renderer`, then submit through `renderer.Context.Batch(Layers.Sprites)`. Omit `.AddDrawComponent()` for manual ownership; your controller must call `Initialize` and `Flush`. Add an `IRendererConfiguration` module under the same key when camera, effect, or other service dependencies must be injected; never build a second provider inside `ConfigureServices`.
+The renderer also joins `IEnumerable<IRenderer>`. Inject it with `[FromKeyedServices(RendererKey.World)] IRenderer renderer`, then submit through `renderer.Context.Batch(Layers.Sprites)`. Begin the frame explicitly before any producer submits. Omit `.AddDrawComponent()` for manual ownership; your controller must call `Initialize`, `BeginFrame`, and `Flush`. Add an `IRendererConfiguration` module under the same key when camera, effect, or other service dependencies must be injected; never build a second provider inside `ConfigureServices`.
 
 ### Submitting from ECS
 
-Friflo draw systems only submit; they do not call `Flush` or `SpriteBatch.Begin/End`. Here is the same chunk-iteration style used by KittyCat (Friflo.Engine.ECS 3.6.0):
+Friflo draw systems only submit; they do not call `Flush` or `SpriteBatch.Begin/End`. World-owned renderers provide an unkeyed context, as used by KittyCat below (Friflo.Engine.ECS 3.6.0). For a globally keyed renderer, use `[FromKeyedServices(RendererKey.World)] RenderContext context` instead.
 
 ```csharp
 using Friflo.Engine.ECS.Systems;
@@ -390,12 +452,12 @@ using PurrplingCore.Ecs.Systems;
 using PurrplingCore.Toolkit.Rendering;
 
 [System<DrawSystemGroup>]
-public sealed class SpriteDrawSystem([FromKeyedServices(RendererKey.World)] IRenderer renderer)
+public sealed class SpriteDrawSystem(RenderContext context)
     : QuerySystem<Position2D, Sprite2D>
 {
     protected override void OnUpdate()
     {
-        var writer = renderer.Context.Batch(Layers.Sprites);
+        var writer = context.Batch(Layers.Sprites);
         foreach (var (positions, sprites, entities) in Query.Chunks)
         {
             for (var index = 0; index < entities.Length; index++)
@@ -409,7 +471,7 @@ public sealed class SpriteDrawSystem([FromKeyedServices(RendererKey.World)] IRen
 }
 ```
 
-`Position2D` and `Sprite2D` above are game-owned Friflo components; provide your own definitions (`IComponent`), with `Vector2 Value`, `Texture2D Texture`, and `bool IsVisible` respectively. Register the system in your world blueprint (KittyCat uses `world.AddSystem<StarCatcherDrawSystem>()`). Set the world renderer component's `drawOrder` after the world controller so the system submits before the renderer flushes. See `KittyCat/KittyCat.Game/Ecs/Systems/StarCatcherDrawSystem.cs` and `KittyCat/KittyCat.Game/Ecs/Systems/StarCatcherHudSystem.cs` for the in-repo direct-rendering examples.
+`Position2D` and `Sprite2D` above are game-owned Friflo components; provide your own definitions (`IComponent`), with `Vector2 Value`, `Texture2D Texture`, and `bool IsVisible` respectively. Register the system in your world blueprint (KittyCat uses `world.AddSystem<StarCatcherDrawSystem>()`). A world-owned renderer flushes after the draw systems automatically. For a globally keyed renderer, set its component's `drawOrder` after the world controller. See `KittyCat/KittyCat.Game/Ecs/Systems/StarCatcherDrawSystem.cs` and `KittyCat/KittyCat.Game/Ecs/Systems/StarCatcherHudSystem.cs` for world-owned rendering and independent global HUD rendering.
 
 ### Submitting from an ordinary object
 
@@ -486,6 +548,7 @@ public sealed class CutsceneScene(
 
     protected override void Draw(GameTime time)
     {
+        renderer.BeginFrame();
         Context.Batch(Layers.Menu).Draw(_image, Vector2.Zero, Color.White);
         renderer.Flush();
     }
@@ -527,6 +590,7 @@ public sealed class StandaloneGame : PurrplingCore.Toolkit.Game
 
     protected override void Draw(GameTime gameTime)
     {
+        _renderer.BeginFrame();
         _renderer.Context.Batch(World).Draw(_hero, new Vector2(32, 32), Color.White);
         _renderer.Flush();
         base.Draw(gameTime);
@@ -553,11 +617,11 @@ using var host = builder.Build();
 return host.Run();
 ```
 
-With this setup, nothing invokes `Initialize` or `Flush` for you. `Initialize` creates GPU resources; `Flush` requires it and must run on the graphics thread after submission. This example owns a fixed 320-by-180 screen independently of the backbuffer. Pass a `ResolutionScreen` when logical size should follow that source instead. Dispose the renderer and any caller-owned `ResolutionScreen` separately; a fixed `Screen` requires no disposal. No component is needed to synchronize screen size.
+With this setup, nothing invokes `Initialize`, `BeginFrame`, or `Flush` for you. `Initialize` creates GPU resources; `Flush` requires it and must run on the graphics thread after submission. This example owns a fixed 320-by-180 screen independently of the backbuffer. Pass a `ResolutionScreen` when logical size should follow that source instead. Dispose the renderer and any caller-owned `ResolutionScreen` separately; a fixed `Screen` requires no disposal. No component is needed to synchronize screen size.
 
 ### Manual screen size and camera viewport
 
-Use a fixed `Screen` for an independent logical resolution. Enable `SyncCameraViewport` on camera layers to size the camera viewport and center its origin from the resolved layer target. The renderer traverses configured layers to synchronize their cameras during initialization and when each new frame opens, before returning its first layer writer. Applied changes to a `ResolutionScreen` take effect at the start of the next frame without reinitializing the renderer. A camera shared by several layers may receive the same viewport more than once; `Camera2D` skips unchanged viewport sizes. Sharing a camera between layers with different target dimensions makes the last synchronized viewport win; use separate cameras instead:
+Use a fixed `Screen` for an independent logical resolution. Enable `SyncCameraViewport` on camera layers to size the camera viewport and center its origin from the resolved layer target. The renderer traverses configured layers to synchronize their cameras during initialization and each explicit `BeginFrame`, before producers obtain layer writers. Applied changes to a `ResolutionScreen` take effect on the next `BeginFrame` without reinitializing the renderer. A camera shared by several layers may receive the same viewport more than once; `Camera2D` skips unchanged viewport sizes. Sharing a camera between layers with different target dimensions makes the last synchronized viewport win; use separate cameras instead:
 
 ```csharp
 var camera = new Camera2D();
@@ -576,6 +640,7 @@ options.AddLayer(World, new RenderLayerOptions
 var renderer = new Renderer2D("World", options);
 renderer.Initialize(graphicsDevice);
 
+renderer.BeginFrame();
 renderer.Context.Batch(World).Draw(texture, position, Color.White);
 renderer.Flush();
 ```
@@ -620,6 +685,7 @@ public sealed class RawMonoGame : Microsoft.Xna.Framework.Game
 
     protected override void Draw(GameTime gameTime)
     {
+        _renderer.BeginFrame();
         _renderer.Context.Batch(World).Draw(_hero, new Vector2(32, 32), Color.White);
         _renderer.Flush();
         base.Draw(gameTime);
@@ -938,6 +1004,7 @@ Run the benchmark after renderer initialization from a development command or is
 ```csharp
 var result = RendererBenchmark.Run(() =>
 {
+    renderer.BeginFrame();
     renderer.Context.Batch(Layers.Sprites).Draw(sprite, position, Color.White);
     renderer.Flush();
 }, warmupFrames: 60, measuredFrames: 300);
@@ -951,8 +1018,8 @@ logger.LogInformation("Renderer avg {Average:F2} ms, p95 {P95:F2} ms",
 
 ## Lifecycle and current limits
 
-- Do not call `Flush` from a constructor, host service configuration, or before device initialization. An explicit `Initialize` must complete first. `RendererGameComponent.Initialize` handles this for its group; manually driven groups/renderers must do it themselves.
-- The first compatible `Batch` request after a flush opens a fresh frame and clears pass-owned submissions. `BeginFrame()` is available for explicit clearing but is not required each frame. Calling it **after** submitting data discards that data. Submitting again after an early flush starts a new queue.
+- Do not call `Flush` from a constructor, host service configuration, or before device initialization. An explicit `Initialize` must complete first. World-owned renderers initialize with the world; `RendererGameComponent.Initialize` handles globally scheduled renderers. Manually driven renderers must do it themselves.
+- Only an explicit `BeginFrame()` clears pass submissions and text and samples screen layout. Call it before producers when starting new data. `Batch` and `Flush` never clear the queue; repeated flushes replay it, and additional submissions append until the next explicit reset.
 - A renderer is only flushed by the controller or `RendererGameComponent` that owns it. Missing or incompatible optional layers return an inactive `LayerWriter<T>`; required access rejects those composition errors. Compatible disabled renderers and layers return inactive writers in either mode.
 - The renderer currently has no built-in multithreaded submission synchronization. Submit and flush on the game/graphics thread. Pass queues and text buffers reuse capacity but may grow on their first large frame; layer and output targets are created when first used and recreated when their size changes. Post-process scratch targets are recreated when their source dimensions or format changes.
 - `SpriteBatchBatcher` is the current default; `DrawCommandPass` batches consecutive sprite/text commands and closes the batch before drawing primitives. Text is submitted through a reused `StringBuilder` because MonoGame 3.8.5 has no `ReadOnlySpan<char>` `DrawString` overload. Measure allocation and draw-call targets on the actual workload rather than assuming they are always zero.

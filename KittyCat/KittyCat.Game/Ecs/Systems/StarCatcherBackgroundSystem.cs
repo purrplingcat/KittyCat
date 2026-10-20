@@ -1,7 +1,6 @@
 using System;
 using Friflo.Engine.ECS.Systems;
 using KittyCat.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.Xna.Framework;
 using PurrplingCore.Ecs.Attributes;
@@ -25,7 +24,7 @@ public sealed class StarCatcherBackgroundSystem : BaseSystem
     public StarCatcherBackgroundSystem(
         GraphicsManager graphics,
         IOptions<StarCatcherOptions> options,
-        [FromKeyedServices(KittyCatRendererKey.World)] RenderContext context)
+        RenderContext context)
     {
         _graphics = graphics;
         _context = context;
