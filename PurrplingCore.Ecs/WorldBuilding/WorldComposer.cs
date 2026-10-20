@@ -1,9 +1,9 @@
-using System.Runtime.CompilerServices;
 using Friflo.Engine.ECS;
 using Friflo.Engine.ECS.Systems;
 using Microsoft.Extensions.DependencyInjection;
 using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.Systems;
+using PurrplingCore.Toolkit.Collections;
 
 namespace PurrplingCore.Ecs.WorldBuilding;
 
@@ -15,11 +15,12 @@ public sealed class WorldComposer
     private readonly World _world;
     private readonly SystemRegistry _systems;
     private readonly IServiceProvider _services;
-    private readonly Action<WorldCompositionContext>[] _composedCallbacks;
-    private readonly Action<WorldInitializedContext>[] _initializedCallbacks;
-    private readonly Action<WorldUpdatedContext>[] _updatedCallbacks;
-    private readonly Action<WorldDrawnContext>[] _drawnCallbacks;
-    private readonly Action<WorldDisposedContext>[] _disposedCallbacks;
+    private readonly CallbackExecutor<WorldCompositionContext> _composedCallbacks;
+    private readonly CallbackExecutor<WorldInitializedContext> _initializedCallbacks;
+    private readonly CallbackExecutor<WorldUpdatedContext> _updatedCallbacks;
+    private readonly CallbackExecutor<WorldDrawingContext> _drawingCallbacks;
+    private readonly CallbackExecutor<WorldDrawnContext> _drawnCallbacks;
+    private readonly CallbackExecutor<WorldDisposedContext> _disposedCallbacks;
     private bool _composed;
 
     /// <summary>
@@ -34,11 +35,12 @@ public sealed class WorldComposer
         _world = world;
         _systems = blueprint.Systems;
         _services = services;
-        _composedCallbacks = [.. blueprint.Lifecycle.Composed];
-        _initializedCallbacks = [.. blueprint.Lifecycle.Initialized];
-        _updatedCallbacks = [.. blueprint.Lifecycle.Updated];
-        _drawnCallbacks = [.. blueprint.Lifecycle.Drawn];
-        _disposedCallbacks = [.. blueprint.Lifecycle.Disposed];
+        _composedCallbacks = blueprint.Lifecycle.ComposedExecutor.Snapshot();
+        _initializedCallbacks = blueprint.Lifecycle.InitializedExecutor.Snapshot();
+        _updatedCallbacks = blueprint.Lifecycle.UpdatedExecutor.Snapshot();
+        _drawingCallbacks = blueprint.Lifecycle.DrawingExecutor.Snapshot();
+        _drawnCallbacks = blueprint.Lifecycle.DrawnExecutor.Snapshot();
+        _disposedCallbacks = blueprint.Lifecycle.DisposedExecutor.Snapshot();
     }
 
     /// <summary>
@@ -53,7 +55,7 @@ public sealed class WorldComposer
         var provider = new SystemProvider(_systems, ResolveSystem, _world.Signature);
         provider.Populate(_world.SystemRoot, typeof(SystemRoot));
         AttachLifecycleCallbacks();
-        ExecuteCallbacks(_composedCallbacks, new WorldCompositionContext(_world, provider, _services));
+        _composedCallbacks.Execute(new WorldCompositionContext(_world, provider, _services));
     }
 
     private BaseSystem ResolveSystem(Type type)
@@ -69,32 +71,30 @@ public sealed class WorldComposer
 
     private void AttachLifecycleCallbacks()
     {
-        if (_initializedCallbacks.Length > 0)
+        if (_initializedCallbacks.Count > 0)
             _world.Initialized += OnInitialized;
-        if (_updatedCallbacks.Length > 0)
+        if (_updatedCallbacks.Count > 0)
             _world.Updated += OnUpdated;
-        if (_drawnCallbacks.Length > 0)
+        if (_drawingCallbacks.Count > 0)
+            _world.Drawing += OnDrawing;
+        if (_drawnCallbacks.Count > 0)
             _world.Drawn += OnDrawn;
-        if (_disposedCallbacks.Length > 0)
+        if (_disposedCallbacks.Count > 0)
             _world.Disposed += OnDisposed;
     }
 
     private void OnInitialized(object? sender, EventArgs args) =>
-        ExecuteCallbacks(_initializedCallbacks, new WorldInitializedContext(_world, _services));
+        _initializedCallbacks.Execute(new WorldInitializedContext(_world, _services));
 
     private void OnUpdated(IWorld sender, UpdateTick tick) =>
-        ExecuteCallbacks(_updatedCallbacks, new WorldUpdatedContext(_world, tick, _services));
+        _updatedCallbacks.Execute(new WorldUpdatedContext(_world, tick, _services));
+
+    private void OnDrawing(IWorld sender, UpdateTick tick) =>
+        _drawingCallbacks.Execute(new WorldDrawingContext(_world, tick, _services));
 
     private void OnDrawn(IWorld sender, UpdateTick tick) =>
-        ExecuteCallbacks(_drawnCallbacks, new WorldDrawnContext(_world, tick, _services));
+        _drawnCallbacks.Execute(new WorldDrawnContext(_world, tick, _services));
 
     private void OnDisposed(object? sender, EventArgs args) =>
-        ExecuteCallbacks(_disposedCallbacks, new WorldDisposedContext(_world, _services));
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void ExecuteCallbacks<TContext>(ReadOnlySpan<Action<TContext>> callbacks, TContext context)
-    {
-        for (var index = 0; index < callbacks.Length; index++)
-            callbacks[index](context);
-    }
+        _disposedCallbacks.Execute(new WorldDisposedContext(_world, _services));
 }

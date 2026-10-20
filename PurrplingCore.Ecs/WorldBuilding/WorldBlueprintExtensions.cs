@@ -39,6 +39,17 @@ public static class WorldBlueprintExtensions
     }
 
     /// <summary>
+    /// Registers a callback invoked before the world's draw systems run.
+    /// </summary>
+    public static IWorldBlueprint OnDrawing(this IWorldBlueprint blueprint, Action<WorldDrawingContext> callback)
+    {
+        ArgumentNullException.ThrowIfNull(blueprint);
+        ArgumentNullException.ThrowIfNull(callback);
+        blueprint.Lifecycle.Drawing.Add(callback);
+        return blueprint;
+    }
+
+    /// <summary>
     /// Registers a callback invoked after the world is drawn.
     /// </summary>
     public static IWorldBlueprint OnDrawn(this IWorldBlueprint blueprint, Action<WorldDrawnContext> callback)

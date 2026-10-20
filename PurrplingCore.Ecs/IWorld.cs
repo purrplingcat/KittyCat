@@ -39,6 +39,11 @@ public interface IWorld
     public event Action<IWorld, UpdateTick> Updated;
 
     /// <summary>
+    /// Occurs before the world's draw systems run.
+    /// </summary>
+    public event Action<IWorld, UpdateTick> Drawing;
+
+    /// <summary>
     /// Occurs after the world's systems have been drawn.
     /// </summary>
     public event Action<IWorld, UpdateTick> Drawn;

@@ -74,6 +74,11 @@ public class World : IWorld, IDisposable
     public event Action<IWorld, UpdateTick>? Updated;
 
     /// <summary>
+    /// Occurs before the world's draw systems run.
+    /// </summary>
+    public event Action<IWorld, UpdateTick>? Drawing;
+
+    /// <summary>
     /// Occurs after the world's systems have been drawn.
     /// </summary>
     public event Action<IWorld, UpdateTick>? Drawn;
@@ -197,6 +202,7 @@ public class World : IWorld, IDisposable
             );
         }
 
+        Drawing?.Invoke(this, tick);
         _drawSystems.Update(tick);
         Drawn?.Invoke(this, tick);
     }
@@ -247,6 +253,7 @@ public class World : IWorld, IDisposable
             {
                 Initialized = null;
                 Updated = null;
+                Drawing = null;
                 Drawn = null;
                 OnDispose();
 

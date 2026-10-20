@@ -2,7 +2,7 @@
 
 Date: 2026-10-05.
 
-Status: Research and user alignment complete. Saved for later implementation; not implemented. No runtime code changed and no builds or tests run while preparing or saving this plan. Saving this document does not authorize implementation.
+Status: Partially implemented (2026-10-20). `IWorldFeature`, `AddFeature<T>`, world-scoped `AddModule<T>`/`AddModule(factory)`, and per-world `AddService` registrations are available. All blueprint modules, including `Configure` callback wrappers, share the world-scoped lifetime; shared-instance module registration is not supported. World services and feature extensions have separate classes in `PurrplingCore.Ecs/DI`. Optional world-owned rendering is implemented in `PurrplingCore/Rendering`, with global UI rendering preserved. World options, particle `TimeScale`, and the particle-specific rendering package below remain planned, not implemented. The remaining work is not authorized by this status update.
 
 ## Goal and Confirmed Decisions
 
@@ -18,7 +18,7 @@ Recommended composition uses standard `Microsoft.Extensions.Options`, ordinary c
 
 ## Verified Local Findings
 
-1. [ECS service registration](../PurrplingCore.Ecs/DI/ServiceCollectionExtensions.cs): `AddWorld`/`AddWorld<T>` use `TryAddKeyedSingleton` factories; multiple calls for the same marker accumulate modules. `AddModule<T>` registers keyed SINGLETON `IWorldModule` using `TryAddEnumerable`. `Configure` adds a delegate module per call.
+1. [ECS service registration](../PurrplingCore.Ecs/DI/ServiceCollectionExtensions.cs): `AddWorld`/`AddWorld<T>` use `TryAddKeyedSingleton` factories; multiple calls for the same marker accumulate modules. `AddModule<T>` and `AddModule(factory)` register keyed scoped `IWorldModule` using `TryAddEnumerable`. `Configure` adds a scoped delegate module per call.
 2. [ManagedWorld](../PurrplingCore.Ecs/ManagedWorld.cs): `Create` creates a scope and initializes its `WorldContext` before modules and systems are resolved. Each `ManagedWorld` owns scope disposal.
 3. [WorldFactory](../PurrplingCore.Ecs/WorldFactory.cs): `DefaultWorldFactory.CreateWorld` resolves keyed modules from `world.Services`, orders by `Order`, configures a fresh blueprint, composes via world-scoped services. Therefore keyed scoped modules fit without changing factory code.
 4. [WorldComposer](../PurrplingCore.Ecs/WorldComposer.cs): `ResolveSystem` prefers marker-keyed registrations then `ActivatorUtilities.GetServiceOrCreateInstance`. Scoped constructor dependencies already supported; no resolver expansion needed. World systems must not be singletons.
@@ -49,7 +49,7 @@ Recommended composition uses standard `Microsoft.Extensions.Options`, ordinary c
 - Shared defaults are applied to all names by a typed `IConfigureNamedOptions` class. World-specific overrides are DI-created `IPostConfigureOptions` classes selecting `WorldOptions.GetName(signature)`. Use standard `services.ConfigureOptions<TConfiguration>()` registration, not custom callbacks.
 - Effective precedence: options property defaults -> common typed configuration/config section -> marker-specific post-configuration -> validation. Missing override inherits shared defaults; unspecified fields in a bound override retain shared values. Never mutate an options instance from gameplay/render code.
 - Same marker instances have the same values but their own scoped options instances/adapters; different markers cannot leak settings. No hot reload guarantee: changes do not mutate existing world systems; new worlds get a new snapshot.
-- Add `AddScopedModule<TModule>()` beside the existing singleton `AddModule<TModule>()` for configuration-dependent composition modules. Keep existing module lifetimes and public signatures unchanged. A singleton module must not inject `IWorldOptions`/`IWorldContext`; document this clearly.
+- Use scoped `AddModule<TModule>()` or `AddModule(factory)` for all blueprint composition modules. Resolve their dependencies from the actual world's scope, including `IWorldOptions`/`IWorldContext`. `Configure` wrappers have the same scoped lifetime. Do not add a separate lifetime-specific module API or shared-instance overload.
 
 ### Particle Simulation Package
 
@@ -73,7 +73,7 @@ Recommended composition uses standard `Microsoft.Extensions.Options`, ordinary c
 ## Implementation Steps (Sequential Dependencies)
 
 1. Core packaging and scoped configuration (first independent verification gate).
-   Add `IWorldFeature`, `AddFeature<T>`, the marker-name helper, `IWorldOptions<T>` adapter registration, and `AddScopedModule<T>`. Preserve `AddWorld`, `WorldFactory`, `WorldComposer`, `SystemProvider`, and existing singleton module contracts. Validate immediately with a small external harness: immediate feature registration from inside `IServiceModule`, two features composing the same world, repeat deduplication, two markers/options isolation, same marker two scopes, and a scoped module selecting a system from world options. No changes to hosting execution are necessary.
+   Add `IWorldFeature`, `AddFeature<T>`, the marker-name helper, and `IWorldOptions<T>` adapter registration. Use the unified world-scoped `AddModule` API. Preserve `AddWorld`, `WorldFactory`, `WorldComposer`, and `SystemProvider`. Validate immediately with focused tests: immediate feature registration from inside `IServiceModule`, two features composing the same world, repeat deduplication, two markers/options isolation, same marker two scopes, and a module selecting a system from world options. No changes to hosting execution are necessary.
 
 2. Simulation package (depends on step 1).
    Adapt `AddParticleModule` to `ParticlesFeature`, add `TimeScale` options/default configuration/validation, and consume options in `ParticleUpdateSystem` with standalone constructor compatibility. Validate immediately: 1x unchanged, 0x paused, 0.5x and 2x expected position/lifetime, invalid scale and scaled overflow failures, deletion playback unchanged, and headless/textureless use without renderer services.
@@ -92,7 +92,7 @@ Recommended composition uses standard `Microsoft.Extensions.Options`, ordinary c
 Paths below are relative to the repository root so this plan remains portable.
 
 Existing:
-- [PurrplingCore.Ecs/DI/ServiceCollectionExtensions.cs](../PurrplingCore.Ecs/DI/ServiceCollectionExtensions.cs): `AddEcsCoreServices`, `AddFeature`, `AddScopedModule`; retain existing builders and registrations.
+- [PurrplingCore.Ecs/DI/ServiceCollectionExtensions.cs](../PurrplingCore.Ecs/DI/ServiceCollectionExtensions.cs): `AddEcsCoreServices`, scoped `AddModule` and `Configure`; retain the existing builder and factory composition.
 - [PurrplingCore/Ecs/Particles/ParticleModule.cs](../PurrplingCore/Ecs/Particles/ParticleModule.cs): retain stateless `ParticleModule`, add package registration/configuration types or adjacent narrowly scoped types, keep `AddParticleModule` compatibility.
 - [PurrplingCore/Ecs/Particles/ParticleUpdateSystem.cs](../PurrplingCore/Ecs/Particles/ParticleUpdateSystem.cs): constructor/configuration handling and scaled time only.
 - [PurrplingCore/Ecs/Particles/README.md](../PurrplingCore/Ecs/Particles/README.md): feature setup, options precedence/scopes, rendering opt-in.
@@ -115,7 +115,7 @@ Reference only, no changes planned:
 
 - Composition: package invoked inside `KittyCatGameServices.ConfigureServices` immediately contributes registrations; no child service-module recursion assumption; two packages retain both contributions; repeat opt-in no duplicate systems/configurators; two markers each get correct modules. Rendering dependency on simulation is registered once.
 - Configuration: missing marker overrides inherits shared defaults; post-override precedes validation; `IOptions<T>` default remains global; `IWorldOptions<T>` selects marker named snapshot; systems and scoped modules see same `Value` in one scope; instances cannot mutate another world; flags/name irrelevant to configuration identity.
-- Lifetimes: `ValidateScopes` and `ValidateOnBuild` enabled in test provider; scoped world module can depend on world options; existing singleton modules remain valid; disposing one world disposes its adapter/scoped modules without invalidating another. Do not resolve scoped adapter at root.
+- Lifetimes: `ValidateScopes` and `ValidateOnBuild` enabled in test provider; all blueprint modules are scoped and can depend on world options; verify type, factory and `Configure` registrations. Disposing one world disposes its adapter/modules exactly once without invalidating another. Do not resolve scoped adapters or modules at root.
 - Simulation: exact default behavior and parameterless API; scaling/pause; validation exceptions are outside per-particle loops; command playback deletes expired entities; do not read component refs after deletion; no texture/device/renderer requirements.
 - Rendering: missing configured renderer fails at composition; expected key/layer selection; no double render flush/game components; draw calls no DI lookup; GPU manual check and world lifetime retention check. Do not claim automatic renderer/layer creation.
 - Project builds: use the commands below. Prefer cheapest harness checks after first substantive edit. If temporary project needed, outside workspace; no solution churn.

@@ -85,32 +85,19 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds an instance of a world module to the configured world.
-    /// </summary>
-    public static IWorldServicesBuilder AddModule<TModule>(this IWorldServicesBuilder builder, TModule module)
-        where TModule : class, IWorldModule
-    {
-        builder.Services.TryAddEnumerable(
-            ServiceDescriptor.KeyedSingleton<IWorldModule>(builder.Key, module)
-        );
-        
-        return builder;
-    }
-
-    /// <summary>
-    /// Registers a world module type for the configured world.
+    /// Registers a module type instantiated once in each configured world's scope.
     /// </summary>
     public static IWorldServicesBuilder AddModule<TModule>(this IWorldServicesBuilder builder)
         where TModule : class, IWorldModule
     {
         builder.Services.TryAddEnumerable(
-            ServiceDescriptor.KeyedSingleton<IWorldModule, TModule>(builder.Key)
+            ServiceDescriptor.KeyedScoped<IWorldModule, TModule>(builder.Key)
         );
         return builder;
-    }  
+    }
 
     /// <summary>
-    /// Registers a factory that creates a world module for the configured world.
+    /// Registers a factory that creates a module once in each configured world's scope.
     /// </summary>
     public static IWorldServicesBuilder AddModule<TModule>(
         this IWorldServicesBuilder builder,
@@ -118,7 +105,7 @@ public static class ServiceCollectionExtensions
         where TModule : class, IWorldModule
     {
         builder.Services.TryAddEnumerable(
-            ServiceDescriptor.KeyedSingleton<IWorldModule, TModule>(
+            ServiceDescriptor.KeyedScoped<IWorldModule, TModule>(
                 serviceKey: builder.Key,
                 implementationFactory: (provider, _) => factory(provider)
              )
@@ -135,7 +122,10 @@ public static class ServiceCollectionExtensions
         if (signature == WorldSignature.None)
             throw new ArgumentException("World signature cannot be None.", nameof(signature));
 
-        return builder.AddModule(provider => new DeriveWorldModule(provider, signature, order));
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.KeyedScoped<IWorldModule, DeriveWorldModule>(
+                builder.Key, (provider, _) => new DeriveWorldModule(provider, signature, order)));
+        return builder;
     }
 
     /// <summary>
@@ -148,11 +138,12 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers an ordered callback that configures the world's blueprint.
+    /// Registers ordered blueprint configuration applied in each world's scope.
     /// </summary>
     public static IWorldServicesBuilder Configure(this IWorldServicesBuilder builder, Action<IWorldBlueprint> setupAction, int order = 0)
     {
-        builder.Services.AddKeyedSingleton<IWorldModule>(builder.Key, new DelegateWorldModule(order, setupAction));
+        builder.Services.AddKeyedScoped<IWorldModule>(builder.Key,
+            (_, _) => new DelegateWorldModule(order, setupAction));
         return builder;
     }
 

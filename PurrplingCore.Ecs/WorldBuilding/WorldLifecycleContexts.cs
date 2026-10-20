@@ -29,6 +29,14 @@ public readonly record struct WorldInitializedContext(World World, IServiceProvi
 public readonly record struct WorldUpdatedContext(World World, UpdateTick Tick, IServiceProvider Services);
 
 /// <summary>
+/// Provides the world, draw tick, and services before draw systems run.
+/// </summary>
+/// <param name="World">The world about to be drawn.</param>
+/// <param name="Tick">The tick used for drawing.</param>
+/// <param name="Services">The service provider scoped to the world.</param>
+public readonly record struct WorldDrawingContext(World World, UpdateTick Tick, IServiceProvider Services);
+
+/// <summary>
 /// Provides the world, draw tick, and services to draw callbacks.
 /// </summary>
 /// <param name="World">The drawn world.</param>

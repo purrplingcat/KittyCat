@@ -16,5 +16,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../PurrplingCore.Toolkit/PurrplingCore.Toolkit.csproj" />
+    <ProjectReference Include="../PurrplingCore/PurrplingCore.csproj" />
   </ItemGroup>
 </Project>
