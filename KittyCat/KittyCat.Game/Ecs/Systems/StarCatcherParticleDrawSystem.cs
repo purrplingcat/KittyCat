@@ -1,6 +1,7 @@
 using KittyCat.Configuration;
 using PurrplingCore.Ecs.Attributes;
 using PurrplingCore.Ecs.Particles;
+using PurrplingCore.Ecs.Particles.Systems;
 using PurrplingCore.Ecs.Systems;
 using PurrplingCore.Toolkit.Rendering;
 

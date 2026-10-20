@@ -1,4 +1,8 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using PurrplingCore.Ecs.DI;
+using PurrplingCore.Ecs.Particles.Systems;
 using PurrplingCore.Ecs.Systems;
 using PurrplingCore.Ecs.WorldBuilding;
 
@@ -20,6 +24,46 @@ public sealed class ParticleModule : IWorldModule
 }
 
 /// <summary>
+/// Configures particle simulation for one world marker.
+/// </summary>
+public sealed class ParticleOptions
+{
+    /// <summary>
+    /// Gets or sets the simulation speed multiplier. Zero pauses particle updates.
+    /// </summary>
+    public float TimeScale { get; set; } = 1f;
+}
+
+internal sealed class ParticleOptionsValidator : IValidateOptions<ParticleOptions>
+{
+    public ValidateOptionsResult Validate(string? name, ParticleOptions options)
+    {
+        return float.IsFinite(options.TimeScale) && options.TimeScale >= 0f
+            ? ValidateOptionsResult.Success
+            : ValidateOptionsResult.Fail("Particle TimeScale must be finite and nonnegative.");
+    }
+}
+
+/// <summary>
+/// Adds renderer-independent particle simulation and its world-specific options.
+/// </summary>
+public sealed class ParticlesFeature : IWorldFeature
+{
+    /// <summary>
+    /// Registers particle simulation for the configured world marker.
+    /// </summary>
+    public void ConfigureServices(IWorldServicesBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddOptions<ParticleOptions>();
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<ParticleOptions>, ParticleOptionsValidator>());
+        builder.AddModule<ParticleModule>();
+    }
+}
+
+/// <summary>
 /// Opt-in registration of renderer-independent particle simulation.
 /// </summary>
 public static class ParticleWorldServicesBuilderExtensions
@@ -29,6 +73,6 @@ public static class ParticleWorldServicesBuilderExtensions
     /// </summary>
     public static IWorldServicesBuilder AddParticleModule(this IWorldServicesBuilder builder)
     {
-        return builder.AddModule<ParticleModule>();
+        return builder.AddFeature<ParticlesFeature>();
     }
 }

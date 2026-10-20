@@ -9,6 +9,7 @@ using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.DI;
 using PurrplingCore.Ecs.Modules;
 using PurrplingCore.Ecs.Particles;
+using PurrplingCore.Ecs.Particles.Systems;
 using PurrplingCore.Ecs.WorldBuilding;
 using PurrplingCore.Rendering;
 using PurrplingCore.Scenes;
@@ -56,7 +57,7 @@ public class KittyCatGameServices : IServiceModule
             .AddWorld(ConfigureWorld)
             .AddService<Camera2D>()
             .AddRenderer<WorldRendererConfiguration>()
-            .AddParticleModule()
+            .AddFeature<ParticleRenderingFeature>()
             .AddModule<EntityCleanupModule>();
 
         // Keep screen-space UI independent of the world renderer's lifetime.
@@ -82,7 +83,6 @@ public class KittyCatGameServices : IServiceModule
         world.AddSystem<HeartSystem>();
         world.AddSystem<RestartGameSystem>();
         world.AddSystem<StarCatcherParticleSystem>();
-        world.AddSystem<StarCatcherParticleDrawSystem>();
         world.AddSystem<CameraStateRenderSyncSystem>();
         world.AddSystem<StarCatcherDebugInfoSystem>();
         world.AddSystem<StarCatcherInitializeSystem>();

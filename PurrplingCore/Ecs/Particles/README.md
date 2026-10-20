@@ -6,13 +6,13 @@ Particles are part of the engine. The reusable foundation lives in Toolkit; ECS 
 | --- | --- | --- |
 | `PurrplingCore.Toolkit.Particles` | `ParticleEmission`, `ParticleState` | Initial settings, motion, lifetime, tint, and scale; no engine, ECS, DI, or graphics device required. |
 | `PurrplingCore.Toolkit.Particles` | `ParticleRenderer2D` | Optional static sprite helper for `LayerWriter<DrawCommand>`; independent of ECS. |
-| `PurrplingCore.Ecs.Particles` | `Particle`, `ParticleModule`, `ParticleUpdateSystem` | Store the state in entities, advance simulation, and delete expired entities. |
+| `PurrplingCore.Ecs.Particles` | `ParticlesFeature`, `ParticleOptions`, `ParticleRenderingFeature`, `Particle` | Opt-in simulation/options and optional layered drawing; store state in entities and delete expired ones. |
 | `PurrplingCore.Ecs.Particles` | `EmitParticle`, `ParticleDrawSystem` | Deferred emission and a world-owned query with an optional layered-rendering helper. |
 | Game code | Your effects and draw wrappers | Choose when and what to emit, renderer keys, layers, cameras, assets, or an entirely different drawing backend. |
 
 ## Start With ECS
 
-Register the simulation module and your draw wrapper in the game's existing composition:
+Opt into particle rendering on a world that already has a renderer context:
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
@@ -22,21 +22,35 @@ using PurrplingCore.Ecs.Particles;
 using PurrplingCore.Rendering;
 using PurrplingCore.Toolkit.Rendering;
 
-services.AddWorld(ConfigureWorld).AddParticleModule();
-
-// Only needed when the wrapper chooses the layered renderer.
-services.AddRenderer("World")
-    .AddLayer(GameParticleLayers.Effects)
-    .AddDrawComponent(DrawStage.World);
+services.AddWorld(ConfigureWorld)
+    .AddRenderer<GameWorldRendererConfiguration>()
+    .AddFeature<ParticleRenderingFeature>()
+    .ConfigureOptions<ParticleOptions>(options => options.TimeScale = 0.5f); // optional
+services.AddWorldController();
 
 static void ConfigureWorld(IWorldBlueprint world)
 {
-    world.AddSystem<GameParticleDrawSystem>();
     // Add your gameplay and emission systems here.
 }
 ```
 
-`AddParticleModule()` only installs simulation. It does not register a renderer, select a layer, load textures, or emit particles. The existing world controller or your own world owner calls `Initialize`, `Update`, and `Draw`; enable `AddWorldController()` when using the game-component integration. No particle-specific factory or world-composition changes are needed.
+`ParticleRenderingFeature` depends on `ParticlesFeature`, so this one opt-in adds simulation and the configured draw system. It does not create a renderer, add a draw-loop component, load textures, or emit particles. The world-rendering integration owns the renderer. Its configuration must declare `ParticleRenderingOptions.DefaultLayer`; KittyCat's existing `KittyCatLayers.Effects` already uses that ID. The particle feature submits through the world's existing `RenderContext`.
+
+For simulation without layered drawing, use `.AddFeature<ParticlesFeature>()` or the compatible `.AddParticleModule()` extension. The world owner remains responsible for `Initialize`, `Update`, and `Draw`; use `AddWorldController()` for the default game-component integration.
+
+## Reusable World Features And Options
+
+`IWorldFeature` is a general registration recipe for any optional world capability, not a particle-specific mechanism. See [world features, services and options](../../../PurrplingCore.Ecs/DI/README.md) and its [examples](../../../PurrplingCore.Ecs/DI/EXAMPLES.md), including how to write your own feature. `AddFeature<TFeature>()` applies it immediately while configuring the service collection and deduplicates it by feature type and world marker. Feature implementations can register options and scoped blueprint modules; those modules and systems receive dependencies through ordinary constructor injection.
+
+`IWorldOptions<TOptions>` selects the options for the current world's marker. Configure them inline with `.ConfigureOptions<TOptions>(options => ...)` on the world builder; no configuration class is needed. Two instances of the same marker share settings but have separate world scopes, and different markers can use different settings. Use `services.ConfigureAll<TOptions>(...)` for defaults shared by every world. Marker-specific `.ConfigureOptions` runs afterward regardless of registration order, so it overrides only the properties it sets and keeps the shared values for the rest. Plain `services.Configure<TOptions>(...)` targets unnamed options and does not apply to worlds. This mechanism is reusable for future features such as audio, physics, or gameplay rules.
+
+```csharp
+services.AddWorld<PausedWorld>()
+    .AddFeature<ParticlesFeature>()
+    .ConfigureOptions<ParticleOptions>(options => options.TimeScale = 0f);
+```
+
+`ParticleOptions.TimeScale` defaults to `1`. Zero pauses updates, and other finite nonnegative values scale motion and lifetime. Invalid scales fail when the world's options are composed. A scaled delta that overflows to a non-finite value fails before particle iteration.
 
 ## Emit From Gameplay
 
@@ -76,33 +90,21 @@ Emission timing, bursts, randomness, capacity limits, and game-specific recipes 
 
 ### Layered Renderer
 
-The wrapper chooses its context and layer. This is the complete draw adapter:
+The feature uses `ParticleRenderingOptions.DefaultLayer` by default. Declare that layer on the renderer:
 
 ```csharp
-using Microsoft.Extensions.DependencyInjection;
-using PurrplingCore.Ecs.Attributes;
 using PurrplingCore.Ecs.Particles;
-using PurrplingCore.Ecs.Systems;
+using PurrplingCore.Rendering;
 using PurrplingCore.Toolkit.Rendering;
 
-public static class GameParticleLayers
+public sealed class GameWorldRendererConfiguration : IRendererConfiguration
 {
-    public static readonly RenderLayerId Effects = RenderLayerId.Of("Particles");
-}
-
-[System<DrawSystemGroup>]
-public sealed class GameParticleDrawSystem(
-    [FromKeyedServices("World")] RenderContext context) : ParticleDrawSystem
-{
-    protected override void OnUpdate()
-    {
-        var writer = context.Batch(GameParticleLayers.Effects);
-        Draw(in writer);
-    }
+    public void Configure(RendererOptions options) =>
+        options.AddLayer(ParticleRenderingOptions.DefaultLayer);
 }
 ```
 
-The inherited `Draw` helper only reads the query and queues sprites. It skips expired particles, particles without a texture, and inactive layers. The renderer's existing camera, culling, sorting, blending, and flush path still apply. Particle rendering has no DI service registration of its own.
+The feature's configured system resolves the unkeyed `RenderContext` from the world scope and validates the layer during composition. Override the layer with `.ConfigureOptions<ParticleRenderingOptions>(options => options.Layer = ...)` only when a world needs a different one. Use the world-owned renderer feature shown above, or register a shared global renderer context with `AddService<RenderContext>(...)`. Renderer ownership, camera, culling, sorting, blending, and flush scheduling remain with that existing renderer setup. The particle package does not select a renderer key or register GPU components.
 
 Configure a camera or blend mode on the effects layer in the game's renderer configuration, not in `ParticleModule`. Submit before that renderer's flush in the same frame. See [2D rendering](../../Rendering/README.md) for renderer setup and draw ordering.
 
@@ -115,6 +117,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using PurrplingCore.Ecs.Attributes;
 using PurrplingCore.Ecs.Particles;
+using PurrplingCore.Ecs.Particles.Systems;
 using PurrplingCore.Ecs.Systems;
 
 [System<DrawSystemGroup>]
@@ -143,9 +146,9 @@ public sealed class SpriteParticleDrawSystem(SpriteBatch sprites) : ParticleDraw
 }
 ```
 
-Register your existing `SpriteBatch` with DI and add this system instead of `GameParticleDrawSystem`. Do not register `AddRenderer` for this path. The game controls the graphics target, camera transform, pass ordering, and SpriteBatch lifetime; do not nest this pass inside another active SpriteBatch pass. If drawing is owned by another subsystem, forward state values to that subsystem instead. A primitive-only backend can leave `Texture` unset.
+Register your existing `SpriteBatch` with DI and add this system instead of `ParticleRenderingFeature`. Do not register a layered renderer for this path. The game controls the graphics target, camera transform, pass ordering, and SpriteBatch lifetime; do not nest this pass inside another active SpriteBatch pass. If drawing is owned by another subsystem, forward state values to that subsystem instead. A primitive-only backend can leave `Texture` unset.
 
-For simulation only, register `AddParticleModule()` and omit the draw wrapper altogether.
+For simulation only, register `AddParticleModule()` and omit `ParticleRenderingFeature` and the draw wrapper altogether.
 
 ## Use Toolkit Without ECS
 

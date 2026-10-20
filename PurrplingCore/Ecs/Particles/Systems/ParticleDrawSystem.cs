@@ -4,7 +4,7 @@ using PurrplingCore.Ecs.Systems;
 using PurrplingCore.Toolkit.Particles;
 using PurrplingCore.Toolkit.Rendering;
 
-namespace PurrplingCore.Ecs.Particles;
+namespace PurrplingCore.Ecs.Particles.Systems;
 
 /// <summary>
 /// Provides a world-owned particle query. Game wrappers choose their drawing backend.
