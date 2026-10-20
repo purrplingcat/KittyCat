@@ -36,6 +36,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<WorldContext>();
         services.TryAddAlias<IWorldContext, WorldContext>();
         services.TryAddSingleton<IWorldFactory, WorldFactory>();
+        services.AddWorldOptions();
 
         return services;
     }

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using PurrplingCore.Ecs;
 using PurrplingCore.Ecs.DI;
 using PurrplingCore.Ecs.WorldBuilding;
@@ -41,6 +42,87 @@ public class WorldServiceTests
         Assert.Equal(0, secondService.DisposeCount);
         first.Dispose();
         Assert.Equal(1, firstService.DisposeCount);
+    }
+
+    [Fact]
+    public void WorldOptionsUseNamedValuesAndAreScopedPerWorld()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IConfigureOptions<WorldTestOptions>, SharedWorldTestOptions>();
+        services.AddSingleton<IPostConfigureOptions<WorldTestOptions>, FirstWorldTestOptions>();
+        services.AddWorld<FirstWorld>();
+        services.AddWorld<SecondWorld>();
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateScopes = true,
+            ValidateOnBuild = true,
+        });
+        using var first = CreateWorld<FirstWorld>(provider);
+        using var anotherFirst = CreateWorld<FirstWorld>(provider);
+        using var second = CreateWorld<SecondWorld>(provider);
+
+        var firstOptions = first.Services.GetRequiredService<IWorldOptions<WorldTestOptions>>();
+        var anotherFirstOptions = anotherFirst.Services.GetRequiredService<IWorldOptions<WorldTestOptions>>();
+        var secondOptions = second.Services.GetRequiredService<IWorldOptions<WorldTestOptions>>();
+
+        Assert.Equal(2, firstOptions.Value.Value);
+        Assert.Equal(2, anotherFirstOptions.Value.Value);
+        Assert.Equal(10, secondOptions.Value.Value);
+        Assert.NotSame(firstOptions, anotherFirstOptions);
+        Assert.NotSame(firstOptions.Value, anotherFirstOptions.Value);
+        Assert.Same(firstOptions.Value, first.Services.GetRequiredService<IWorldOptions<WorldTestOptions>>().Value);
+        Assert.Equal(typeof(FirstWorld).AssemblyQualifiedName, WorldOptions.GetName(WorldSignature.For<FirstWorld>()));
+        Assert.NotEqual(WorldOptions.GetName(WorldSignature.For<FirstWorld>()),
+            WorldOptions.GetName(WorldSignature.For<SecondWorld>()));
+    }
+
+    [Fact]
+    public void ConfigureOptionsAppliesOnlyToTheConfiguredWorldMarker()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddWorld<FirstWorld>().ConfigureOptions<WorldTestOptions>(options => options.Value = 2);
+        services.AddWorld<SecondWorld>();
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateScopes = true,
+            ValidateOnBuild = true,
+        });
+        using var first = CreateWorld<FirstWorld>(provider);
+        using var second = CreateWorld<SecondWorld>(provider);
+
+        Assert.Equal(2, first.Services.GetRequiredService<IWorldOptions<WorldTestOptions>>().Value.Value);
+        Assert.Equal(0, second.Services.GetRequiredService<IWorldOptions<WorldTestOptions>>().Value.Value);
+    }
+
+    [Fact]
+    public void MarkerOptionsOverrideSharedDefaultsAndMergeOtherValues()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddWorld<FirstWorld>().ConfigureOptions<WorldTestOptions>(options => options.Value = 2);
+        services.ConfigureAll<WorldTestOptions>(options =>
+        {
+            options.Value = 10;
+            options.Other = 5;
+        });
+        services.Configure<WorldTestOptions>(options => options.Other = 99);
+        services.AddWorld<SecondWorld>();
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateScopes = true,
+            ValidateOnBuild = true,
+        });
+        using var first = CreateWorld<FirstWorld>(provider);
+        using var second = CreateWorld<SecondWorld>(provider);
+
+        var firstOptions = first.Services.GetRequiredService<IWorldOptions<WorldTestOptions>>().Value;
+        var secondOptions = second.Services.GetRequiredService<IWorldOptions<WorldTestOptions>>().Value;
+        Assert.Equal(2, firstOptions.Value);
+        Assert.Equal(5, firstOptions.Other);
+        Assert.Equal(10, secondOptions.Value);
+        Assert.Equal(5, secondOptions.Other);
     }
 
     [Fact]
@@ -238,6 +320,28 @@ public class WorldServiceTests
     }
 
     public sealed class FeatureProbe;
+
+    public sealed class WorldTestOptions
+    {
+        public int Value { get; set; }
+        public int Other { get; set; }
+    }
+
+    private sealed class SharedWorldTestOptions : IConfigureNamedOptions<WorldTestOptions>
+    {
+        public void Configure(WorldTestOptions options) => options.Value = 10;
+
+        public void Configure(string? name, WorldTestOptions options) => Configure(options);
+    }
+
+    private sealed class FirstWorldTestOptions : IPostConfigureOptions<WorldTestOptions>
+    {
+        public void PostConfigure(string? name, WorldTestOptions options)
+        {
+            if (name == WorldOptions.GetName(WorldSignature.For<FirstWorld>()))
+                options.Value = 2;
+        }
+    }
 
     public sealed class ServiceFeature : IWorldFeature
     {
